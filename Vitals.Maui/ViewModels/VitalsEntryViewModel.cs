@@ -1,6 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using System.Collections.ObjectModel;
 using Vitals.Maui.Models;
 using Vitals.Maui.Services;
 
@@ -9,13 +8,7 @@ namespace Vitals.Maui.ViewModels;
 public partial class VitalsEntryViewModel : ObservableObject
 {
     private readonly ApiService _api;
-
-
-    [ObservableProperty]
-    private ObservableCollection<Patient> _patients = new();
-
-    [ObservableProperty]
-    private Patient? _selectedPatient;
+    private readonly PatientStateService _patientState;
 
     [ObservableProperty]
     private string _systolic = string.Empty;
@@ -39,6 +32,9 @@ public partial class VitalsEntryViewModel : ObservableObject
     private string _notes = string.Empty;
 
     [ObservableProperty]
+    private string _weight = string.Empty;
+
+    [ObservableProperty]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -47,50 +43,38 @@ public partial class VitalsEntryViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSuccess;
 
-    public VitalsEntryViewModel(ApiService api)
+    // Delegate to shared state
+    public System.Collections.ObjectModel.ObservableCollection<Patient> Patients =>
+        new(_patientState.Patients);
+
+    public Patient? SelectedPatient
+    {
+        get => _patientState.SelectedPatient;
+        set => _patientState.SelectedPatient = value;
+    }
+
+    public VitalsEntryViewModel(ApiService api, PatientStateService patientState)
     {
         _api = api;
+        _patientState = patientState;
+
+        _patientState.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(PatientStateService.SelectedPatient))
+                OnPropertyChanged(nameof(SelectedPatient));
+        };
     }
 
     [RelayCommand]
     public async Task LoadAsync()
     {
-        IsBusy = true;
-        StatusMessage = string.Empty;
-
-        try
-        {
-            var patientList = await _api.GetPatientsAsync();
-            Patients = new ObservableCollection<Patient>(patientList);
-            // Small delay to let the Picker register the ItemsSource
-            await Task.Delay(100);
-
-            var lastId = Preferences.Get("last_patient_id", string.Empty);
-            if (!string.IsNullOrEmpty(lastId))
-                SelectedPatient = Patients.FirstOrDefault(p => p.PatientId == lastId);
-
-            SelectedPatient ??= Patients.FirstOrDefault();
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Could not load patients: {ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
-    partial void OnSelectedPatientChanged(Patient? value)
-    {
-        if (value is not null)
-            Preferences.Set("last_patient_id", value.PatientId);
+        await _patientState.InitializeAsync();
     }
 
     [RelayCommand]
     public async Task SubmitVitalsAsync()
     {
-        if (SelectedPatient is null)
+        if (_patientState.SelectedPatient is null)
         {
             StatusMessage = "Please select a patient.";
             return;
@@ -101,7 +85,8 @@ public partial class VitalsEntryViewModel : ObservableObject
             string.IsNullOrWhiteSpace(HeartRate) &&
             string.IsNullOrWhiteSpace(OxygenSaturation) &&
             string.IsNullOrWhiteSpace(Temperature) &&
-            string.IsNullOrWhiteSpace(BloodGlucose))
+            string.IsNullOrWhiteSpace(BloodGlucose) &&
+            string.IsNullOrWhiteSpace(Weight))
         {
             StatusMessage = "Please enter at least one vital.";
             return;
@@ -115,14 +100,15 @@ public partial class VitalsEntryViewModel : ObservableObject
         {
             var entry = new VitalEntry
             {
-                PatientId = SelectedPatient.PatientId,
-                RecordedAt = null, // backend does COALESCE to now()
+                PatientId = _patientState.SelectedPatient.PatientId,
+                RecordedAt = null,
                 Systolic = TryParseInt(Systolic),
                 Diastolic = TryParseInt(Diastolic),
                 HeartRate = TryParseInt(HeartRate),
                 OxygenSaturation = TryParseInt(OxygenSaturation),
                 Temperature = TryParseDouble(Temperature),
                 BloodGlucose = TryParseInt(BloodGlucose),
+                Weight = TryParseDouble(Weight),
                 Notes = Notes
             };
 
@@ -157,6 +143,7 @@ public partial class VitalsEntryViewModel : ObservableObject
         OxygenSaturation = string.Empty;
         Temperature = string.Empty;
         BloodGlucose = string.Empty;
+        Weight = string.Empty;
         Notes = string.Empty;
     }
 

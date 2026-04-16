@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+               x:Class="Vitals.Maui.Views.AllergyDetailPopup"
+               x:DataType="vm:AllergyDetailViewModel">
+
+    <Grid RowDefinitions="*,Auto"
+          HeightRequest="580"
+          WidthRequest="360"
+          BackgroundColor="#1a1a2e">
+
+        <ScrollView Grid.Row="0" Padding="16">
+            <VerticalStackLayout Spacing="16">
+
+                <!-- Allergen Name -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <Label Grid.Column="0"
+                           Text="{Binding Allergen}"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           TextColor="White"
+                           LineBreakMode="WordWrap"
+                           VerticalOptions="Center"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Entry Grid.Column="0"
+                           Text="{Binding Allergen}"
+                           FontSize="16"
+                           TextColor="White"
+                           BackgroundColor="#0f3460"
+                           Placeholder="Allergen name"
+                           PlaceholderColor="#666"
+                           IsVisible="{Binding IsEditing}" />
+
+                    <!-- Severity Badge -->
+                    <Border Grid.Column="1"
+                            Padding="8,4"
+                            StrokeShape="RoundRectangle 6"
+                            VerticalOptions="Center"
+                            IsVisible="{Binding IsEditing,
+                                Converter={StaticResource InvertedBoolConverter}}">
+                        <Border.BackgroundColor>
+                            <Binding Path="SelectedSeverityLabel">
+                                <Binding.Converter>
+                                    <StaticResource Key="BoolToColorConverter" />
+                                </Binding.Converter>
+                            </Binding>
+                        </Border.BackgroundColor>
+                        <Label Text="{Binding SelectedSeverityLabel}"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               TextColor="White" />
+                    </Border>
+                </Grid>
+
+                <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+
+                <!-- Type (read-only display) -->
+                <VerticalStackLayout Spacing="2"
+                                     IsVisible="{Binding IsEditing,
+                                         Converter={StaticResource InvertedBoolConverter}}">
+                    <Label Text="Type" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding SelectedTypeLabel}"
+                           FontSize="14"
+                           TextColor="#e0e0e0" />
+                </VerticalStackLayout>
+
+                <!-- Type toggles (edit mode) -->
+                <VerticalStackLayout Spacing="6"
+                                     IsVisible="{Binding IsEditing}">
+                    <Label Text="Type" FontSize="11" TextColor="#90caf9" />
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto"
+                          ColumnSpacing="8" RowSpacing="8">
+                        <Button Grid.Row="0" Grid.Column="0"
+                                Text="💊 Medication"
+                                BackgroundColor="{Binding MedicationColor}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="40" CornerRadius="8"
+                                Command="{Binding SelectMedicationCommand}"
+                                InputTransparent="{Binding IsEditing,
+                                    Converter={StaticResource InvertedBoolConverter}}" />
+                        <Button Grid.Row="0" Grid.Column="1"
+                                Text="🍔 Food"
+                                BackgroundColor="{Binding FoodColor}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="40" CornerRadius="8"
+                                Command="{Binding SelectFoodCommand}"
+                                InputTransparent="{Binding IsEditing,
+                                    Converter={StaticResource InvertedBoolConverter}}" />
+                        <Button Grid.Row="1" Grid.Column="0"
+                                Text="🌿 Environmental"
+                                BackgroundColor="{Binding EnvironmentalColor}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="40" CornerRadius="8"
+                                Command="{Binding SelectEnvironmentalCommand}"
+                                InputTransparent="{Binding IsEditing,
+                                    Converter={StaticResource InvertedBoolConverter}}" />
+                        <Button Grid.Row="1" Grid.Column="1"
+                                Text="❓ Other"
+                                BackgroundColor="{Binding OtherTypeColor}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="40" CornerRadius="8"
+                                Command="{Binding SelectOtherTypeCommand}"
+                                InputTransparent="{Binding IsEditing,
+                                    Converter={StaticResource InvertedBoolConverter}}" />
+                    </Grid>
+                </VerticalStackLayout>
+
+                <!-- Severity (read-only display) -->
+                <VerticalStackLayout Spacing="2"
+                                     IsVisible="{Binding IsEditing,
+                                         Converter={StaticResource InvertedBoolConverter}}">
+                    <Label Text="Severity" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding SelectedSeverityLabel}"
+                           FontSize="14"
+                           TextColor="#e0e0e0" />
+                </VerticalStackLayout>
+
+                <!-- Severity toggles (edit mode) -->
+                <VerticalStackLayout Spacing="6"
+                                     IsVisible="{Binding IsEditing}">
+                    <Label Text="Severity" FontSize="11" TextColor="#90caf9" />
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                        <Button Grid.Column="0"
+                                Text="Mild"
+                                BackgroundColor="{Binding MildColor}"
+                                TextColor="White" FontSize="13"
+                                HeightRequest="40" CornerRadius="8"
+                                Command="{Binding SelectMildCommand}" />
+                        <Button Grid.Column="1"
+                                Text="Moderate"
+                                BackgroundColor="{Binding ModerateColor}"
+                                TextColor="White" FontSize="13"
+                                HeightRequest="40" CornerRadius="8"
+                                Command="{Binding SelectModerateCommand}" />
+                        <Button Grid.Column="2"
+                                Text="Severe"
+                                BackgroundColor="{Binding SevereColor}"
+                                TextColor="White" FontSize="13"
+                                HeightRequest="40" CornerRadius="8"
+                                Command="{Binding SelectSevereCommand}" />
+                    </Grid>
+                </VerticalStackLayout>
+
+                <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+
+                <!-- Reaction -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Reaction" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding Reaction}"
+                           FontSize="14"
+                           TextColor="#e0e0e0"
+                           LineBreakMode="WordWrap"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Entry Text="{Binding Reaction}"
+                           FontSize="14"
+                           TextColor="White"
+                           BackgroundColor="#0f3460"
+                           Placeholder="Describe the reaction"
+                           PlaceholderColor="#666"
+                           IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <!-- Notes -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Notes" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding Notes}"
+                           FontSize="14"
+                           TextColor="#e0e0e0"
+                           LineBreakMode="WordWrap"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Editor Text="{Binding Notes}"
+                            FontSize="14"
+                            TextColor="White"
+                            BackgroundColor="#0f3460"
+                            Placeholder="Additional notes"
+                            PlaceholderColor="#666"
+                            AutoSize="TextChanges"
+                            MinimumHeightRequest="60"
+                            IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <!-- Active Toggle (edit mode only) -->
+                <Grid ColumnDefinitions="*,Auto"
+                      IsVisible="{Binding IsEditing}">
+                    <Label Grid.Column="0"
+                           Text="Active"
+                           FontSize="14"
+                           TextColor="#90caf9"
+                           VerticalOptions="Center" />
+                    <Switch Grid.Column="1"
+                            IsToggled="{Binding IsActive}"
+                            OnColor="#1976d2" />
+                </Grid>
+
+                <!-- Status -->
+                <Label Text="{Binding StatusMessage}"
+                       IsVisible="{Binding StatusMessage,
+                           Converter={StaticResource StringToBoolConverter}}"
+                       TextColor="#d32f2f"
+                       FontSize="13"
+                       HorizontalOptions="Center" />
+
+                <!-- Busy -->
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   Color="#90caf9"
+                                   HorizontalOptions="Center" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Bottom Buttons -->
+        <Grid Grid.Row="1"
+              Padding="16"
+              BackgroundColor="#16213e"
+              ColumnDefinitions="*,*"
+              ColumnSpacing="8">
+
+            <!-- Read-only: Close + Edit -->
+            <Button Grid.Column="0"
+                    Text="✖  Close"
+                    BackgroundColor="#0f3460"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing,
+                        Converter={StaticResource InvertedBoolConverter}}"
+                    Clicked="OnCloseClicked" />
+            <Button Grid.Column="1"
+                    Text="✏️  Edit"
+                    BackgroundColor="#1976d2"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing,
+                        Converter={StaticResource InvertedBoolConverter}}"
+                    Command="{Binding StartEditCommand}" />
+
+            <!-- Edit mode: Cancel + Save -->
+            <Button Grid.Column="0"
+                    Text="✖  Cancel"
+                    BackgroundColor="#0f3460"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing}"
+                    Command="{Binding CancelCommand}" />
+            <Button Grid.Column="1"
+                    Text="✅  Save"
+                    BackgroundColor="#1976d2"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing}"
+                    Command="{Binding SaveCommand}" />
+        </Grid>
+    </Grid>
+</toolkit:Popup>

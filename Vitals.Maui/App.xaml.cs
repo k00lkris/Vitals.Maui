@@ -1,15 +1,29 @@
-﻿namespace Vitals.Maui
+﻿using Vitals.Maui.Services;
+
+namespace Vitals.Maui
 {
     public partial class App : Application
     {
-        public App()
+        private readonly PatientStateService _patientState;
+
+        public App(PatientStateService patientState)
         {
             InitializeComponent();
+            _patientState = patientState;
         }
 
         protected override Window CreateWindow(IActivationState? activationState)
         {
-            return new Window(new AppShell());
+            try
+            {
+                return new Window(new AppShell(_patientState));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"=== CREATE WINDOW ERROR: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"=== STACK: {ex.StackTrace}");
+                throw;
+            }
         }
     }
 }

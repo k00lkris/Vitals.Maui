@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             xmlns:models="clr-namespace:Vitals.Maui.Models"
+             x:Class="Vitals.Maui.Views.NotesPage"
+             x:DataType="vm:NotesViewModel"
+             BackgroundColor="#1a1a2e">
+
+    <RefreshView Command="{Binding LoadCommand}"
+                 IsRefreshing="{Binding IsBusy}"
+                 RefreshColor="#90caf9">
+        <ScrollView>
+            <VerticalStackLayout Padding="16" Spacing="12">
+
+                <!-- Header -->
+                <Border Padding="16"
+                        BackgroundColor="#16213e"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="#2a2a4a">
+                    <VerticalStackLayout Spacing="10">
+                        <Label FontSize="18" FontAttributes="Bold" TextColor="White">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Notes — " TextColor="#90caf9" />
+                                    <Span Text="{Binding SelectedPatient.FullName,
+                                              TargetNullValue='', FallbackValue=''}"
+                                          TextColor="White" FontAttributes="Bold" />
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                        <Button Text="📝  Add Note"
+                                BackgroundColor="#1976d2"
+                                TextColor="White"
+                                FontSize="13"
+                                HeightRequest="44"
+                                CornerRadius="8"
+                                Command="{Binding OpenAddNoteCommand}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- No Notes -->
+                <Label Text="No notes recorded yet."
+                       IsVisible="{Binding HasNoNotes}"
+                       FontSize="14" TextColor="#888888"
+                       HorizontalOptions="Center"
+                       Margin="0,16" />
+
+                <!-- Notes List -->
+                <Border Padding="16"
+                        BackgroundColor="#16213e"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="#2a2a4a"
+                        IsVisible="{Binding HasNoNotes,
+                            Converter={StaticResource InvertedBoolConverter}}">
+                    <VerticalStackLayout Spacing="8">
+
+                        <Label Text="📝  Notes"
+                               FontSize="20" FontAttributes="Bold"
+                               TextColor="White" Margin="0,0,0,8" />
+
+                        <CollectionView ItemsSource="{Binding Notes}">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:PatientNote">
+                                    <Border Padding="12"
+                                            Margin="0,0,0,8"
+                                            BackgroundColor="#0f3460"
+                                            StrokeShape="RoundRectangle 8"
+                                            Stroke="#2a2a4a">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <!-- Type color indicator -->
+                                            <BoxView Grid.Column="0"
+                                                     WidthRequest="4"
+                                                     CornerRadius="2"
+                                                     Margin="0,0,10,0"
+                                                     VerticalOptions="Fill"
+                                                     Color="{Binding TypeColor}" />
+
+                                            <VerticalStackLayout Grid.Column="1"
+                                                                 Spacing="4">
+                                                <Label Text="{Binding DisplayTitle}"
+                                                       FontSize="14"
+                                                       FontAttributes="Bold"
+                                                       TextColor="White" />
+                                                <Label Text="{Binding DisplayType}"
+                                                       FontSize="12"
+                                                       TextColor="#90caf9" />
+                                                <Label Text="{Binding Body}"
+                                                       FontSize="12"
+                                                       TextColor="#aaaaaa"
+                                                       LineBreakMode="TailTruncation"
+                                                       MaxLines="2"
+                                                       IsVisible="{Binding Body,
+                                                           Converter={StaticResource StringToBoolConverter}}" />
+                                                <Label Text="{Binding DisplayDate}"
+                                                       FontSize="11"
+                                                       TextColor="#666666" />
+                                            </VerticalStackLayout>
+
+                                            <Label Grid.Column="2"
+                                                   Text="›"
+                                                   FontSize="24"
+                                                   TextColor="#90caf9"
+                                                   VerticalOptions="Center" />
+                                        </Grid>
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:NotesViewModel}},
+                                                    Path=OpenNoteDetailCommand}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Status -->
+                <Label Text="{Binding StatusMessage}"
+                       IsVisible="{Binding StatusMessage,
+                           Converter={StaticResource StringToBoolConverter}}"
+                       TextColor="#d32f2f"
+                       FontSize="13"
+                       HorizontalOptions="Center" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </RefreshView>
+</ContentPage>

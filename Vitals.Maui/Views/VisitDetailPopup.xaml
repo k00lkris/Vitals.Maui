@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+               x:Class="Vitals.Maui.Views.VisitDetailPopup"
+               x:DataType="vm:VisitDetailViewModel">
+
+    <Grid RowDefinitions="*,Auto"
+          HeightRequest="680"
+          WidthRequest="360"
+          BackgroundColor="#1a1a2e">
+
+        <ScrollView Grid.Row="0" Padding="16">
+            <VerticalStackLayout Spacing="14">
+
+                <!-- Doctor Picker -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Doctor" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding SelectedDoctor.Name,
+                               TargetNullValue='No doctor selected',
+                               FallbackValue='No doctor selected'}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Picker Title="Select doctor..."
+                            TitleColor="#666666"
+                            TextColor="White"
+                            BackgroundColor="#0f3460"
+                            ItemsSource="{Binding PatientDoctors}"
+                            ItemDisplayBinding="{Binding Name}"
+                            SelectedItem="{Binding SelectedDoctor}"
+                            IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <!-- Visit Date -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Visit Date" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding VisitDate, StringFormat='{0:MMM d, yyyy h:mm tt}'}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <DatePicker Date="{Binding VisitDate}"
+                                TextColor="White"
+                                BackgroundColor="#0f3460"
+                                IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <!-- Reason -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Reason for Visit" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding Reason, TargetNullValue='—', FallbackValue='—'}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           LineBreakMode="WordWrap"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Entry Text="{Binding Reason}"
+                           FontSize="14" TextColor="White"
+                           BackgroundColor="#0f3460"
+                           Placeholder="Reason for visit"
+                           PlaceholderColor="#666"
+                           IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+
+                <!-- Vitals Snapshot (add mode only) -->
+                <VerticalStackLayout Spacing="8"
+                                     IsVisible="{Binding IsAddMode}">
+                    <Label Text="Vitals Snapshot (optional)"
+                           FontSize="13" FontAttributes="Bold"
+                           TextColor="#90caf9" />
+
+                    <!-- BP + HR -->
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="Systolic" FontSize="11" TextColor="#90caf9" />
+                            <Entry Text="{Binding Systolic}"
+                                   Keyboard="Numeric"
+                                   TextColor="White"
+                                   BackgroundColor="#0f3460"
+                                   Placeholder="—"
+                                   PlaceholderColor="#666"
+                                   FontSize="14" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2">
+                            <Label Text="Diastolic" FontSize="11" TextColor="#90caf9" />
+                            <Entry Text="{Binding Diastolic}"
+                                   Keyboard="Numeric"
+                                   TextColor="White"
+                                   BackgroundColor="#0f3460"
+                                   Placeholder="—"
+                                   PlaceholderColor="#666"
+                                   FontSize="14" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="2" Spacing="2">
+                            <Label Text="Heart Rate" FontSize="11" TextColor="#90caf9" />
+                            <Entry Text="{Binding HeartRate}"
+                                   Keyboard="Numeric"
+                                   TextColor="White"
+                                   BackgroundColor="#0f3460"
+                                   Placeholder="—"
+                                   PlaceholderColor="#666"
+                                   FontSize="14" />
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <!-- SpO2 + Temp + Weight -->
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="SpO₂ %" FontSize="11" TextColor="#90caf9" />
+                            <Entry Text="{Binding OxygenSaturation}"
+                                   Keyboard="Numeric"
+                                   TextColor="White"
+                                   BackgroundColor="#0f3460"
+                                   Placeholder="—"
+                                   PlaceholderColor="#666"
+                                   FontSize="14" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="1" Spacing="2">
+                            <Label Text="Temp °F" FontSize="11" TextColor="#90caf9" />
+                            <Entry Text="{Binding Temperature}"
+                                   Keyboard="Numeric"
+                                   TextColor="White"
+                                   BackgroundColor="#0f3460"
+                                   Placeholder="—"
+                                   PlaceholderColor="#666"
+                                   FontSize="14" />
+                        </VerticalStackLayout>
+                        <VerticalStackLayout Grid.Column="2" Spacing="2">
+                            <Label Text="Weight lbs" FontSize="11" TextColor="#90caf9" />
+                            <Entry Text="{Binding Weight}"
+                                   Keyboard="Numeric"
+                                   TextColor="White"
+                                   BackgroundColor="#0f3460"
+                                   Placeholder="—"
+                                   PlaceholderColor="#666"
+                                   FontSize="14" />
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <!-- Glucose -->
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="Glucose" FontSize="11" TextColor="#90caf9" />
+                            <Entry Text="{Binding BloodGlucose}"
+                                   Keyboard="Numeric"
+                                   TextColor="White"
+                                   BackgroundColor="#0f3460"
+                                   Placeholder="—"
+                                   PlaceholderColor="#666"
+                                   FontSize="14" />
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+                </VerticalStackLayout>
+
+                <!-- Notes -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Notes" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding Notes, TargetNullValue='—', FallbackValue='—'}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           LineBreakMode="WordWrap"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Editor Text="{Binding Notes}"
+                            FontSize="14" TextColor="White"
+                            BackgroundColor="#0f3460"
+                            Placeholder="Visit notes"
+                            PlaceholderColor="#666"
+                            AutoSize="TextChanges"
+                            MinimumHeightRequest="80"
+                            IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <!-- Follow Up -->
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Follow Up" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding DisplayFollowUp}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Grid ColumnDefinitions="Auto,*"
+                          IsVisible="{Binding IsEditing}">
+                        <CheckBox Grid.Column="0"
+                                  IsChecked="{Binding HasFollowUp}"
+                                  Color="#1976d2" />
+                        <Label Grid.Column="1"
+                               Text="Schedule follow up"
+                               FontSize="13" TextColor="#e0e0e0"
+                               VerticalOptions="Center" />
+                    </Grid>
+                    <DatePicker Date="{Binding FollowUpDate}"
+                                TextColor="White"
+                                BackgroundColor="#0f3460"
+                                IsVisible="{Binding HasFollowUp}" />
+                </VerticalStackLayout>
+
+                <!-- Status -->
+                <Label Text="{Binding StatusMessage}"
+                       IsVisible="{Binding StatusMessage,
+                           Converter={StaticResource StringToBoolConverter}}"
+                       TextColor="#d32f2f"
+                       FontSize="13"
+                       HorizontalOptions="Center" />
+
+                <!-- Busy -->
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   Color="#90caf9"
+                                   HorizontalOptions="Center" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Bottom Buttons -->
+        <Grid Grid.Row="1"
+              Padding="16"
+              BackgroundColor="#16213e"
+              ColumnDefinitions="*,*"
+              ColumnSpacing="8">
+
+            <Button Grid.Column="0"
+                    Text="✖  Close"
+                    BackgroundColor="#0f3460"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing,
+                        Converter={StaticResource InvertedBoolConverter}}"
+                    Clicked="OnCloseClicked" />
+            <Button Grid.Column="1"
+                    Text="✏️  Edit"
+                    BackgroundColor="#1976d2"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing,
+                        Converter={StaticResource InvertedBoolConverter}}"
+                    Command="{Binding StartEditCommand}" />
+
+            <Button Grid.Column="0"
+                    Text="✖  Cancel"
+                    BackgroundColor="#0f3460"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing}"
+                    Command="{Binding CancelCommand}" />
+            <Button Grid.Column="1"
+                    Text="✅  Save"
+                    BackgroundColor="#1976d2"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing}"
+                    Command="{Binding SaveCommand}" />
+        </Grid>
+    </Grid>
+</toolkit:Popup>

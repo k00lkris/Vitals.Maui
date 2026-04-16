@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             xmlns:models="clr-namespace:Vitals.Maui.Models"
+             x:Class="Vitals.Maui.Views.VisitLogPage"
+             x:DataType="vm:VisitLogViewModel"
+             BackgroundColor="#1a1a2e">
+
+    <RefreshView Command="{Binding LoadCommand}"
+                 IsRefreshing="{Binding IsBusy}"
+                 RefreshColor="#90caf9">
+        <ScrollView>
+            <VerticalStackLayout Padding="16" Spacing="12">
+
+                <!-- Header -->
+                <Border Padding="16"
+                        BackgroundColor="#16213e"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="#2a2a4a">
+                    <VerticalStackLayout Spacing="10">
+                        <Label FontSize="18" FontAttributes="Bold" TextColor="White">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Visit Log — " TextColor="#90caf9" />
+                                    <Span Text="{Binding SelectedPatient.FullName,
+                                              TargetNullValue='', FallbackValue=''}"
+                                          TextColor="White" FontAttributes="Bold" />
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                        <Button Text="➕  Log Visit"
+                                BackgroundColor="#1976d2"
+                                TextColor="White"
+                                FontSize="13"
+                                HeightRequest="44"
+                                CornerRadius="8"
+                                Command="{Binding OpenAddVisitCommand}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- No Visits -->
+                <Label Text="No visits logged yet."
+                       IsVisible="{Binding HasNoVisits}"
+                       FontSize="14" TextColor="#888888"
+                       HorizontalOptions="Center"
+                       Margin="0,16" />
+
+                <!-- Visit List -->
+                <Border Padding="16"
+                        BackgroundColor="#16213e"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="#2a2a4a"
+                        IsVisible="{Binding HasNoVisits,
+                            Converter={StaticResource InvertedBoolConverter}}">
+                    <VerticalStackLayout Spacing="8">
+
+                        <Label Text="🏥  Visits"
+                               FontSize="20" FontAttributes="Bold"
+                               TextColor="White" Margin="0,0,0,8" />
+
+                        <CollectionView ItemsSource="{Binding Visits}">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:VisitLog">
+                                    <Border Padding="12"
+                                            Margin="0,0,0,8"
+                                            BackgroundColor="#0f3460"
+                                            StrokeShape="RoundRectangle 8"
+                                            Stroke="#2a2a4a">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <VerticalStackLayout Grid.Column="0" Spacing="4">
+                                                <Label Text="{Binding DisplayDate}"
+                                                       FontSize="13"
+                                                       FontAttributes="Bold"
+                                                       TextColor="White" />
+                                                <Label Text="{Binding DisplayDoctor}"
+                                                       FontSize="13"
+                                                       TextColor="#90caf9" />
+                                                <Label Text="{Binding Reason}"
+                                                       FontSize="12"
+                                                       TextColor="#aaaaaa"
+                                                       LineBreakMode="WordWrap"
+                                                       IsVisible="{Binding Reason,
+                                                           Converter={StaticResource StringToBoolConverter}}" />
+                                                <Label Text="{Binding DisplayFollowUp,
+                                                           StringFormat='Follow up: {0}'}"
+                                                       FontSize="11"
+                                                       TextColor="#f57c00"
+                                                       IsVisible="{Binding FollowUpDate,
+                                                           Converter={StaticResource StringToBoolConverter}}" />
+                                            </VerticalStackLayout>
+                                            <Label Grid.Column="1"
+                                                   Text="›"
+                                                   FontSize="24"
+                                                   TextColor="#90caf9"
+                                                   VerticalOptions="Center" />
+                                        </Grid>
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:VisitLogViewModel}},
+                                                    Path=OpenVisitDetailCommand}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Status -->
+                <Label Text="{Binding StatusMessage}"
+                       IsVisible="{Binding StatusMessage,
+                           Converter={StaticResource StringToBoolConverter}}"
+                       TextColor="#d32f2f"
+                       FontSize="13"
+                       HorizontalOptions="Center" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </RefreshView>
+</ContentPage>

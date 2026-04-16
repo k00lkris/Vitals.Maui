@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             xmlns:models="clr-namespace:Vitals.Maui.Models"
+             x:Class="Vitals.Maui.Views.IncidentLogPage"
+             x:DataType="vm:IncidentLogViewModel"
+             BackgroundColor="#1a1a2e">
+
+    <RefreshView Command="{Binding LoadCommand}"
+                 IsRefreshing="{Binding IsBusy}"
+                 RefreshColor="#90caf9">
+        <ScrollView>
+            <VerticalStackLayout Padding="16" Spacing="12">
+
+                <!-- Header -->
+                <Border Padding="16"
+                        BackgroundColor="#16213e"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="#2a2a4a">
+                    <VerticalStackLayout Spacing="10">
+                        <Label FontSize="18" FontAttributes="Bold" TextColor="White">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Incident Log — " TextColor="#90caf9" />
+                                    <Span Text="{Binding SelectedPatient.FullName,
+                                              TargetNullValue='', FallbackValue=''}"
+                                          TextColor="White" FontAttributes="Bold" />
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                        <Button Text="⚠️  Log Incident"
+                                BackgroundColor="#d32f2f"
+                                TextColor="White"
+                                FontSize="13"
+                                HeightRequest="44"
+                                CornerRadius="8"
+                                Command="{Binding OpenAddIncidentCommand}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- No Incidents -->
+                <Label Text="No incidents logged."
+                       IsVisible="{Binding HasNoIncidents}"
+                       FontSize="14" TextColor="#888888"
+                       HorizontalOptions="Center"
+                       Margin="0,16" />
+
+                <!-- Incident List -->
+                <Border Padding="16"
+                        BackgroundColor="#16213e"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="#2a2a4a"
+                        IsVisible="{Binding HasNoIncidents,
+                            Converter={StaticResource InvertedBoolConverter}}">
+                    <VerticalStackLayout Spacing="8">
+
+                        <Label Text="⚠️  Incidents"
+                               FontSize="20" FontAttributes="Bold"
+                               TextColor="White" Margin="0,0,0,8" />
+
+                        <CollectionView ItemsSource="{Binding Incidents}">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:IncidentLog">
+                                    <Border Padding="12"
+                                            Margin="0,0,0,8"
+                                            BackgroundColor="#0f3460"
+                                            StrokeShape="RoundRectangle 8"
+                                            Stroke="#2a2a4a">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <!-- Severity indicator -->
+                                            <BoxView Grid.Column="0"
+                                                     WidthRequest="4"
+                                                     CornerRadius="2"
+                                                     Margin="0,0,10,0"
+                                                     VerticalOptions="Fill">
+                                                <BoxView.Color>
+                                                    <Binding Path="SeverityColor" />
+                                                </BoxView.Color>
+                                            </BoxView>
+
+                                            <VerticalStackLayout Grid.Column="1"
+                                                                 Spacing="4">
+                                                <Label Text="{Binding DisplayDate}"
+                                                       FontSize="13"
+                                                       FontAttributes="Bold"
+                                                       TextColor="White" />
+                                                <Label Text="{Binding DisplayType}"
+                                                       FontSize="13"
+                                                       TextColor="#90caf9" />
+                                                <Label Text="{Binding Description}"
+                                                       FontSize="12"
+                                                       TextColor="#aaaaaa"
+                                                       LineBreakMode="TailTruncation"
+                                                       MaxLines="2"
+                                                       IsVisible="{Binding Description,
+                                                           Converter={StaticResource StringToBoolConverter}}" />
+                                                <Border Padding="6,2"
+                                                        BackgroundColor="{Binding SeverityColor}"
+                                                        StrokeShape="RoundRectangle 4"
+                                                        HorizontalOptions="Start">
+                                                    <Label Text="{Binding DisplaySeverity}"
+                                                           FontSize="11"
+                                                           FontAttributes="Bold"
+                                                           TextColor="White" />
+                                                </Border>
+                                            </VerticalStackLayout>
+
+                                            <Label Grid.Column="2"
+                                                   Text="›"
+                                                   FontSize="24"
+                                                   TextColor="#90caf9"
+                                                   VerticalOptions="Center" />
+                                        </Grid>
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:IncidentLogViewModel}},
+                                                    Path=OpenIncidentDetailCommand}"
+                                                CommandParameter="{Binding .}" />
+                                        </Border.GestureRecognizers>
+                                    </Border>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Status -->
+                <Label Text="{Binding StatusMessage}"
+                       IsVisible="{Binding StatusMessage,
+                           Converter={StaticResource StringToBoolConverter}}"
+                       TextColor="#d32f2f"
+                       FontSize="13"
+                       HorizontalOptions="Center" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </RefreshView>
+</ContentPage>

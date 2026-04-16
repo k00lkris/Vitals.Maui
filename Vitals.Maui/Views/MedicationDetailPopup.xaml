@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+               x:Class="Vitals.Maui.Views.MedicationDetailPopup"
+               x:DataType="vm:MedicationDetailViewModel">
+
+    <Grid RowDefinitions="*,Auto"
+          HeightRequest="640"
+          WidthRequest="360"
+          BackgroundColor="#1a1a2e">
+
+        <!-- Scrollable Content -->
+        <ScrollView Grid.Row="0" Padding="16">
+            <VerticalStackLayout Spacing="16">
+
+                <!-- Row 1: Name + Rx/OTC -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <!-- Read-only name -->
+                    <Label Grid.Column="0"
+                       Text="{Binding Name}"
+                       FontSize="18"
+                       FontAttributes="Bold"
+                       TextColor="White"
+                       VerticalOptions="Center"
+                       LineBreakMode="WordWrap"
+                       IsVisible="{Binding IsEditing, 
+                           Converter={StaticResource InvertedBoolConverter}}" />
+                    <!-- Edit name -->
+                    <Entry Grid.Column="0"
+                           Text="{Binding Name}"
+                           FontSize="16"
+                           TextColor="White"
+                           BackgroundColor="#0f3460"
+                           IsVisible="{Binding IsEditing}" />
+
+                    <!-- Read-only Rx/OTC badge -->
+                    <Border Grid.Column="1"
+                            Padding="8,4"
+                            BackgroundColor="#1976d2"
+                            StrokeShape="RoundRectangle 6"
+                            VerticalOptions="Center"
+                            IsVisible="{Binding IsEditing,
+                                Converter={StaticResource InvertedBoolConverter}}">
+                        <Label Text="{Binding IsRx, 
+                                   Converter={StaticResource BoolToStringConverter},
+                                   ConverterParameter='Rx|OTC'}"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               TextColor="White" />
+                    </Border>
+
+                    <!-- Edit Rx/OTC toggles -->
+                    <Grid Grid.Column="1"
+                          ColumnDefinitions="Auto,Auto"
+                          ColumnSpacing="4"
+                          IsVisible="{Binding IsEditing}">
+                        <Button Grid.Column="0"
+                                Text="Rx"
+                                BackgroundColor="{Binding RxColor}"
+                                TextColor="White"
+                                FontSize="12"
+                                HeightRequest="36"
+                                WidthRequest="44"
+                                CornerRadius="6"
+                                Command="{Binding SelectRxCommand}" />
+                        <Button Grid.Column="1"
+                                Text="OTC"
+                                BackgroundColor="{Binding OtcColor}"
+                                TextColor="White"
+                                FontSize="12"
+                                HeightRequest="36"
+                                WidthRequest="44"
+                                CornerRadius="6"
+                                Command="{Binding SelectOtcCommand}" />
+                    </Grid>
+                </Grid>
+
+                <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+
+                <!-- Purpose -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Purpose"
+                           FontSize="11"
+                           TextColor="#90caf9" />
+                    <Label Text="{Binding Purpose}"
+                           FontSize="14"
+                           TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Entry Text="{Binding Purpose}"
+                           FontSize="14"
+                           TextColor="White"
+                           BackgroundColor="#0f3460"
+                           Placeholder="What is this for?"
+                           PlaceholderColor="#666"
+                           IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <!-- Instructions / Dosage -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Instructions"
+                           FontSize="11"
+                           TextColor="#90caf9" />
+                    <Label Text="{Binding Dosage}"
+                           FontSize="14"
+                           TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Entry Text="{Binding Dosage}"
+                           FontSize="14"
+                           TextColor="White"
+                           BackgroundColor="#0f3460"
+                           Placeholder="Dosage instructions"
+                           PlaceholderColor="#666"
+                           IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <!-- Prescribing Doctor -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Prescribing Doctor"
+                           FontSize="11"
+                           TextColor="#90caf9" />
+                    <Label Text="{Binding SelectedDoctor.Name}"
+                           FontSize="14"
+                           TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Picker ItemsSource="{Binding Doctors}"
+                            SelectedItem="{Binding SelectedDoctor}"
+                            Title="Select Doctor"
+                            TitleColor="#666"
+                            TextColor="White"
+                            BackgroundColor="#0f3460"
+                            IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+
+                <!-- Time of Day -->
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Time of Day"
+                           FontSize="11"
+                           FontAttributes="Bold"
+                           TextColor="#90caf9" />
+                    <Grid ColumnDefinitions="*,*"
+                          RowDefinitions="Auto,Auto"
+                          ColumnSpacing="8"
+                          RowSpacing="8">
+                        <Button Grid.Row="0" Grid.Column="0"
+                                Text="🌅  Morning"
+                                BackgroundColor="{Binding MorningColor}"
+                                TextColor="White" FontSize="13"
+                                HeightRequest="44" CornerRadius="8"
+                                Command="{Binding ToggleMorningCommand}"
+                                InputTransparent="{Binding IsEditing,
+                                    Converter={StaticResource InvertedBoolConverter}}" />
+                        <Button Grid.Row="0" Grid.Column="1"
+                                Text="☀️  Midday"
+                                BackgroundColor="{Binding MiddayColor}"
+                                TextColor="White" FontSize="13"
+                                HeightRequest="44" CornerRadius="8"
+                                Command="{Binding ToggleMiddayCommand}"
+                                InputTransparent="{Binding IsEditing,
+                                    Converter={StaticResource InvertedBoolConverter}}" />
+                        <Button Grid.Row="1" Grid.Column="0"
+                                Text="🌆  Evening"
+                                BackgroundColor="{Binding EveningColor}"
+                                TextColor="White" FontSize="13"
+                                HeightRequest="44" CornerRadius="8"
+                                Command="{Binding ToggleEveningCommand}"
+                                InputTransparent="{Binding IsEditing,
+                                    Converter={StaticResource InvertedBoolConverter}}" />
+                        <Button Grid.Row="1" Grid.Column="1"
+                                Text="🌙  Night"
+                                BackgroundColor="{Binding NightColor}"
+                                TextColor="White" FontSize="13"
+                                HeightRequest="44" CornerRadius="8"
+                                Command="{Binding ToggleNightCommand}"
+                                InputTransparent="{Binding IsEditing,
+                                    Converter={StaticResource InvertedBoolConverter}}" />
+                    </Grid>
+                </VerticalStackLayout>
+
+                <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+
+                <!-- Qty + Days Supply -->
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                    <VerticalStackLayout Grid.Column="0" Spacing="2">
+                        <Label Text="Qty"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               TextColor="#90caf9" />
+                        <Label Text="{Binding Qty}"
+                               FontSize="14"
+                               TextColor="#e0e0e0"
+                               IsVisible="{Binding IsEditing,
+                                   Converter={StaticResource InvertedBoolConverter}}" />
+                        <Entry Text="{Binding Qty}"
+                               Keyboard="Numeric"
+                               FontSize="14"
+                               TextColor="White"
+                               BackgroundColor="#0f3460"
+                               Placeholder="—"
+                               PlaceholderColor="#666"
+                               IsVisible="{Binding IsEditing}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="1" Spacing="2">
+                        <Label Text="Days Supply"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               TextColor="#90caf9" />
+                        <Label Text="{Binding DaysSupply}"
+                               FontSize="14"
+                               TextColor="#e0e0e0"
+                               IsVisible="{Binding IsEditing,
+                                   Converter={StaticResource InvertedBoolConverter}}" />
+                        <Entry Text="{Binding DaysSupply}"
+                               Keyboard="Numeric"
+                               FontSize="14"
+                               TextColor="White"
+                               BackgroundColor="#0f3460"
+                               Placeholder="—"
+                               PlaceholderColor="#666"
+                               IsVisible="{Binding IsEditing}" />
+                    </VerticalStackLayout>
+                </Grid>
+
+                <!-- Fill Date + Est Refill (always read-only) -->
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                    <VerticalStackLayout Grid.Column="0" Spacing="2">
+                        <Label Text="Fill Date"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               TextColor="#90caf9" />
+                        <Label Text="{Binding FillDate}"
+                               FontSize="14"
+                               TextColor="#e0e0e0" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Grid.Column="1" Spacing="2">
+                        <Label Text="Est. Refill"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               TextColor="#90caf9" />
+                        <Label Text="{Binding EstRefill}"
+                               FontSize="14"
+                               TextColor="#e0e0e0" />
+                    </VerticalStackLayout>
+                </Grid>
+
+                <!-- Active Toggle (edit mode only) -->
+                <Grid ColumnDefinitions="*,Auto"
+                      IsVisible="{Binding IsEditing}">
+                    <Label Grid.Column="0"
+                           Text="Active"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           TextColor="#90caf9"
+                           VerticalOptions="Center" />
+                    <Switch Grid.Column="1"
+                            IsToggled="{Binding IsActive}"
+                            OnColor="#1976d2" />
+                </Grid>
+
+                <!-- Status Message -->
+                <Label Text="{Binding StatusMessage}"
+                       IsVisible="{Binding StatusMessage,
+                           Converter={StaticResource StringToBoolConverter}}"
+                       TextColor="#d32f2f"
+                       FontSize="13"
+                       HorizontalOptions="Center" />
+
+                <!-- Busy -->
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   Color="#90caf9"
+                                   HorizontalOptions="Center" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Bottom Buttons -->
+        <Grid Grid.Row="1"
+              Padding="16"
+              BackgroundColor="#16213e"
+              ColumnDefinitions="*,*"
+              ColumnSpacing="8">
+
+            <!-- Read-only: Close + Edit -->
+            <Button Grid.Column="0"
+                    Text="✖  Close"
+                    BackgroundColor="#0f3460"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing,
+                        Converter={StaticResource InvertedBoolConverter}}"
+                    Clicked="OnCloseClicked" />
+            <Button Grid.Column="1"
+                    Text="✏️  Edit"
+                    BackgroundColor="#1976d2"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing,
+                        Converter={StaticResource InvertedBoolConverter}}"
+                    Command="{Binding StartEditCommand}" />
+
+            <!-- Edit mode: Cancel + Save -->
+            <Button Grid.Column="0"
+                    Text="✖  Cancel"
+                    BackgroundColor="#0f3460"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing}"
+                    Command="{Binding CancelCommand}" />
+            <Button Grid.Column="1"
+                    Text="✅  Save"
+                    BackgroundColor="#1976d2"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing}"
+                    Command="{Binding SaveCommand}" />
+
+        </Grid>
+    </Grid>
+</toolkit:Popup>

@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+               x:Class="Vitals.Maui.Views.IncidentDetailPopup"
+               x:DataType="vm:IncidentDetailViewModel">
+
+    <Grid RowDefinitions="*,Auto"
+          HeightRequest="680"
+          WidthRequest="360"
+          BackgroundColor="#1a1a2e">
+
+        <ScrollView Grid.Row="0" Padding="16">
+            <VerticalStackLayout Spacing="14">
+
+                <!-- Severity -->
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Severity" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding SelectedSeverityLabel}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="4"
+                            IsVisible="{Binding IsEditing}">
+                        <Button Grid.Column="0" Text="Low"
+                            BackgroundColor="{Binding LowColor}"
+                            TextColor="White" FontSize="11"
+                            HeightRequest="36" CornerRadius="6"
+                            Command="{Binding SelectLowCommand}" />
+                        <Button Grid.Column="1" Text="Med"
+                            BackgroundColor="{Binding MediumColor}"
+                            TextColor="White" FontSize="11"
+                            HeightRequest="36" CornerRadius="6"
+                            Command="{Binding SelectMediumCommand}" />
+                        <Button Grid.Column="2" Text="High"
+                            BackgroundColor="{Binding HighColor}"
+                            TextColor="White" FontSize="11"
+                            HeightRequest="36" CornerRadius="6"
+                            Command="{Binding SelectHighCommand}" />
+                        <Button Grid.Column="3" Text="Critical"
+                            BackgroundColor="{Binding CriticalColor}"
+                            TextColor="White" FontSize="11"
+                            HeightRequest="36" CornerRadius="6"
+                            Command="{Binding SelectCriticalCommand}" />
+                    </Grid>
+                </VerticalStackLayout>
+
+                <!-- Incident Date -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Date" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding IncidentDate,
+                               StringFormat='{0:MMM d, yyyy h:mm tt}'}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <DatePicker Date="{Binding IncidentDate}"
+                                TextColor="White"
+                                BackgroundColor="#0f3460"
+                                IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <!-- Incident Type -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Type" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding IncidentType,
+                               TargetNullValue='—', FallbackValue='—'}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Entry Text="{Binding IncidentType}"
+                           FontSize="14" TextColor="White"
+                           BackgroundColor="#0f3460"
+                           Placeholder="e.g. Hospital visit, 911 call, Fall"
+                           PlaceholderColor="#666"
+                           IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <!-- Location -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Location" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding Location,
+                               TargetNullValue='—', FallbackValue='—'}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Entry Text="{Binding Location}"
+                           FontSize="14" TextColor="White"
+                           BackgroundColor="#0f3460"
+                           Placeholder="Where did this occur?"
+                           PlaceholderColor="#666"
+                           IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+
+                <!-- Description -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Description" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding Description,
+                               TargetNullValue='—', FallbackValue='—'}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           LineBreakMode="WordWrap"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Editor Text="{Binding Description}"
+                            FontSize="14" TextColor="White"
+                            BackgroundColor="#0f3460"
+                            Placeholder="What happened?"
+                            PlaceholderColor="#666"
+                            AutoSize="TextChanges"
+                            MinimumHeightRequest="80"
+                            IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <!-- Outcome -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Outcome" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding Outcome,
+                               TargetNullValue='—', FallbackValue='—'}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           LineBreakMode="WordWrap"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Editor Text="{Binding Outcome}"
+                            FontSize="14" TextColor="White"
+                            BackgroundColor="#0f3460"
+                            Placeholder="What was the result?"
+                            PlaceholderColor="#666"
+                            AutoSize="TextChanges"
+                            MinimumHeightRequest="60"
+                            IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+
+                <!-- Follow Up Needed -->
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Follow Up" FontSize="11" TextColor="#90caf9" />
+                    <Label Text="{Binding FollowUpNeeded,
+                               Converter={StaticResource BoolToStringConverter}}"
+                           FontSize="14" TextColor="#e0e0e0"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <Grid ColumnDefinitions="Auto,*"
+                          IsVisible="{Binding IsEditing}">
+                        <CheckBox Grid.Column="0"
+                                  IsChecked="{Binding FollowUpNeeded}"
+                                  Color="#1976d2" />
+                        <Label Grid.Column="1"
+                               Text="Follow up needed"
+                               FontSize="13" TextColor="#e0e0e0"
+                               VerticalOptions="Center" />
+                    </Grid>
+
+                    <!-- Follow Up Notes -->
+                    <VerticalStackLayout Spacing="2"
+                                         IsVisible="{Binding FollowUpNeeded}">
+                        <Label Text="Follow Up Notes"
+                               FontSize="11" TextColor="#90caf9" />
+                        <Label Text="{Binding FollowUpNotes,
+                                   TargetNullValue='—', FallbackValue='—'}"
+                               FontSize="14" TextColor="#e0e0e0"
+                               LineBreakMode="WordWrap"
+                               IsVisible="{Binding IsEditing,
+                                   Converter={StaticResource InvertedBoolConverter}}" />
+                        <Editor Text="{Binding FollowUpNotes}"
+                                FontSize="14" TextColor="White"
+                                BackgroundColor="#0f3460"
+                                Placeholder="Follow up instructions or notes"
+                                PlaceholderColor="#666"
+                                AutoSize="TextChanges"
+                                MinimumHeightRequest="60"
+                                IsVisible="{Binding IsEditing}" />
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+
+                <!-- Delete button (edit mode, existing only) -->
+                <Button Text="🗑️  Delete Incident"
+                        BackgroundColor="#d32f2f"
+                        TextColor="White"
+                        FontSize="13"
+                        HeightRequest="44"
+                        CornerRadius="8"
+                        IsVisible="{Binding ShowDeleteButton}"
+                        Command="{Binding DeleteCommand}" />
+
+                <!-- Status -->
+                <Label Text="{Binding StatusMessage}"
+                       IsVisible="{Binding StatusMessage,
+                           Converter={StaticResource StringToBoolConverter}}"
+                       TextColor="#d32f2f"
+                       FontSize="13"
+                       HorizontalOptions="Center" />
+
+                <!-- Busy -->
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   Color="#90caf9"
+                                   HorizontalOptions="Center" />
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Bottom Buttons -->
+        <Grid Grid.Row="1"
+              Padding="16"
+              BackgroundColor="#16213e"
+              ColumnDefinitions="*,*"
+              ColumnSpacing="8">
+
+            <Button Grid.Column="0"
+                    Text="✖  Close"
+                    BackgroundColor="#0f3460"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing,
+                        Converter={StaticResource InvertedBoolConverter}}"
+                    Clicked="OnCloseClicked" />
+            <Button Grid.Column="1"
+                    Text="✏️  Edit"
+                    BackgroundColor="#1976d2"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing,
+                        Converter={StaticResource InvertedBoolConverter}}"
+                    Command="{Binding StartEditCommand}" />
+
+            <Button Grid.Column="0"
+                    Text="✖  Cancel"
+                    BackgroundColor="#0f3460"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing}"
+                    Command="{Binding CancelCommand}" />
+            <Button Grid.Column="1"
+                    Text="✅  Save"
+                    BackgroundColor="#1976d2"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    IsVisible="{Binding IsEditing}"
+                    Command="{Binding SaveCommand}" />
+        </Grid>
+    </Grid>
+</toolkit:Popup>

@@ -8,6 +8,7 @@
             <converters:StringToBoolConverter x:Key="StringToBoolConverter" />
             <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
             <converters:InvertedBoolConverter x:Key="InvertedBoolConverter" />
+            <converters:BoolToStringConverter x:Key="BoolToStringConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

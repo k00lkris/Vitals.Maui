@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             xmlns:models="clr-namespace:Vitals.Maui.Models"
+             x:Class="Vitals.Maui.Views.GeneratePdfPage"
+             x:DataType="vm:GeneratePdfViewModel"
+             BackgroundColor="#1a1a2e">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="12">
+
+            <!-- Header -->
+            <Border Padding="16"
+                    BackgroundColor="#16213e"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="#2a2a4a">
+                <VerticalStackLayout Spacing="10">
+                    <Label FontSize="18"
+                           FontAttributes="Bold"
+                           TextColor="White">
+                        <Label.FormattedText>
+                            <FormattedString>
+                                <Span Text="Reports — " TextColor="#90caf9" />
+                                <Span Text="{Binding SelectedPatient.FullName,
+                                          TargetNullValue='',
+                                          FallbackValue=''}"
+                                      TextColor="White"
+                                      FontAttributes="Bold" />
+                            </FormattedString>
+                        </Label.FormattedText>
+                    </Label>
+
+                    <!-- Day Range Buttons -->
+                    <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="6">
+                        <Button Grid.Column="0" Text="15d"
+                                BackgroundColor="{Binding Btn15Color}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Command="{Binding SelectDaysCommand}"
+                                CommandParameter="15" />
+                        <Button Grid.Column="1" Text="30d"
+                                BackgroundColor="{Binding Btn30Color}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Command="{Binding SelectDaysCommand}"
+                                CommandParameter="30" />
+                        <Button Grid.Column="2" Text="45d"
+                                BackgroundColor="{Binding Btn45Color}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Command="{Binding SelectDaysCommand}"
+                                CommandParameter="45" />
+                        <Button Grid.Column="3" Text="60d"
+                                BackgroundColor="{Binding Btn60Color}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Command="{Binding SelectDaysCommand}"
+                                CommandParameter="60" />
+                        <Button Grid.Column="4"
+                                Text="{Binding CustomDaysLabel}"
+                                BackgroundColor="{Binding BtnCustomColor}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Clicked="OnCustomDaysClicked" />
+                    </Grid>
+
+                    <!-- Generate Button -->
+                    <Button Text="📄  Generate PDF"
+                            BackgroundColor="#1976d2"
+                            TextColor="White"
+                            FontSize="15"
+                            FontAttributes="Bold"
+                            HeightRequest="48"
+                            CornerRadius="8"
+                            Command="{Binding GeneratePdfCommand}"
+                            IsEnabled="{Binding IsBusy,
+                                Converter={StaticResource InvertedBoolConverter}}" />
+
+                    <!-- Status -->
+                    <Label Text="{Binding StatusMessage}"
+                           IsVisible="{Binding StatusMessage,
+                               Converter={StaticResource StringToBoolConverter}}"
+                           TextColor="{Binding IsSuccess,
+                               Converter={StaticResource BoolToColorConverter}}"
+                           FontSize="13"
+                           HorizontalOptions="Center" />
+
+                    <!-- Busy -->
+                    <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                       IsVisible="{Binding IsBusy}"
+                                       Color="#90caf9"
+                                       HorizontalOptions="Center" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Reports List -->
+            <Border Padding="16"
+                    BackgroundColor="#16213e"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="#2a2a4a">
+                <VerticalStackLayout Spacing="8">
+
+                    <Label Text="📋  Generated Reports"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           TextColor="White"
+                           Margin="0,0,0,8" />
+
+                    <!-- No Reports -->
+                    <Label Text="No reports generated yet."
+                           IsVisible="{Binding HasNoReports}"
+                           FontSize="14"
+                           TextColor="#888888"
+                           HorizontalOptions="Center"
+                           Margin="0,8" />
+
+                    <!-- Report Items -->
+                    <CollectionView ItemsSource="{Binding Reports}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:PdfReport">
+                                <Border Padding="12"
+                                        Margin="0,0,0,8"
+                                        BackgroundColor="#0f3460"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="#2a2a4a">
+                                    <Grid ColumnDefinitions="*,Auto,Auto"
+                                          ColumnSpacing="8">
+                                        <VerticalStackLayout Grid.Column="0"
+                                                             Spacing="2">
+                                            <Label Text="{Binding DisplayDays}"
+                                                   FontSize="14"
+                                                   FontAttributes="Bold"
+                                                   TextColor="White" />
+                                            <Label Text="{Binding DisplayDate}"
+                                                   FontSize="12"
+                                                   TextColor="#aaaaaa" />
+                                        </VerticalStackLayout>
+
+                                        <!-- Share Button -->
+                                        <Button Grid.Column="1"
+                                                Text="↑"
+                                                BackgroundColor="#1976d2"
+                                                TextColor="White"
+                                                FontSize="16"
+                                                WidthRequest="44"
+                                                HeightRequest="44"
+                                                CornerRadius="8"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:GeneratePdfViewModel}},
+                                                    Path=ShareReportCommand}"
+                                                CommandParameter="{Binding .}" />
+
+                                        <!-- Delete Button -->
+                                        <Button Grid.Column="2"
+                                                Text="✖"
+                                                BackgroundColor="#d32f2f"
+                                                TextColor="White"
+                                                FontSize="14"
+                                                WidthRequest="44"
+                                                HeightRequest="44"
+                                                CornerRadius="8"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:GeneratePdfViewModel}},
+                                                    Path=DeleteReportCommand}"
+                                                CommandParameter="{Binding .}" />
+                                    </Grid>
+
+                                    <!-- Tap to open -->
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type vm:GeneratePdfViewModel}},
+                                                Path=OpenReportCommand}"
+                                            CommandParameter="{Binding .}" />
+                                    </Border.GestureRecognizers>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+
+                </VerticalStackLayout>
+            </Border>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

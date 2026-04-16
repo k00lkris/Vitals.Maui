@@ -3,12 +3,114 @@
        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
        xmlns:views="clr-namespace:Vitals.Maui.Views"
        x:Class="Vitals.Maui.AppShell"
-       Shell.NavBarIsVisible="False"
-       BackgroundColor="#1a1a2e">
+       FlyoutBackgroundColor="#16213e"
+       FlyoutBehavior="Flyout"
+       Shell.BackgroundColor="#16213e"
+       Shell.ForegroundColor="White"
+       Shell.TitleColor="White">
 
-    <ShellContent
-        Title="Vitals"
-        ContentTemplate="{DataTemplate views:VitalsEntryPage}"
-        Route="VitalsEntry" />
+    <!-- Flyout Header -->
+    <Shell.FlyoutHeader>
+        <Grid HeightRequest="180"
+          BackgroundColor="#0f3460"
+          Padding="24,40,24,16">
+            <VerticalStackLayout VerticalOptions="End" Spacing="8">
+                <Image Source="vitals_logo.png"
+                   HeightRequest="48"
+                   HorizontalOptions="Start"
+                   Aspect="AspectFit" />
+                <Label Text="Patient"
+                   FontSize="12"
+                   TextColor="#90caf9" />
+                <Border Padding="10,8"
+                    BackgroundColor="#16213e"
+                    StrokeShape="RoundRectangle 8"
+                    Stroke="#2a2a4a">
+                    <Picker Title="Select Patient"
+                        TitleColor="#90caf9"
+                        TextColor="White"
+                        BackgroundColor="Transparent"
+                        ItemsSource="{Binding Patients}"
+                        SelectedItem="{Binding SelectedPatient}" />
+                </Border>
+            </VerticalStackLayout>
+        </Grid>
+    </Shell.FlyoutHeader>
+
+    <!-- Home / Dashboard -->
+    <FlyoutItem Title="🏠  Home"
+                Route="Dashboard">
+        <ShellContent
+            ContentTemplate="{DataTemplate views:DashboardPage}" />
+    </FlyoutItem>
+
+    <!-- Enter Vitals -->
+    <FlyoutItem Title="➕  Enter Vitals"
+                Route="VitalsEntry">
+        <ShellContent
+            ContentTemplate="{DataTemplate views:VitalsEntryPage}" />
+    </FlyoutItem>
+
+    <!-- Medications -->
+    <FlyoutItem Title="💊  Medications"
+                Route="Medications">
+        <ShellContent
+            ContentTemplate="{DataTemplate views:MedicationsPage}" />
+    </FlyoutItem>
+
+    <!-- Care Team -->
+    <FlyoutItem Title="👨‍⚕️  Care Team"
+                Route="CareTeam">
+        <ShellContent
+            ContentTemplate="{DataTemplate views:CareTeamPage}" />
+    </FlyoutItem>
+
+    <!-- Generate PDF -->
+    <FlyoutItem Title="📄  Generate PDF"
+                Route="GeneratePdf">
+        <ShellContent
+            ContentTemplate="{DataTemplate views:GeneratePdfPage}" />
+    </FlyoutItem>
+    
+    <FlyoutItem Title="⚠️  Allergies"
+            Route="Allergies">
+        <ShellContent
+        ContentTemplate="{DataTemplate views:AllergiesPage}" />
+    </FlyoutItem>
+    
+    <!-- Vitals History -->
+    <FlyoutItem Title="📋  Vitals History"
+            Route="VitalsHistory">
+        <ShellContent
+        ContentTemplate="{DataTemplate views:VitalsHistoryPage}" />
+    </FlyoutItem>
+    
+    <FlyoutItem Title="🏥  Visit Log"
+            Route="VisitLog">
+        <ShellContent
+        ContentTemplate="{DataTemplate views:VisitLogPage}" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="⚠️  Incident Log"
+            Route="IncidentLog">
+        <ShellContent
+        ContentTemplate="{DataTemplate views:IncidentLogPage}" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="📝  Notes"
+            Route="Notes">
+        <ShellContent
+        ContentTemplate="{DataTemplate views:NotesPage}" />
+    </FlyoutItem>
+    
+    <!-- Flyout Footer -->
+    <Shell.FlyoutFooter>
+        <Grid Padding="24,16" BackgroundColor="#0f3460">
+            <Label Text="Vitals v0.1 aplha"
+                   FontSize="11"
+                   TextColor="#666666"
+                   HorizontalOptions="Center" />
+        </Grid>
+    </Shell.FlyoutFooter>
 
 </Shell>

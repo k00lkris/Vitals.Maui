@@ -33,4 +33,6 @@ public class VitalEntry
 
     [JsonPropertyName("notes")]
     public string Notes { get; set; } = string.Empty;
+    [JsonPropertyName("weight")]
+    public double? Weight { get; set; }
 }
