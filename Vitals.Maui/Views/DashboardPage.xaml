@@ -12,34 +12,32 @@
 
             <!-- Patient Header Card -->
             <Border Padding="16"
-                BackgroundColor="#16213e"
-                StrokeShape="RoundRectangle 12"
-                Stroke="#2a2a4a">
+                    BackgroundColor="#16213e"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="#2a2a4a">
                 <VerticalStackLayout Spacing="10">
                     <Label FontSize="18"
-                       FontAttributes="Bold"
-                       TextColor="White">
+                           FontAttributes="Bold"
+                           TextColor="White">
                         <Label.FormattedText>
                             <FormattedString>
                                 <Span Text="Dashboard — " TextColor="#90caf9" />
                                 <Span Text="{Binding SelectedPatient.FullName}"
-                                  TextColor="White"
-                                  FontAttributes="Bold" />
+                                      TextColor="White"
+                                      FontAttributes="Bold" />
                             </FormattedString>
                         </Label.FormattedText>
                     </Label>
                     <Button Text="➕  Enter Vitals"
-                        BackgroundColor="#1976d2"
-                        TextColor="White"
-                        FontSize="15"
-                        FontAttributes="Bold"
-                        HeightRequest="48"
-                        CornerRadius="8"
-                        Command="{Binding GoToVitalsEntryCommand}" />
+                            BackgroundColor="#1976d2"
+                            TextColor="White"
+                            FontSize="15"
+                            FontAttributes="Bold"
+                            HeightRequest="48"
+                            CornerRadius="8"
+                            Command="{Binding GoToVitalsEntryCommand}" />
                 </VerticalStackLayout>
             </Border>
-
-            <!-- Latest Vitals Card -->
 
             <!-- Latest Vitals Card -->
             <Border Padding="16"
@@ -210,55 +208,61 @@
 
             <!-- Vitals Analysis + Charts -->
             <Border Padding="16"
-        BackgroundColor="#16213e"
-        StrokeShape="RoundRectangle 12"
-        Stroke="#2a2a4a">
+                    BackgroundColor="#16213e"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="#2a2a4a">
                 <VerticalStackLayout Spacing="12">
 
                     <Label Text="Vitals Analysis"
-               FontSize="18"
-               FontAttributes="Bold"
-               TextColor="White" />
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           TextColor="White" />
 
-                    <Label Text="Clinical trend analysis coming in a future update."
-               FontSize="13"
-               TextColor="#888888" />
+                    <!-- 📊 Vitals Analysis popup launcher -->
+                    <Button Text="📊  Vitals Analysis"
+                            BackgroundColor="#1976d2"
+                            TextColor="White"
+                            FontSize="15"
+                            FontAttributes="Bold"
+                            HeightRequest="48"
+                            CornerRadius="8"
+                            Command="{Binding OpenVitalsAnalysisCommand}" />
 
                     <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
 
                     <!-- Charts Toggle Button -->
                     <Button Text="{Binding ChartsToggleText}"
-                BackgroundColor="#0f3460"
-                TextColor="White"
-                FontSize="14"
-                HeightRequest="44"
-                CornerRadius="8"
-                Command="{Binding ToggleChartsCommand}" />
+                            BackgroundColor="#0f3460"
+                            TextColor="White"
+                            FontSize="14"
+                            HeightRequest="44"
+                            CornerRadius="8"
+                            Command="{Binding ToggleChartsCommand}" />
 
                     <!-- View History Button -->
                     <Button Text="📋  View History"
-                        BackgroundColor="#0f3460"
-                        TextColor="White"
-                        FontSize="14"
-                        HeightRequest="44"
-                        CornerRadius="8"
-                        Command="{Binding GoToVitalsHistoryCommand}" />
+                            BackgroundColor="#0f3460"
+                            TextColor="White"
+                            FontSize="14"
+                            HeightRequest="44"
+                            CornerRadius="8"
+                            Command="{Binding GoToVitalsHistoryCommand}" />
 
                     <!-- Charts Section -->
                     <VerticalStackLayout IsVisible="{Binding ChartsExpanded}"
-                             Spacing="16">
+                                         Spacing="16">
 
                         <!-- Blood Pressure Chart -->
                         <VerticalStackLayout Spacing="4">
                             <Label Text="Blood Pressure (mmHg)"
-                       FontSize="13"
-                       FontAttributes="Bold"
-                       TextColor="#90caf9" />
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="#90caf9" />
                             <lvc:CartesianChart
-                    Series="{Binding BpSeries}"
-                    XAxes="{Binding DateAxes}"
-                    HeightRequest="200"
-                    BackgroundColor="Transparent" />
+                                Series="{Binding BpSeries}"
+                                XAxes="{Binding DateAxes}"
+                                HeightRequest="200"
+                                BackgroundColor="Transparent" />
                         </VerticalStackLayout>
 
                         <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
@@ -266,14 +270,14 @@
                         <!-- Heart Rate Chart -->
                         <VerticalStackLayout Spacing="4">
                             <Label Text="Heart Rate (bpm)"
-                       FontSize="13"
-                       FontAttributes="Bold"
-                       TextColor="#90caf9" />
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="#90caf9" />
                             <lvc:CartesianChart
-                    Series="{Binding HeartRateSeries}"
-                    XAxes="{Binding DateAxes}"
-                    HeightRequest="200"
-                    BackgroundColor="Transparent" />
+                                Series="{Binding HeartRateSeries}"
+                                XAxes="{Binding DateAxes}"
+                                HeightRequest="200"
+                                BackgroundColor="Transparent" />
                         </VerticalStackLayout>
 
                         <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
@@ -281,14 +285,14 @@
                         <!-- SpO2 Chart -->
                         <VerticalStackLayout Spacing="4">
                             <Label Text="SpO₂ (%)"
-                       FontSize="13"
-                       FontAttributes="Bold"
-                       TextColor="#90caf9" />
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="#90caf9" />
                             <lvc:CartesianChart
-                    Series="{Binding Spo2Series}"
-                    XAxes="{Binding DateAxes}"
-                    HeightRequest="200"
-                    BackgroundColor="Transparent" />
+                                Series="{Binding Spo2Series}"
+                                XAxes="{Binding DateAxes}"
+                                HeightRequest="200"
+                                BackgroundColor="Transparent" />
                         </VerticalStackLayout>
 
                         <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
@@ -296,14 +300,14 @@
                         <!-- Temperature Chart -->
                         <VerticalStackLayout Spacing="4">
                             <Label Text="Temperature (°F)"
-                       FontSize="13"
-                       FontAttributes="Bold"
-                       TextColor="#90caf9" />
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="#90caf9" />
                             <lvc:CartesianChart
-                    Series="{Binding TempSeries}"
-                    XAxes="{Binding DateAxes}"
-                    HeightRequest="200"
-                    BackgroundColor="Transparent" />
+                                Series="{Binding TempSeries}"
+                                XAxes="{Binding DateAxes}"
+                                HeightRequest="200"
+                                BackgroundColor="Transparent" />
                         </VerticalStackLayout>
 
                     </VerticalStackLayout>
@@ -319,4 +323,5 @@
 
         </VerticalStackLayout>
     </ScrollView>
+
 </ContentPage>

@@ -60,6 +60,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<IncidentLogPage>();
         builder.Services.AddSingleton<NotesViewModel>();
         builder.Services.AddSingleton<NotesPage>();
+        builder.Services.AddTransient<VitalsAnalysisViewModel>();
+
 
 
         // Views
@@ -80,8 +82,7 @@ public static class MauiProgram
         builder.Services.AddTransient<IncidentDetailPopup>();
         builder.Services.AddTransient<NoteDetailViewModel>();
         builder.Services.AddTransient<NoteDetailPopup>();
-
-
+        builder.Services.AddTransient<VitalsAnalysisView>();
 
 #if DEBUG
         builder.Logging.AddDebug();

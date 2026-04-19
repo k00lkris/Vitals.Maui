@@ -82,38 +82,46 @@ public partial class DoctorDetailViewModel : ObservableObject
         IsAddMode = doctor is null;
         IsEditing = IsAddMode;
 
-        System.Diagnostics.Debug.WriteLine($"=== LATEST VISIT: patientId={patientId} doctorId={doctor.DoctorId}");
-        var latest = await _api.GetLatestVisitAsync(patientId, doctor.DoctorId);
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            LatestVisit = latest;
-            HasVisitHistory = latest is not null;
-        }); 
-
-        System.Diagnostics.Debug.WriteLine($"=== LATEST VISIT RESULT: {latest?.DisplayVisitDate ?? "null"}");
-
-
-
         if (doctor is not null)
         {
             _original = doctor;
             LoadFromDoctor(doctor);
             ShowExistingDoctors = false;
             ShowNewDoctorForm = true;
+
+            System.Diagnostics.Debug.WriteLine($"=== LATEST VISIT: patientId={patientId} doctorId={doctor.DoctorId}");
+            var latest = await _api.GetLatestVisitAsync(patientId, doctor.DoctorId);
+            System.Diagnostics.Debug.WriteLine($"=== LATEST VISIT RESULT: {latest?.DisplayVisitDate ?? "null"}");
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                LatestVisit = latest;
+                HasVisitHistory = latest is not null;
+            });
         }
         else
         {
-            // Load all household doctors
-            var household = await _api.GetHouseholdDoctorsAsync();
+            try
+            {
+                var household = await _api.GetHouseholdDoctorsAsync();
 
-            // Load already-linked doctors for this patient
-            var linked = await _api.GetDoctorsAsync(patientId);
-            var linkedIds = linked.Select(d => d.DoctorId).ToHashSet();
+                List<Doctor> linked = new();
+                if (!string.IsNullOrEmpty(patientId))
+                    linked = await _api.GetDoctorsAsync(patientId);
 
-            // Filter out already-linked doctors
-            HouseholdDoctors = household
-                .Where(d => !linkedIds.Contains(d.DoctorId))
-                .ToList();
+                var linkedIds = linked
+                    .Where(d => d?.DoctorId != null)
+                    .Select(d => d.DoctorId)
+                    .ToHashSet();
+
+                HouseholdDoctors = household
+                    .Where(d => d?.DoctorId != null && !linkedIds.Contains(d.DoctorId))
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"=== INIT DOCTORS ERROR: {ex.Message}");
+                HouseholdDoctors = new List<Doctor>();
+            }
 
             ShowExistingDoctors = HouseholdDoctors.Any();
             ShowNewDoctorForm = !HouseholdDoctors.Any();

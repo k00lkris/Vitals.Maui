@@ -77,28 +77,39 @@ public partial class CareTeamViewModel : ObservableObject
     [RelayCommand]
     public async Task OpenDoctorDetailAsync(Doctor doctor)
     {
-        var vm = Application.Current!.Handler.MauiContext!
-            .Services.GetService<DoctorDetailViewModel>()!;
-        await vm.InitializeAsync(doctor, _patientState.SelectedPatient!.PatientId);
+        if (_patientState.SelectedPatient is null) return;
+
+        var vm = Application.Current?.Handler?.MauiContext?.Services
+            .GetService<DoctorDetailViewModel>();
+
+        if (vm is null) return;
+
+        await vm.InitializeAsync(doctor, _patientState.SelectedPatient.PatientId);
 
         var popup = new DoctorDetailPopup(vm);
         await Shell.Current.CurrentPage.ShowPopupAsync(popup);
-
-        // Always reload after popup closes
         await LoadDoctorsAsync();
     }
 
     [RelayCommand]
     public async Task OpenAddDoctorAsync()
     {
-        var vm = Application.Current!.Handler.MauiContext!
-            .Services.GetService<DoctorDetailViewModel>()!;
-        await vm.InitializeAsync(null, _patientState.SelectedPatient!.PatientId);
+        try
+        {
+            var vm = Application.Current!.Handler.MauiContext!
+                .Services.GetService<DoctorDetailViewModel>()!;
+            await vm.InitializeAsync(null, _patientState.SelectedPatient!.PatientId);
 
-        var popup = new DoctorDetailPopup(vm);
-        await Shell.Current.CurrentPage.ShowPopupAsync(popup);
-
-        // Always reload after popup closes
-        await LoadDoctorsAsync();
+            var popup = new DoctorDetailPopup(vm);
+            await Shell.Current.CurrentPage.ShowPopupAsync(popup);
+            await LoadDoctorsAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== ADD DOCTOR CRASH: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"=== STACK: {ex.StackTrace}");
+            await Shell.Current.DisplayAlert("Error",
+                "Could not open Add Doctor. Please check your connection.", "OK");
+        }
     }
 }

@@ -4,6 +4,17 @@
         <name>Vitals.Maui</name>
     </assembly>
     <members>
+        <member name="M:Vitals.Maui.Services.MathService.Loess(System.Double[],System.Double[],System.Double)">
+            <summary>
+            LOESS (Locally Weighted Scatterplot Smoothing)
+            bandwidth: fraction of points used for each local fit (0.2–0.5 typical)
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.Services.MathService.DateTimesToDays(System.Collections.Generic.IList{System.DateTime})">
+            <summary>
+            Convert DateTime list to normalized double array (days from first)
+            </summary>
+        </member>
         <member name="T:Vitals.Maui.Services.PatientStateService">
             <inheritdoc/>
         </member>
@@ -242,6 +253,7 @@
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
+            <inheritdoc/>
         </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.LatestBp">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._latestBp"/>
@@ -312,6 +324,9 @@
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.DateAxes">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._dateAxes"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.SmoothedBpSeries">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._smoothedBpSeries"/>
+        </member>
         <member name="F:Vitals.Maui.ViewModels.DashboardViewModel.loadCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.DashboardViewModel.LoadCommand"/>.</summary>
         </member>
@@ -341,6 +356,12 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.GoToVitalsHistoryCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.DashboardViewModel.GoToVitalsHistoryAsync"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.DashboardViewModel.openVitalsAnalysisCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.DashboardViewModel.OpenVitalsAnalysisCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.OpenVitalsAnalysisCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.DashboardViewModel.OpenVitalsAnalysisAsync"/>.</summary>
         </member>
         <member name="T:Vitals.Maui.ViewModels.DoctorDetailViewModel">
             <inheritdoc/>
@@ -1209,6 +1230,105 @@
         <member name="P:Vitals.Maui.ViewModels.VisitLogViewModel.OpenAddVisitCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VisitLogViewModel.OpenAddVisitAsync"/>.</summary>
         </member>
+        <member name="T:Vitals.Maui.ViewModels.VitalsAnalysisViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Analysis">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._analysis"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.IsBusy">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._isBusy"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.StatusMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._statusMessage"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.IsInsufficient">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._isInsufficient"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.IsOk">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._isOk"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectedDays">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._selectedDays"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Btn15Color">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._btn15Color"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Btn30Color">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._btn30Color"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Btn45Color">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._btn45Color"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Btn60Color">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._btn60Color"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.BtnCustomColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._btnCustomColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.CustomDaysLabel">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._customDaysLabel"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.PlainEnglishSummary">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._plainEnglishSummary"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.PcpLine">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._pcpLine"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TabBpColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tabBpColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TabHrColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tabHrColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TabSpo2Color">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tabSpo2Color"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TabTempColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tabTempColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowBp">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showBp"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowHr">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showHr"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowSpo2">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showSpo2"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowTemp">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showTemp"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.HrSummary">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._hrSummary"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Spo2Summary">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._spo2Summary"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TempSummary">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tempSummary"/>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.selectDaysCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectDaysCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectDaysCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand`1"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectDaysAsync(System.String)"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.selectCustomDaysCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectCustomDaysCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectCustomDaysCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand`1"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectCustomDaysAsync(System.String)"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.selectTabCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectTabCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectTabCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand`1"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectTab(System.String)"/>.</summary>
+        </member>
         <member name="T:Vitals.Maui.ViewModels.VitalsEntryViewModel">
             <inheritdoc/>
             <inheritdoc/>
@@ -1594,6 +1714,9 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.DateAxes">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "DateAxes" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.SmoothedBpSeries">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "SmoothedBpSeries" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Name">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Name" generated properties.</summary>
         </member>
@@ -1849,6 +1972,54 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasNoVisits">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HasNoVisits" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Analysis">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Analysis" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsInsufficient">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsInsufficient" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsOk">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsOk" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.PlainEnglishSummary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "PlainEnglishSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.PcpLine">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "PcpLine" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TabBpColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TabBpColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TabHrColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TabHrColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TabSpo2Color">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TabSpo2Color" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TabTempColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TabTempColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowBp">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowBp" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowHr">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowHr" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowSpo2">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowSpo2" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowTemp">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowTemp" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HrSummary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HrSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Spo2Summary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Spo2Summary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempSummary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempSummary" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Rows">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Rows" generated properties.</summary>
         </member>
@@ -2013,6 +2184,9 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.DateAxes">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "DateAxes" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.SmoothedBpSeries">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "SmoothedBpSeries" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Name">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Name" generated properties.</summary>
@@ -2268,6 +2442,54 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasNoVisits">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HasNoVisits" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Analysis">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Analysis" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsInsufficient">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsInsufficient" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsOk">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsOk" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.PlainEnglishSummary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "PlainEnglishSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.PcpLine">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "PcpLine" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TabBpColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TabBpColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TabHrColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TabHrColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TabSpo2Color">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TabSpo2Color" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TabTempColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TabTempColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowBp">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowBp" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowHr">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowHr" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowSpo2">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowSpo2" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowTemp">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowTemp" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HrSummary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HrSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Spo2Summary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Spo2Summary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempSummary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempSummary" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Rows">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Rows" generated properties.</summary>

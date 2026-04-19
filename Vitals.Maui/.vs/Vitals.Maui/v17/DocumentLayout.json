@@ -3,12 +3,52 @@
   "WorkspaceRootPath": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\appshell.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:appshell.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\views\\vitalsanalysisview.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:views\\vitalsanalysisview.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\viewmodels\\vitalsanalysisviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:viewmodels\\vitalsanalysisviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\models\\vitalsanalysis.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:models\\vitalsanalysis.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\views\\vitalsanalysisview.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:views\\vitalsanalysisview.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\views\\dashboardpage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:views\\dashboardpage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\views\\dashboardpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:views\\dashboardpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\viewmodels\\dashboardviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:viewmodels\\dashboardviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\mauiprogram.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:mauiprogram.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\services\\mathservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:services\\mathservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\appshell.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:appshell.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\services\\apiservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:services\\apiservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\viewmodels\\careteamviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:viewmodels\\careteamviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\views\\notespage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -33,10 +73,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\viewmodels\\notesviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:viewmodels\\notesviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\viewmodels\\doctordetailviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:viewmodels\\doctordetailviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\views\\incidentdetailpopup.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
@@ -95,65 +131,137 @@
       "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:models\\latestvisit.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\services\\apiservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:services\\apiservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\views\\doctordetailpopup.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:views\\doctordetailpopup.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
     {
-      "Orientation": 0,
+      "Orientation": 1,
       "VerticalTabListWidth": 256,
       "DocumentGroups": [
         {
-          "DockedWidth": 200,
-          "SelectedChildIndex": 7,
+          "DockedHeight": 423,
+          "SelectedChildIndex": 6,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "NoteDetailPopup.xaml.cs",
-              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\NoteDetailPopup.xaml.cs",
-              "RelativeDocumentMoniker": "Views\\NoteDetailPopup.xaml.cs",
-              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\NoteDetailPopup.xaml.cs",
-              "RelativeToolTip": "Views\\NoteDetailPopup.xaml.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T21:39:42.244Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 8,
-              "Title": "DoctorDetailViewModel.cs",
-              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\DoctorDetailViewModel.cs",
-              "RelativeDocumentMoniker": "ViewModels\\DoctorDetailViewModel.cs",
-              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\DoctorDetailViewModel.cs",
-              "RelativeToolTip": "ViewModels\\DoctorDetailViewModel.cs",
-              "ViewState": "AgIAAEMAAAAAAAAAAAAvwFoAAAAMAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T19:16:20.655Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
               "DocumentIndex": 1,
+              "Title": "VitalsAnalysisViewModel.cs",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\VitalsAnalysisViewModel.cs",
+              "RelativeDocumentMoniker": "ViewModels\\VitalsAnalysisViewModel.cs",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\VitalsAnalysisViewModel.cs",
+              "RelativeToolTip": "ViewModels\\VitalsAnalysisViewModel.cs",
+              "ViewState": "AgIAAIYBAAAAAAAAAAAkwKcBAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-18T17:07:34.828Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "VitalsAnalysis.cs",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Models\\VitalsAnalysis.cs",
+              "RelativeDocumentMoniker": "Models\\VitalsAnalysis.cs",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Models\\VitalsAnalysis.cs",
+              "RelativeToolTip": "Models\\VitalsAnalysis.cs",
+              "ViewState": "AgIAAIMBAAAAAAAAAAAkwKQBAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-18T17:05:34.465Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
               "Title": "MauiProgram.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\MauiProgram.cs",
               "RelativeDocumentMoniker": "MauiProgram.cs",
               "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\MauiProgram.cs",
               "RelativeToolTip": "MauiProgram.cs",
-              "ViewState": "AgIAADEAAAAAAAAAAAAgwE8AAAA9AAAAAAAAAA==",
+              "ViewState": "AgIAAD0AAAAAAAAAAAAYwFQAAAA8AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T20:50:47.525Z",
+              "WhenOpened": "2026-04-16T20:50:47.525Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "DashboardViewModel.cs",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\DashboardViewModel.cs",
+              "RelativeDocumentMoniker": "ViewModels\\DashboardViewModel.cs",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\DashboardViewModel.cs",
+              "RelativeToolTip": "ViewModels\\DashboardViewModel.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA8AAAAnAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-18T17:20:29.871Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 12,
+              "DocumentIndex": 4,
+              "Title": "DashboardPage.xaml.cs",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\DashboardPage.xaml.cs",
+              "RelativeDocumentMoniker": "Views\\DashboardPage.xaml.cs",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\DashboardPage.xaml.cs",
+              "RelativeToolTip": "Views\\DashboardPage.xaml.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-18T17:20:04.951Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "DashboardPage.xaml",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\DashboardPage.xaml",
+              "RelativeDocumentMoniker": "Views\\DashboardPage.xaml",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\DashboardPage.xaml",
+              "RelativeToolTip": "Views\\DashboardPage.xaml",
+              "ViewState": "AgIAACYBAAAAAAAAAAAkwEcBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2026-04-18T17:18:26.198Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "VitalsAnalysisView.xaml",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\VitalsAnalysisView.xaml",
+              "RelativeDocumentMoniker": "Views\\VitalsAnalysisView.xaml",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\VitalsAnalysisView.xaml",
+              "RelativeToolTip": "Views\\VitalsAnalysisView.xaml",
+              "ViewState": "AgIAAG0DAAAAAAAAAAAgwI4DAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2026-04-18T17:16:34.17Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "VitalsAnalysisView.xaml.cs",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\VitalsAnalysisView.xaml.cs",
+              "RelativeDocumentMoniker": "Views\\VitalsAnalysisView.xaml.cs",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\VitalsAnalysisView.xaml.cs",
+              "RelativeToolTip": "Views\\VitalsAnalysisView.xaml.cs",
+              "ViewState": "AgIAAAIAAAAAAAAAAAAmwCAAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-18T17:17:01.826Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "MathService.cs",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Services\\MathService.cs",
+              "RelativeDocumentMoniker": "Services\\MathService.cs",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Services\\MathService.cs",
+              "RelativeToolTip": "Services\\MathService.cs",
+              "ViewState": "AgIAAB8AAAAAAAAAAAAUwEMAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-18T18:42:16.33Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 21,
               "Title": "IncidentLogPage.xaml.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\IncidentLogPage.xaml.cs",
               "RelativeDocumentMoniker": "Views\\IncidentLogPage.xaml.cs",
@@ -161,12 +269,11 @@
               "RelativeToolTip": "Views\\IncidentLogPage.xaml.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T21:26:28.81Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T21:26:28.81Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 17,
               "Title": "NotesViewModel.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\NotesViewModel.cs",
               "RelativeDocumentMoniker": "ViewModels\\NotesViewModel.cs",
@@ -174,12 +281,11 @@
               "RelativeToolTip": "ViewModels\\NotesViewModel.cs",
               "ViewState": "AgIAADYAAAAAAAAAAAAowFwAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T19:09:54.572Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T19:09:54.572Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 16,
               "Title": "NoteDetailViewModel.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\NoteDetailViewModel.cs",
               "RelativeDocumentMoniker": "ViewModels\\NoteDetailViewModel.cs",
@@ -187,12 +293,11 @@
               "RelativeToolTip": "ViewModels\\NoteDetailViewModel.cs",
               "ViewState": "AgIAALMAAAAAAAAAAAAowNkAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T19:10:05.202Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T19:10:05.202Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 13,
               "Title": "NotesPage.xaml",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\NotesPage.xaml",
               "RelativeDocumentMoniker": "Views\\NotesPage.xaml",
@@ -205,20 +310,55 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 9,
               "Title": "AppShell.xaml",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\AppShell.xaml",
               "RelativeDocumentMoniker": "AppShell.xaml",
               "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\AppShell.xaml",
               "RelativeToolTip": "AppShell.xaml",
-              "ViewState": "AgIAAEsAAAAAAAAAAAAAAF4AAAAgAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAEAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-04-16T20:51:25.078Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T20:51:25.078Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 14,
+              "Title": "NoteDetailPopup.xaml.cs",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\NoteDetailPopup.xaml.cs",
+              "RelativeDocumentMoniker": "Views\\NoteDetailPopup.xaml.cs",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\NoteDetailPopup.xaml.cs",
+              "RelativeToolTip": "Views\\NoteDetailPopup.xaml.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-16T21:39:42.244Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "ApiService.cs",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Services\\ApiService.cs",
+              "RelativeDocumentMoniker": "Services\\ApiService.cs",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Services\\ApiService.cs",
+              "RelativeToolTip": "Services\\ApiService.cs",
+              "ViewState": "AgIAAPMBAAAAAAAAAAAcwBACAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-16T19:12:40.883Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "CareTeamViewModel.cs",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\CareTeamViewModel.cs",
+              "RelativeDocumentMoniker": "ViewModels\\CareTeamViewModel.cs",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\CareTeamViewModel.cs",
+              "RelativeToolTip": "ViewModels\\CareTeamViewModel.cs",
+              "ViewState": "AgIAAE4AAAAAAAAAAADwv3EAAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-16T22:41:39.46Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
               "Title": "NotesPage.xaml.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\NotesPage.xaml.cs",
               "RelativeDocumentMoniker": "Views\\NotesPage.xaml.cs",
@@ -226,12 +366,11 @@
               "RelativeToolTip": "Views\\NotesPage.xaml.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T21:40:03.765Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T21:40:03.765Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
+              "DocumentIndex": 18,
               "Title": "IncidentDetailPopup.xaml",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\IncidentDetailPopup.xaml",
               "RelativeDocumentMoniker": "Views\\IncidentDetailPopup.xaml",
@@ -244,7 +383,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 11,
+              "DocumentIndex": 20,
               "Title": "IncidentDetailViewModel.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\IncidentDetailViewModel.cs",
               "RelativeDocumentMoniker": "ViewModels\\IncidentDetailViewModel.cs",
@@ -252,12 +391,11 @@
               "RelativeToolTip": "ViewModels\\IncidentDetailViewModel.cs",
               "ViewState": "AgIAAG4AAAAAAAAAAAAwwIUAAAAFAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T19:08:50.384Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T19:08:50.384Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 15,
               "Title": "NoteDetailPopup.xaml",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\NoteDetailPopup.xaml",
               "RelativeDocumentMoniker": "Views\\NoteDetailPopup.xaml",
@@ -270,7 +408,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 14,
+              "DocumentIndex": 23,
               "Title": "IncidentLogViewModel.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\IncidentLogViewModel.cs",
               "RelativeDocumentMoniker": "ViewModels\\IncidentLogViewModel.cs",
@@ -278,12 +416,11 @@
               "RelativeToolTip": "ViewModels\\IncidentLogViewModel.cs",
               "ViewState": "AgIAADYAAAAAAAAAAAAowFwAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T19:08:38.895Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T19:08:38.895Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 10,
+              "DocumentIndex": 19,
               "Title": "IncidentDetailPopup.xaml.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\IncidentDetailPopup.xaml.cs",
               "RelativeDocumentMoniker": "Views\\IncidentDetailPopup.xaml.cs",
@@ -291,12 +428,11 @@
               "RelativeToolTip": "Views\\IncidentDetailPopup.xaml.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAFAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T21:26:07.4Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T21:26:07.4Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 17,
+              "DocumentIndex": 26,
               "Title": "VisitLogPage.xaml.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\VisitLogPage.xaml.cs",
               "RelativeDocumentMoniker": "Views\\VisitLogPage.xaml.cs",
@@ -304,12 +440,11 @@
               "RelativeToolTip": "Views\\VisitLogPage.xaml.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T20:50:39.44Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T20:50:39.44Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 15,
+              "DocumentIndex": 24,
               "Title": "VisitDetailViewModel.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\VisitDetailViewModel.cs",
               "RelativeDocumentMoniker": "ViewModels\\VisitDetailViewModel.cs",
@@ -317,12 +452,11 @@
               "RelativeToolTip": "ViewModels\\VisitDetailViewModel.cs",
               "ViewState": "AgIAAJoAAAAAAAAAAAAowKcAAAA9AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T19:07:51.9Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T19:07:51.9Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 13,
+              "DocumentIndex": 22,
               "Title": "IncidentLogPage.xaml",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\IncidentLogPage.xaml",
               "RelativeDocumentMoniker": "Views\\IncidentLogPage.xaml",
@@ -335,20 +469,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 23,
-              "Title": "ApiService.cs",
-              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Services\\ApiService.cs",
-              "RelativeDocumentMoniker": "Services\\ApiService.cs",
-              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Services\\ApiService.cs",
-              "RelativeToolTip": "Services\\ApiService.cs",
-              "ViewState": "AgIAAHIBAAAAAAAAAAAiwIUBAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T19:12:40.883Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 21,
+              "DocumentIndex": 30,
               "Title": "DoctorDetailPopup.xaml",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\DoctorDetailPopup.xaml",
               "RelativeDocumentMoniker": "Views\\DoctorDetailPopup.xaml",
@@ -361,7 +482,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 22,
+              "DocumentIndex": 31,
               "Title": "LatestVisit.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Models\\LatestVisit.cs",
               "RelativeDocumentMoniker": "Models\\LatestVisit.cs",
@@ -369,12 +490,11 @@
               "RelativeToolTip": "Models\\LatestVisit.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAB0AAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T20:43:56.463Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T20:43:56.463Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 16,
+              "DocumentIndex": 25,
               "Title": "VisitDetailPopup.xaml.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\VisitDetailPopup.xaml.cs",
               "RelativeDocumentMoniker": "Views\\VisitDetailPopup.xaml.cs",
@@ -382,12 +502,11 @@
               "RelativeToolTip": "Views\\VisitDetailPopup.xaml.cs",
               "ViewState": "AgIAAAEAAAAAAAAAAAAEwBIAAAA/AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T20:49:16.114Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T20:49:16.114Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 19,
+              "DocumentIndex": 28,
               "Title": "VisitDetailPopup.xaml",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\VisitDetailPopup.xaml",
               "RelativeDocumentMoniker": "Views\\VisitDetailPopup.xaml",
@@ -400,7 +519,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 18,
+              "DocumentIndex": 27,
               "Title": "VisitLogPage.xaml",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\VisitLogPage.xaml",
               "RelativeDocumentMoniker": "Views\\VisitLogPage.xaml",
@@ -413,7 +532,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 20,
+              "DocumentIndex": 29,
               "Title": "VisitLogViewModel.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\ViewModels\\VisitLogViewModel.cs",
               "RelativeDocumentMoniker": "ViewModels\\VisitLogViewModel.cs",
@@ -421,12 +540,11 @@
               "RelativeToolTip": "ViewModels\\VisitLogViewModel.cs",
               "ViewState": "AgIAAEcAAAAAAAAAAIA3wF0AAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T19:07:33.506Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T19:07:33.506Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 24,
+              "DocumentIndex": 32,
               "Title": "DoctorDetailPopup.xaml.cs",
               "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\DoctorDetailPopup.xaml.cs",
               "RelativeDocumentMoniker": "Views\\DoctorDetailPopup.xaml.cs",
@@ -434,8 +552,21 @@
               "RelativeToolTip": "Views\\DoctorDetailPopup.xaml.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-04-16T19:26:51.1Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-04-16T19:26:51.1Z"
+            }
+          ]
+        },
+        {
+          "DockedHeight": 204,
+          "SelectedChildIndex": -1,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{d78612c7-9962-4b83-95d9-268046dad23a}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{34e76e81-ee4a-11d0-ae2e-00a0c90fffc3}"
             }
           ]
         }

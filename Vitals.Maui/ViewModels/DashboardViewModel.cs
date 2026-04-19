@@ -1,12 +1,15 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Maui.Views;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using System.Collections.ObjectModel;
-using Vitals.Maui.Models;
-using Vitals.Maui.Services;
 using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.SkiaSharpView.Painting.Effects;
 using SkiaSharp;
+using System.Collections.ObjectModel;
+using Vitals.Maui.Models;
+using Vitals.Maui.Services;
+using Vitals.Maui.Views;
 
 namespace Vitals.Maui.ViewModels;
 
@@ -66,6 +69,9 @@ public partial class DashboardViewModel : ObservableObject
 
     // Chart axes
     [ObservableProperty] private Axis[] _dateAxes = Array.Empty<Axis>();
+
+    // Smoothed series
+    [ObservableProperty] private ISeries[] _smoothedBpSeries = Array.Empty<ISeries>();
 
     public DashboardViewModel(ApiService api, PatientStateService patientState)
     {
@@ -222,73 +228,104 @@ public partial class DashboardViewModel : ObservableObject
         var history = await _api.GetVitalsHistoryAsync(patientId, SelectedDays);
         if (!history.Any()) return;
 
+        // Build x-axis as days from first reading
         var dates = history
-            .Select(r => DateTime.Parse(r.Date).Ticks)
-            .ToArray();
+            .Select(r => DateTime.Parse(r.Date).ToLocalTime())
+            .ToList();
+        var xDays = MathService.DateTimesToDays(dates);
+
+        // Raw values
+        var sysRaw = history.Select(r => r.Systolic.HasValue ? (double)r.Systolic.Value : double.NaN).ToArray();
+        var diaRaw = history.Select(r => r.Diastolic.HasValue ? (double)r.Diastolic.Value : double.NaN).ToArray();
+        var hrRaw = history.Select(r => r.HeartRate.HasValue ? (double)r.HeartRate.Value : double.NaN).ToArray();
+        var spo2Raw = history.Select(r => r.Spo2.HasValue ? (double)r.Spo2.Value : double.NaN).ToArray();
+        var tempRaw = history.Select(r => r.Temperature.HasValue ? (double)r.Temperature.Value : double.NaN).ToArray();
+
+        // Filter out NaN before LOESS
+        double[] LoessFiltered(double[] xAll, double[] yAll)
+        {
+            var validIdx = yAll.Select((v, i) => (v, i))
+                               .Where(t => !double.IsNaN(t.v))
+                               .ToList();
+            if (validIdx.Count < 4) return yAll;
+
+            var xValid = validIdx.Select(t => xAll[t.i]).ToArray();
+            var yValid = validIdx.Select(t => t.v).ToArray();
+            var smoothed = MathService.Loess(xValid, yValid, 0.3);
+
+            // Map back to full array
+            var result = yAll.ToArray();
+            for (int k = 0; k < validIdx.Count; k++)
+                result[validIdx[k].i] = smoothed[k];
+            return result;
+        }
+
+        var sysSmoothed = LoessFiltered(xDays, sysRaw);
+        var diaSmoothed = LoessFiltered(xDays, diaRaw);
+        var hrSmoothed = LoessFiltered(xDays, hrRaw);
+        var spo2Smoothed = LoessFiltered(xDays, spo2Raw);
+        var tempSmoothed = LoessFiltered(xDays, tempRaw);
+
+        // Helper — raw scatter series
+        static LineSeries<double?> RawSeries(double[] raw, string name, string hex) =>
+            new LineSeries<double?>
+            {
+                Values = raw.Select(v => double.IsNaN(v) ? (double?)null : v).ToArray(),
+                Name = name,
+                Stroke = new SolidColorPaint(SKColor.Parse(hex)) { StrokeThickness = 1 },
+                GeometrySize = 4,
+                GeometryStroke = new SolidColorPaint(SKColor.Parse(hex)),
+                GeometryFill = new SolidColorPaint(SKColor.Parse(hex)),
+                Fill = null,
+                LineSmoothness = 0
+            };
+
+        // Helper — LOESS smooth line (no dots)
+        static LineSeries<double?> SmoothedSeries(double[] smoothed, string name, string hex) =>
+            new LineSeries<double?>
+            {
+                Values = smoothed.Select(v => double.IsNaN(v) ? (double?)null : v).ToArray(),
+                Name = name,
+                Stroke = new SolidColorPaint(SKColor.Parse(hex))
+                {
+                    StrokeThickness = 3,
+                    PathEffect = new DashEffect(new float[] { 6, 3 })
+                },
+                GeometrySize = 0,
+                GeometryFill = null,
+                GeometryStroke = null,
+                Fill = null,
+                LineSmoothness = 0.6
+            };
 
         // Blood Pressure
         BpSeries = new ISeries[]
         {
-        new LineSeries<double?>
-        {
-            Values = history.Select(r => (double?)r.Systolic).ToArray(),
-            Name = "Systolic",
-            Stroke = new SolidColorPaint(SKColor.Parse("#d32f2f")) { StrokeThickness = 2 },
-            GeometrySize = 4,
-            GeometryStroke = new SolidColorPaint(SKColor.Parse("#d32f2f")),
-            Fill = null
-        },
-        new LineSeries<double?>
-        {
-            Values = history.Select(r => (double?)r.Diastolic).ToArray(),
-            Name = "Diastolic",
-            Stroke = new SolidColorPaint(SKColor.Parse("#1976d2")) { StrokeThickness = 2 },
-            GeometrySize = 4,
-            GeometryStroke = new SolidColorPaint(SKColor.Parse("#1976d2")),
-            Fill = null
-        }
+        RawSeries(sysRaw,  "Systolic",       "#d32f2f"),
+        RawSeries(diaRaw,  "Diastolic",      "#1976d2"),
+        SmoothedSeries(sysSmoothed,  "Systolic Trend",  "#ff6659"),
+        SmoothedSeries(diaSmoothed,  "Diastolic Trend", "#63a4ff"),
         };
 
         // Heart Rate
         HeartRateSeries = new ISeries[]
         {
-        new LineSeries<double?>
-        {
-            Values = history.Select(r => (double?)r.HeartRate).ToArray(),
-            Name = "Heart Rate",
-            Stroke = new SolidColorPaint(SKColor.Parse("#388e3c")) { StrokeThickness = 2 },
-            GeometrySize = 4,
-            GeometryStroke = new SolidColorPaint(SKColor.Parse("#388e3c")),
-            Fill = null
-        }
+        RawSeries(hrRaw,       "Heart Rate",    "#388e3c"),
+        SmoothedSeries(hrSmoothed,   "HR Trend",      "#6abf69"),
         };
 
         // SpO2
         Spo2Series = new ISeries[]
         {
-        new LineSeries<double?>
-        {
-            Values = history.Select(r => (double?)r.Spo2).ToArray(),
-            Name = "SpO₂",
-            Stroke = new SolidColorPaint(SKColor.Parse("#7b1fa2")) { StrokeThickness = 2 },
-            GeometrySize = 4,
-            GeometryStroke = new SolidColorPaint(SKColor.Parse("#7b1fa2")),
-            Fill = null
-        }
+        RawSeries(spo2Raw,     "SpO\u2082",     "#7b1fa2"),
+        SmoothedSeries(spo2Smoothed, "SpO\u2082 Trend", "#ae52d4"),
         };
 
         // Temperature
         TempSeries = new ISeries[]
         {
-        new LineSeries<double?>
-        {
-            Values = history.Select(r => r.Temperature).ToArray(),
-            Name = "Temp °F",
-            Stroke = new SolidColorPaint(SKColor.Parse("#f57c00")) { StrokeThickness = 2 },
-            GeometrySize = 4,
-            GeometryStroke = new SolidColorPaint(SKColor.Parse("#f57c00")),
-            Fill = null
-        }
+        RawSeries(tempRaw,     "Temp \u00b0F",  "#f57c00"),
+        SmoothedSeries(tempSmoothed, "Temp Trend",    "#ffad42"),
         };
 
         // Date axis
@@ -311,5 +348,16 @@ public partial class DashboardViewModel : ObservableObject
     {
         await Shell.Current.GoToAsync(
             $"//VitalsHistory?days={SelectedDays}");
+    }
+
+    [RelayCommand]
+    public async Task OpenVitalsAnalysisAsync()
+    {
+        var vm = Application.Current!.Handler.MauiContext!
+            .Services.GetService<VitalsAnalysisViewModel>()!;
+        await vm.LoadAsync(SelectedDays);
+
+        var popup = new VitalsAnalysisView(vm);
+        await Shell.Current.CurrentPage.ShowPopupAsync(popup);
     }
 }

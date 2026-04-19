@@ -511,5 +511,20 @@ public class ApiService
         }
     }
 
-
+    public async Task<VitalsAnalysis?> GetVitalsAnalysisAsync(string patientId, int days)
+    {
+        try
+        {
+            var response = await _http.GetAsync(
+                $"/api/vitals/analysis?patient_id={patientId}&days={days}");
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine($"=== ANALYSIS: {raw.Substring(0, Math.Min(300, raw.Length))}");
+            return JsonSerializer.Deserialize<VitalsAnalysis>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== ANALYSIS ERROR: {ex.Message}");
+            return null;
+        }
+    }
 }

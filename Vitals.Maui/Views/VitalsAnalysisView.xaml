@@ -1,0 +1,910 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+               x:Class="Vitals.Maui.Views.VitalsAnalysisView"
+               x:DataType="vm:VitalsAnalysisViewModel">
+
+    <Grid RowDefinitions="*,Auto"
+          HeightRequest="680"
+          WidthRequest="360"
+          BackgroundColor="#1a1a2e">
+
+        <ScrollView Grid.Row="0" Padding="16">
+            <VerticalStackLayout Spacing="14">
+
+                <!-- Header -->
+                <Label Text="📊  Vitals Analysis"
+                       FontSize="20" FontAttributes="Bold"
+                       TextColor="White" />
+
+                <Label FontSize="13" TextColor="#888888">
+                    <Label.FormattedText>
+                        <FormattedString>
+                            <Span Text="{Binding SelectedPatient.FullName,
+                                      TargetNullValue='', FallbackValue=''}"
+                                  TextColor="#90caf9" />
+                            <Span Text="  •  Last " TextColor="#888888" />
+                            <Span Text="{Binding SelectedDays}" TextColor="#90caf9" />
+                            <Span Text=" days  •  " TextColor="#888888" />
+                            <Span Text="{Binding Analysis.ReadingCount}" TextColor="#90caf9" />
+                            <Span Text=" readings" TextColor="#888888" />
+                        </FormattedString>
+                    </Label.FormattedText>
+                </Label>
+
+                <!-- Day Range Buttons -->
+                <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="6">
+                    <Button Grid.Column="0" Text="15d"
+                            BackgroundColor="{Binding Btn15Color}"
+                            TextColor="White" FontSize="12"
+                            HeightRequest="36" CornerRadius="6"
+                            Command="{Binding SelectDaysCommand}"
+                            CommandParameter="15" />
+                    <Button Grid.Column="1" Text="30d"
+                            BackgroundColor="{Binding Btn30Color}"
+                            TextColor="White" FontSize="12"
+                            HeightRequest="36" CornerRadius="6"
+                            Command="{Binding SelectDaysCommand}"
+                            CommandParameter="30" />
+                    <Button Grid.Column="2" Text="45d"
+                            BackgroundColor="{Binding Btn45Color}"
+                            TextColor="White" FontSize="12"
+                            HeightRequest="36" CornerRadius="6"
+                            Command="{Binding SelectDaysCommand}"
+                            CommandParameter="45" />
+                    <Button Grid.Column="3" Text="60d"
+                            BackgroundColor="{Binding Btn60Color}"
+                            TextColor="White" FontSize="12"
+                            HeightRequest="36" CornerRadius="6"
+                            Command="{Binding SelectDaysCommand}"
+                            CommandParameter="60" />
+                    <Button Grid.Column="4"
+                            Text="{Binding CustomDaysLabel}"
+                            BackgroundColor="{Binding BtnCustomColor}"
+                            TextColor="White" FontSize="12"
+                            HeightRequest="36" CornerRadius="6"
+                            Clicked="OnCustomDaysClicked" />
+                </Grid>
+
+                <!-- Busy -->
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   Color="#90caf9"
+                                   HorizontalOptions="Center" />
+
+                <!-- Insufficient Data -->
+                <Border Padding="16"
+                        BackgroundColor="#16213e"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="#2a2a4a"
+                        IsVisible="{Binding IsInsufficient}">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="📈  Not Enough Data Yet"
+                               FontSize="16" FontAttributes="Bold"
+                               TextColor="#90caf9" />
+                        <Label Text="{Binding Analysis.Message}"
+                               FontSize="13" TextColor="#e0e0e0"
+                               LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Analysis Results -->
+                <VerticalStackLayout Spacing="12"
+                                     IsVisible="{Binding IsOk}">
+
+                    <!-- Tab Buttons -->
+                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                        <Button Grid.Column="0" Text="❤️ BP"
+                                BackgroundColor="{Binding TabBpColor}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Command="{Binding SelectTabCommand}"
+                                CommandParameter="bp" />
+                        <Button Grid.Column="1" Text="💓 HR"
+                                BackgroundColor="{Binding TabHrColor}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Command="{Binding SelectTabCommand}"
+                                CommandParameter="hr" />
+                        <Button Grid.Column="2" Text="🫁 SpO₂"
+                                BackgroundColor="{Binding TabSpo2Color}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Command="{Binding SelectTabCommand}"
+                                CommandParameter="spo2" />
+                        <Button Grid.Column="3" Text="🌡️ Temp"
+                                BackgroundColor="{Binding TabTempColor}"
+                                TextColor="White" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Command="{Binding SelectTabCommand}"
+                                CommandParameter="temp" />
+                    </Grid>
+
+                    <!-- ==================== BP TAB ==================== -->
+                    <VerticalStackLayout Spacing="12"
+                                         IsVisible="{Binding ShowBp}">
+
+                        <!-- Classification -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="ACC/AHA Classification"
+                                       FontSize="11" TextColor="#90caf9" />
+                                <Label Text="{Binding Analysis.ClassificationDisplay}"
+                                       FontSize="18" FontAttributes="Bold">
+                                    <Label.TextColor>
+                                        <Binding Path="Analysis.ClassificationColor" />
+                                    </Label.TextColor>
+                                </Label>
+                                <Label FontSize="12" TextColor="#aaaaaa">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="Avg " />
+                                            <Span Text="{Binding Analysis.Systolic.Avg, StringFormat='{0:F1}'}"
+                                                  TextColor="White" />
+                                            <Span Text=" / " />
+                                            <Span Text="{Binding Analysis.Diastolic.Avg, StringFormat='{0:F1}'}"
+                                                  TextColor="White" />
+                                            <Span Text=" mmHg" />
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                </Label>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Trend -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="BLOOD PRESSURE TREND"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Grid ColumnDefinitions="*,*"
+                                      RowDefinitions="Auto,Auto,Auto"
+                                      RowSpacing="10">
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="2">
+                                        <Label Text="Direction" FontSize="11" TextColor="#666666" />
+                                        <Label FontSize="14" FontAttributes="Bold">
+                                            <Label.FormattedText>
+                                                <FormattedString>
+                                                    <Span Text="{Binding Analysis.Systolic.TrendArrow}" FontSize="16" />
+                                                    <Span Text="  " />
+                                                    <Span Text="{Binding Analysis.Systolic.TrendLabel}" />
+                                                </FormattedString>
+                                            </Label.FormattedText>
+                                            <Label.TextColor>
+                                                <Binding Path="Analysis.Systolic.TrendColor" />
+                                            </Label.TextColor>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="2">
+                                        <Label Text="Rate of Change" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.Systolic.SlopeDisplay}"
+                                               FontSize="14" FontAttributes="Bold"
+                                               TextColor="White" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="0" Spacing="2">
+                                        <Label Text="Significance" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.Systolic.PValueDisplay}"
+                                               FontSize="13" TextColor="#e0e0e0"
+                                               LineBreakMode="WordWrap" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="1" Spacing="2">
+                                        <Label Text="Consistency" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.Systolic.ConsistencyLabel}"
+                                               FontSize="13" TextColor="#e0e0e0"
+                                               LineBreakMode="WordWrap" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="2" Grid.Column="0" Spacing="2">
+                                        <Label Text="Momentum" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.Systolic.MomentumLabel}"
+                                               FontSize="13" TextColor="#e0e0e0" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- BP Burden — Hypertension -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a"
+                                IsVisible="{Binding Analysis.IsHypotension,
+                                    Converter={StaticResource InvertedBoolConverter}}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="BP BURDEN"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Label Text="Percentage of time spent in each range:"
+                                       FontSize="12" TextColor="#888888" />
+                                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                                    <Border Grid.Column="0" Padding="8,6"
+                                            BackgroundColor="#1b2a1b"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Burden.NormalDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#388e3c" HorizontalOptions="Center" />
+                                            <Label Text="Normal" FontSize="10" TextColor="#388e3c"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="&lt;120" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <Border Grid.Column="1" Padding="8,6"
+                                            BackgroundColor="#2a1f0a"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Burden.ElevatedDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#f57c00" HorizontalOptions="Center" />
+                                            <Label Text="Elevated" FontSize="10" TextColor="#f57c00"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="120-129" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <Border Grid.Column="2" Padding="8,6"
+                                            BackgroundColor="#2a1010"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Burden.Stage1Display}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#d32f2f" HorizontalOptions="Center" />
+                                            <Label Text="Stage 1" FontSize="10" TextColor="#d32f2f"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="130-139" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <Border Grid.Column="3" Padding="8,6"
+                                            BackgroundColor="#1a0a2a"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Burden.Stage2Display}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#7b1fa2" HorizontalOptions="Center" />
+                                            <Label Text="Stage 2" FontSize="10" TextColor="#7b1fa2"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="≥140" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- BP Burden — Hypotension -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a"
+                                IsVisible="{Binding Analysis.IsHypotension}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="LOW BP BURDEN"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#1976d2" />
+                                <Label Text="Percentage of time spent in each low BP range:"
+                                       FontSize="12" TextColor="#888888" />
+                                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                                    <Border Grid.Column="0" Padding="8,6"
+                                            BackgroundColor="#1b2a1b"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.HypoBurden.NormalDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#388e3c" HorizontalOptions="Center" />
+                                            <Label Text="Normal" FontSize="10" TextColor="#388e3c"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="≥90" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <Border Grid.Column="1" Padding="8,6"
+                                            BackgroundColor="#1a1a2e"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.HypoBurden.ModerateDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#90caf9" HorizontalOptions="Center" />
+                                            <Label Text="Low" FontSize="10" TextColor="#90caf9"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="80-89" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <Border Grid.Column="2" Padding="8,6"
+                                            BackgroundColor="#0a0a1a"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.HypoBurden.SevereDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#d32f2f" HorizontalOptions="Center" />
+                                            <Label Text="Severe" FontSize="10" TextColor="#d32f2f"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="&lt;80" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Plain English -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a"
+                                IsVisible="{Binding PlainEnglishSummary,
+                                    Converter={StaticResource StringToBoolConverter}}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="💬  In Plain English"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Label Text="{Binding PlainEnglishSummary}"
+                                       FontSize="13" TextColor="#e0e0e0"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="{Binding PcpLine}"
+                                       FontSize="13" TextColor="#90caf9"
+                                       FontAttributes="Italic"
+                                       LineBreakMode="WordWrap"
+                                       IsVisible="{Binding PcpLine,
+                                           Converter={StaticResource StringToBoolConverter}}" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </VerticalStackLayout>
+
+                    <!-- ==================== HR TAB ==================== -->
+                    <VerticalStackLayout Spacing="12"
+                                         IsVisible="{Binding ShowHr}">
+
+                        <!-- Classification -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Heart Rate Classification"
+                                       FontSize="11" TextColor="#90caf9" />
+                                <Label Text="{Binding Analysis.HeartRate.HrClassificationDisplay}"
+                                       FontSize="18" FontAttributes="Bold">
+                                    <Label.TextColor>
+                                        <Binding Path="Analysis.HeartRate.HrClassificationColor" />
+                                    </Label.TextColor>
+                                </Label>
+                                <Label Text="{Binding Analysis.HeartRate.Avg, StringFormat='Avg {0:F0} BPM'}"
+                                       FontSize="12" TextColor="#aaaaaa" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Trend -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="HEART RATE TREND"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Grid ColumnDefinitions="*,*"
+                                      RowDefinitions="Auto,Auto"
+                                      RowSpacing="10">
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="2">
+                                        <Label Text="Direction" FontSize="11" TextColor="#666666" />
+                                        <Label FontSize="14" FontAttributes="Bold">
+                                            <Label.FormattedText>
+                                                <FormattedString>
+                                                    <Span Text="{Binding Analysis.HeartRate.TrendArrow}" FontSize="16" />
+                                                    <Span Text="  " />
+                                                    <Span Text="{Binding Analysis.HeartRate.TrendLabel}" />
+                                                </FormattedString>
+                                            </Label.FormattedText>
+                                            <Label.TextColor>
+                                                <Binding Path="Analysis.HeartRate.TrendColor" />
+                                            </Label.TextColor>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="2">
+                                        <Label Text="Rate of Change" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.HeartRate.SlopeDisplay, StringFormat='{0} BPM/day'}"
+                                               FontSize="14" FontAttributes="Bold"
+                                               TextColor="White" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="0" Spacing="2">
+                                        <Label Text="Significance" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.HeartRate.PValueDisplay}"
+                                               FontSize="13" TextColor="#e0e0e0"
+                                               LineBreakMode="WordWrap" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="1" Spacing="2">
+                                        <Label Text="Consistency" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.HeartRate.ConsistencyLabel}"
+                                               FontSize="13" TextColor="#e0e0e0"
+                                               LineBreakMode="WordWrap" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- HR Burden -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="HEART RATE BURDEN"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Label Text="Percentage of time spent in each range:"
+                                       FontSize="12" TextColor="#888888" />
+                                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                                    <!-- Bradycardia -->
+                                    <Border Grid.Column="0" Padding="8,6"
+                                            BackgroundColor="#0a1a2a"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.HeartRate.HrBurden.BradycardiaDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#1976d2" HorizontalOptions="Center" />
+                                            <Label Text="Brady" FontSize="10" TextColor="#1976d2"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="&lt;60" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <!-- Normal -->
+                                    <Border Grid.Column="1" Padding="8,6"
+                                            BackgroundColor="#1b2a1b"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.HeartRate.HrBurden.NormalDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#388e3c" HorizontalOptions="Center" />
+                                            <Label Text="Normal" FontSize="10" TextColor="#388e3c"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="60-100" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <!-- Mild Tachy -->
+                                    <Border Grid.Column="2" Padding="8,6"
+                                            BackgroundColor="#2a1f0a"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.HeartRate.HrBurden.MildTachyDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#f57c00" HorizontalOptions="Center" />
+                                            <Label Text="Mild Tachy" FontSize="10" TextColor="#f57c00"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="101-120" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <!-- Tachycardia -->
+                                    <Border Grid.Column="3" Padding="8,6"
+                                            BackgroundColor="#2a1010"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.HeartRate.HrBurden.TachycardiaDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#d32f2f" HorizontalOptions="Center" />
+                                            <Label Text="Tachy" FontSize="10" TextColor="#d32f2f"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="&gt;120" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Plain English -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a"
+                                IsVisible="{Binding HrSummary,
+                                    Converter={StaticResource StringToBoolConverter}}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="💬  In Plain English"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Label Text="{Binding HrSummary}"
+                                       FontSize="13" TextColor="#e0e0e0"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="{Binding PcpLine}"
+                                       FontSize="13" TextColor="#90caf9"
+                                       FontAttributes="Italic"
+                                       LineBreakMode="WordWrap"
+                                       IsVisible="{Binding PcpLine,
+                                           Converter={StaticResource StringToBoolConverter}}" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </VerticalStackLayout>
+
+                    <!-- ==================== SPO2 TAB ==================== -->
+                    <VerticalStackLayout Spacing="12"
+                                         IsVisible="{Binding ShowSpo2}">
+
+                        <!-- Classification -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="SpO₂ Classification"
+                                       FontSize="11" TextColor="#90caf9" />
+                                <Label Text="{Binding Analysis.Spo2.Spo2ClassificationDisplay}"
+                                       FontSize="18" FontAttributes="Bold">
+                                    <Label.TextColor>
+                                        <Binding Path="Analysis.Spo2.Spo2ClassificationColor" />
+                                    </Label.TextColor>
+                                </Label>
+                                <Label Text="{Binding Analysis.Spo2.Avg, StringFormat='Avg {0:F1}%'}"
+                                       FontSize="12" TextColor="#aaaaaa" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Trend -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="OXYGEN SATURATION TREND"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Grid ColumnDefinitions="*,*"
+                                      RowDefinitions="Auto,Auto"
+                                      RowSpacing="10">
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="2">
+                                        <Label Text="Direction" FontSize="11" TextColor="#666666" />
+                                        <Label FontSize="14" FontAttributes="Bold">
+                                            <Label.FormattedText>
+                                                <FormattedString>
+                                                    <Span Text="{Binding Analysis.Spo2.TrendArrow}" FontSize="16" />
+                                                    <Span Text="  " />
+                                                    <Span Text="{Binding Analysis.Spo2.TrendLabel}" />
+                                                </FormattedString>
+                                            </Label.FormattedText>
+                                            <Label.TextColor>
+                                                <Binding Path="Analysis.Spo2.TrendColor" />
+                                            </Label.TextColor>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="2">
+                                        <Label Text="Rate of Change" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.Spo2.SlopeDisplay, StringFormat='{0} %/day'}"
+                                               FontSize="14" FontAttributes="Bold"
+                                               TextColor="White" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="0" Spacing="2">
+                                        <Label Text="Significance" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.Spo2.PValueDisplay}"
+                                               FontSize="13" TextColor="#e0e0e0"
+                                               LineBreakMode="WordWrap" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="1" Spacing="2">
+                                        <Label Text="Consistency" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.Spo2.ConsistencyLabel}"
+                                               FontSize="13" TextColor="#e0e0e0"
+                                               LineBreakMode="WordWrap" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- SpO2 Burden -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="SPO₂ BURDEN"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Label Text="Percentage of time spent in each range:"
+                                       FontSize="12" TextColor="#888888" />
+                                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
+                                    <!-- Normal -->
+                                    <Border Grid.Column="0" Padding="8,6"
+                                            BackgroundColor="#1b2a1b"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Spo2.Spo2Burden.NormalDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#388e3c" HorizontalOptions="Center" />
+                                            <Label Text="Normal" FontSize="10" TextColor="#388e3c"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="≥95%" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <!-- Mild Hypoxemia -->
+                                    <Border Grid.Column="1" Padding="8,6"
+                                            BackgroundColor="#2a1f0a"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Spo2.Spo2Burden.MildHypoxemiaDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#f57c00" HorizontalOptions="Center" />
+                                            <Label Text="Mild" FontSize="10" TextColor="#f57c00"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="92-94%" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <!-- Moderate Hypoxemia -->
+                                    <Border Grid.Column="2" Padding="8,6"
+                                            BackgroundColor="#2a1010"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Spo2.Spo2Burden.ModerateHypoxemiaDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#d32f2f" HorizontalOptions="Center" />
+                                            <Label Text="Moderate" FontSize="10" TextColor="#d32f2f"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="88-91%" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <!-- Severe Hypoxemia -->
+                                    <Border Grid.Column="3" Padding="8,6"
+                                            BackgroundColor="#1a0a2a"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Spo2.Spo2Burden.SevereHypoxemiaDisplay}"
+                                                   FontSize="16" FontAttributes="Bold"
+                                                   TextColor="#7b1fa2" HorizontalOptions="Center" />
+                                            <Label Text="Severe" FontSize="10" TextColor="#7b1fa2"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="&lt;88%" FontSize="9" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Plain English -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a"
+                                IsVisible="{Binding Spo2Summary,
+                                    Converter={StaticResource StringToBoolConverter}}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="💬  In Plain English"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Label Text="{Binding Spo2Summary}"
+                                       FontSize="13" TextColor="#e0e0e0"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="{Binding PcpLine}"
+                                       FontSize="13" TextColor="#90caf9"
+                                       FontAttributes="Italic"
+                                       LineBreakMode="WordWrap"
+                                       IsVisible="{Binding PcpLine,
+                                           Converter={StaticResource StringToBoolConverter}}" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </VerticalStackLayout>
+
+                    <!-- ==================== TEMP TAB ==================== -->
+                    <VerticalStackLayout Spacing="12"
+                                         IsVisible="{Binding ShowTemp}">
+
+                        <!-- Classification -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Temperature Classification"
+                                       FontSize="11" TextColor="#90caf9" />
+                                <Label Text="{Binding Analysis.Temperature.TempClassificationDisplay}"
+                                       FontSize="18" FontAttributes="Bold">
+                                    <Label.TextColor>
+                                        <Binding Path="Analysis.Temperature.TempClassificationColor" />
+                                    </Label.TextColor>
+                                </Label>
+                                <Label Text="{Binding Analysis.Temperature.Avg, StringFormat='Avg {0:F1} °F'}"
+                                       FontSize="12" TextColor="#aaaaaa" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Trend -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="TEMPERATURE TREND"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Grid ColumnDefinitions="*,*"
+                                      RowDefinitions="Auto,Auto"
+                                      RowSpacing="10">
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="2">
+                                        <Label Text="Direction" FontSize="11" TextColor="#666666" />
+                                        <Label FontSize="14" FontAttributes="Bold">
+                                            <Label.FormattedText>
+                                                <FormattedString>
+                                                    <Span Text="{Binding Analysis.Temperature.TrendArrow}" FontSize="16" />
+                                                    <Span Text="  " />
+                                                    <Span Text="{Binding Analysis.Temperature.TrendLabel}" />
+                                                </FormattedString>
+                                            </Label.FormattedText>
+                                            <Label.TextColor>
+                                                <Binding Path="Analysis.Temperature.TrendColor" />
+                                            </Label.TextColor>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="2">
+                                        <Label Text="Rate of Change" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.Temperature.SlopeDisplay, StringFormat='{0} °F/day'}"
+                                               FontSize="14" FontAttributes="Bold"
+                                               TextColor="White" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="0" Spacing="2">
+                                        <Label Text="Significance" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.Temperature.PValueDisplay}"
+                                               FontSize="13" TextColor="#e0e0e0"
+                                               LineBreakMode="WordWrap" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="1" Spacing="2">
+                                        <Label Text="Consistency" FontSize="11" TextColor="#666666" />
+                                        <Label Text="{Binding Analysis.Temperature.ConsistencyLabel}"
+                                               FontSize="13" TextColor="#e0e0e0"
+                                               LineBreakMode="WordWrap" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Temperature Burden -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="TEMPERATURE BURDEN"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Label Text="Percentage of time spent in each range:"
+                                       FontSize="12" TextColor="#888888" />
+                                <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="4">
+                                    <!-- Hypothermia -->
+                                    <Border Grid.Column="0" Padding="6,6"
+                                            BackgroundColor="#0a1a2a"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Temperature.TempBurden.HypothermiaDisplay}"
+                                                   FontSize="14" FontAttributes="Bold"
+                                                   TextColor="#1976d2" HorizontalOptions="Center" />
+                                            <Label Text="Hypo" FontSize="9" TextColor="#1976d2"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="&lt;96.8" FontSize="8" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <!-- Normal -->
+                                    <Border Grid.Column="1" Padding="6,6"
+                                            BackgroundColor="#1b2a1b"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Temperature.TempBurden.NormalDisplay}"
+                                                   FontSize="14" FontAttributes="Bold"
+                                                   TextColor="#388e3c" HorizontalOptions="Center" />
+                                            <Label Text="Normal" FontSize="9" TextColor="#388e3c"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="96.8-98.9" FontSize="8" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <!-- Elevated -->
+                                    <Border Grid.Column="2" Padding="6,6"
+                                            BackgroundColor="#2a1f0a"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Temperature.TempBurden.ElevatedDisplay}"
+                                                   FontSize="14" FontAttributes="Bold"
+                                                   TextColor="#f57c00" HorizontalOptions="Center" />
+                                            <Label Text="Elevated" FontSize="9" TextColor="#f57c00"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="99-100.3" FontSize="8" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <!-- Fever -->
+                                    <Border Grid.Column="3" Padding="6,6"
+                                            BackgroundColor="#2a1010"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Temperature.TempBurden.FeverDisplay}"
+                                                   FontSize="14" FontAttributes="Bold"
+                                                   TextColor="#d32f2f" HorizontalOptions="Center" />
+                                            <Label Text="Fever" FontSize="9" TextColor="#d32f2f"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="100.4-103" FontSize="8" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                    <!-- High Fever -->
+                                    <Border Grid.Column="4" Padding="6,6"
+                                            BackgroundColor="#1a0a2a"
+                                            StrokeShape="RoundRectangle 6">
+                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                            <Label Text="{Binding Analysis.Temperature.TempBurden.HighFeverDisplay}"
+                                                   FontSize="14" FontAttributes="Bold"
+                                                   TextColor="#7b1fa2" HorizontalOptions="Center" />
+                                            <Label Text="High Fever" FontSize="9" TextColor="#7b1fa2"
+                                                   HorizontalOptions="Center" />
+                                            <Label Text="&gt;103" FontSize="8" TextColor="#666666"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Border>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Plain English -->
+                        <Border Padding="16"
+                                BackgroundColor="#16213e"
+                                StrokeShape="RoundRectangle 12"
+                                Stroke="#2a2a4a"
+                                IsVisible="{Binding TempSummary,
+                                    Converter={StaticResource StringToBoolConverter}}">
+                            <VerticalStackLayout Spacing="10">
+                                <Label Text="💬  In Plain English"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="#90caf9" />
+                                <Label Text="{Binding TempSummary}"
+                                       FontSize="13" TextColor="#e0e0e0"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="{Binding PcpLine}"
+                                       FontSize="13" TextColor="#90caf9"
+                                       FontAttributes="Italic"
+                                       LineBreakMode="WordWrap"
+                                       IsVisible="{Binding PcpLine,
+                                           Converter={StaticResource StringToBoolConverter}}" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </VerticalStackLayout>
+
+                    <!-- Status -->
+                    <Label Text="{Binding StatusMessage}"
+                           IsVisible="{Binding StatusMessage,
+                               Converter={StaticResource StringToBoolConverter}}"
+                           TextColor="#d32f2f"
+                           FontSize="13"
+                           HorizontalOptions="Center" />
+
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Bottom Buttons -->
+        <Grid Grid.Row="1"
+              Padding="16"
+              BackgroundColor="#16213e">
+            <Button Text="✖  Close"
+                    BackgroundColor="#0f3460"
+                    TextColor="White"
+                    FontSize="15"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    Clicked="OnCloseClicked" />
+        </Grid>
+    </Grid>
+</toolkit:Popup>
