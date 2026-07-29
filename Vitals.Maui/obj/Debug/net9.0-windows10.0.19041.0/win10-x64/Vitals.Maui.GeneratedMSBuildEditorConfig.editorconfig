@@ -105,6 +105,12 @@ build_metadata.AdditionalFiles.ManifestResourceName = Vitals.Maui.Views.Incident
 build_metadata.AdditionalFiles.TargetPath = Views\IncidentLogPage.xaml
 build_metadata.AdditionalFiles.RelativePath = Views\IncidentLogPage.xaml
 
+[D:/GitHub/Vitals.Maui/Vitals.Maui/Views/LoginPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = Vitals.Maui.Views.LoginPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\LoginPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\LoginPage.xaml
+
 [D:/GitHub/Vitals.Maui/Vitals.Maui/Views/MedicationDetailPopup.xaml]
 build_metadata.AdditionalFiles.GenKind = Xaml
 build_metadata.AdditionalFiles.ManifestResourceName = Vitals.Maui.Views.MedicationDetailPopup.xaml
@@ -128,6 +134,42 @@ build_metadata.AdditionalFiles.GenKind = Xaml
 build_metadata.AdditionalFiles.ManifestResourceName = Vitals.Maui.Views.NotesPage.xaml
 build_metadata.AdditionalFiles.TargetPath = Views\NotesPage.xaml
 build_metadata.AdditionalFiles.RelativePath = Views\NotesPage.xaml
+
+[D:/GitHub/Vitals.Maui/Vitals.Maui/Views/OnboardingPersonalizationPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = Vitals.Maui.Views.OnboardingPersonalizationPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\OnboardingPersonalizationPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\OnboardingPersonalizationPage.xaml
+
+[D:/GitHub/Vitals.Maui/Vitals.Maui/Views/OnboardingPurposePage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = Vitals.Maui.Views.OnboardingPurposePage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\OnboardingPurposePage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\OnboardingPurposePage.xaml
+
+[D:/GitHub/Vitals.Maui/Vitals.Maui/Views/OnboardingSampleDashboardPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = Vitals.Maui.Views.OnboardingSampleDashboardPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\OnboardingSampleDashboardPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\OnboardingSampleDashboardPage.xaml
+
+[D:/GitHub/Vitals.Maui/Vitals.Maui/Views/OnboardingWelcomePage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = Vitals.Maui.Views.OnboardingWelcomePage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\OnboardingWelcomePage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\OnboardingWelcomePage.xaml
+
+[D:/GitHub/Vitals.Maui/Vitals.Maui/Views/SettingsPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = Vitals.Maui.Views.SettingsPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\SettingsPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\SettingsPage.xaml
+
+[D:/GitHub/Vitals.Maui/Vitals.Maui/Views/SignUpPage.xaml]
+build_metadata.AdditionalFiles.GenKind = Xaml
+build_metadata.AdditionalFiles.ManifestResourceName = Vitals.Maui.Views.SignUpPage.xaml
+build_metadata.AdditionalFiles.TargetPath = Views\SignUpPage.xaml
+build_metadata.AdditionalFiles.RelativePath = Views\SignUpPage.xaml
 
 [D:/GitHub/Vitals.Maui/Vitals.Maui/Views/VisitDetailPopup.xaml]
 build_metadata.AdditionalFiles.GenKind = Xaml

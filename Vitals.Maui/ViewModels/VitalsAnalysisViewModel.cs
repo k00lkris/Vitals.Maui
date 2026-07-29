@@ -18,24 +18,72 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     [ObservableProperty] private bool _isInsufficient;
     [ObservableProperty] private bool _isOk;
 
-    // Day buttons
+    // Day buttons — background colors
     [ObservableProperty] private int _selectedDays = 30;
-    [ObservableProperty] private Color _btn15Color = Color.FromArgb("#0f3460");
-    [ObservableProperty] private Color _btn30Color = Color.FromArgb("#1976d2");
-    [ObservableProperty] private Color _btn45Color = Color.FromArgb("#0f3460");
-    [ObservableProperty] private Color _btn60Color = Color.FromArgb("#0f3460");
-    [ObservableProperty] private Color _btnCustomColor = Color.FromArgb("#0f3460");
+
+    private Color _btn15Color = Colors.Transparent;
+    public Color Btn15Color { get => _btn15Color; set { _btn15Color = value; OnPropertyChanged(); } }
+
+    private Color _btn30Color = Colors.Transparent;
+    public Color Btn30Color { get => _btn30Color; set { _btn30Color = value; OnPropertyChanged(); } }
+
+    private Color _btn45Color = Colors.Transparent;
+    public Color Btn45Color { get => _btn45Color; set { _btn45Color = value; OnPropertyChanged(); } }
+
+    private Color _btn60Color = Colors.Transparent;
+    public Color Btn60Color { get => _btn60Color; set { _btn60Color = value; OnPropertyChanged(); } }
+
+    private Color _btnCustomColor = Colors.Transparent;
+    public Color BtnCustomColor { get => _btnCustomColor; set { _btnCustomColor = value; OnPropertyChanged(); } }
+
+    // Day buttons — text colors
+    private Color _btn15TextColor = Colors.White;
+    public Color Btn15TextColor { get => _btn15TextColor; set { _btn15TextColor = value; OnPropertyChanged(); } }
+
+    private Color _btn30TextColor = Colors.White;
+    public Color Btn30TextColor { get => _btn30TextColor; set { _btn30TextColor = value; OnPropertyChanged(); } }
+
+    private Color _btn45TextColor = Colors.White;
+    public Color Btn45TextColor { get => _btn45TextColor; set { _btn45TextColor = value; OnPropertyChanged(); } }
+
+    private Color _btn60TextColor = Colors.White;
+    public Color Btn60TextColor { get => _btn60TextColor; set { _btn60TextColor = value; OnPropertyChanged(); } }
+
+    private Color _btnCustomTextColor = Colors.White;
+    public Color BtnCustomTextColor { get => _btnCustomTextColor; set { _btnCustomTextColor = value; OnPropertyChanged(); } }
+
     [ObservableProperty] private string _customDaysLabel = "Custom";
 
     // Plain English summary
     [ObservableProperty] private string _plainEnglishSummary = string.Empty;
     [ObservableProperty] private string _pcpLine = string.Empty;
 
-    // Tab selection
-    [ObservableProperty] private Color _tabBpColor = Color.FromArgb("#1976d2");
-    [ObservableProperty] private Color _tabHrColor = Color.FromArgb("#0f3460");
-    [ObservableProperty] private Color _tabSpo2Color = Color.FromArgb("#0f3460");
-    [ObservableProperty] private Color _tabTempColor = Color.FromArgb("#0f3460");
+    // Tab buttons — background colors
+    private Color _tabBpColor = Colors.Transparent;
+    public Color TabBpColor { get => _tabBpColor; set { _tabBpColor = value; OnPropertyChanged(); } }
+
+    private Color _tabHrColor = Colors.Transparent;
+    public Color TabHrColor { get => _tabHrColor; set { _tabHrColor = value; OnPropertyChanged(); } }
+
+    private Color _tabSpo2Color = Colors.Transparent;
+    public Color TabSpo2Color { get => _tabSpo2Color; set { _tabSpo2Color = value; OnPropertyChanged(); } }
+
+    private Color _tabTempColor = Colors.Transparent;
+    public Color TabTempColor { get => _tabTempColor; set { _tabTempColor = value; OnPropertyChanged(); } }
+
+    // Tab buttons — text colors
+    private Color _tabBpTextColor = Colors.White;
+    public Color TabBpTextColor { get => _tabBpTextColor; set { _tabBpTextColor = value; OnPropertyChanged(); } }
+
+    private Color _tabHrTextColor = Colors.White;
+    public Color TabHrTextColor { get => _tabHrTextColor; set { _tabHrTextColor = value; OnPropertyChanged(); } }
+
+    private Color _tabSpo2TextColor = Colors.White;
+    public Color TabSpo2TextColor { get => _tabSpo2TextColor; set { _tabSpo2TextColor = value; OnPropertyChanged(); } }
+
+    private Color _tabTempTextColor = Colors.White;
+    public Color TabTempTextColor { get => _tabTempTextColor; set { _tabTempTextColor = value; OnPropertyChanged(); } }
+
     [ObservableProperty] private bool _showBp = true;
     [ObservableProperty] private bool _showHr = false;
     [ObservableProperty] private bool _showSpo2 = false;
@@ -45,6 +93,9 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     [ObservableProperty] private string _hrSummary = string.Empty;
     [ObservableProperty] private string _spo2Summary = string.Empty;
     [ObservableProperty] private string _tempSummary = string.Empty;
+
+    [ObservableProperty] private bool _showDiastolicWarning = false;
+    [ObservableProperty] private string _diastolicWarningText = string.Empty;
 
     public VitalsAnalysisViewModel(ApiService api, PatientStateService patientState)
     {
@@ -56,6 +107,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     {
         SelectedDays = days;
         UpdateButtonColors(days);
+        SelectTab("bp");
         await RunAnalysisAsync();
     }
 
@@ -128,57 +180,134 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         }
     }
 
+    private void UpdateButtonColors(int days)
+    {
+        if (Application.Current?.Resources is null) return;
+
+        var res = Application.Current.Resources;
+        var active = res.TryGetValue("ButtonBackground", out var a) ? (Color)a : Color.FromArgb("#00acc1");
+        var inactive = res.TryGetValue("ButtonSecondary", out var i) ? (Color)i : Color.FromArgb("#b2dff2");
+        var activeTxt = res.TryGetValue("TextPrimary", out var at) ? (Color)at : Colors.White;
+        var inactiveTxt = res.TryGetValue("ButtonSecondaryText", out var it) ? (Color)it : Color.FromArgb("#0d2137");
+
+        Btn15Color = days == 15 ? active : inactive;
+        Btn30Color = days == 30 ? active : inactive;
+        Btn45Color = days == 45 ? active : inactive;
+        Btn60Color = days == 60 ? active : inactive;
+        BtnCustomColor = days == -1 ? active : inactive;
+
+        Btn15TextColor = days == 15 ? activeTxt : inactiveTxt;
+        Btn30TextColor = days == 30 ? activeTxt : inactiveTxt;
+        Btn45TextColor = days == 45 ? activeTxt : inactiveTxt;
+        Btn60TextColor = days == 60 ? activeTxt : inactiveTxt;
+        BtnCustomTextColor = days == -1 ? activeTxt : inactiveTxt;
+    }
+
+    [RelayCommand]
+    public void SelectTab(string tab)
+    {
+        if (Application.Current?.Resources is null) return;
+
+        var res = Application.Current.Resources;
+        var active = res.TryGetValue("ButtonBackground", out var a) ? (Color)a : Color.FromArgb("#00acc1");
+        var inactive = res.TryGetValue("ButtonSecondary", out var i) ? (Color)i : Color.FromArgb("#b2dff2");
+        var activeTxt = res.TryGetValue("TextPrimary", out var at) ? (Color)at : Colors.White;
+        var inactiveTxt = res.TryGetValue("ButtonSecondaryText", out var it) ? (Color)it : Color.FromArgb("#0d2137");
+
+        ShowBp = tab == "bp";
+        ShowHr = tab == "hr";
+        ShowSpo2 = tab == "spo2";
+        ShowTemp = tab == "temp";
+
+        TabBpColor = tab == "bp" ? active : inactive;
+        TabHrColor = tab == "hr" ? active : inactive;
+        TabSpo2Color = tab == "spo2" ? active : inactive;
+        TabTempColor = tab == "temp" ? active : inactive;
+
+        TabBpTextColor = tab == "bp" ? activeTxt : inactiveTxt;
+        TabHrTextColor = tab == "hr" ? activeTxt : inactiveTxt;
+        TabSpo2TextColor = tab == "spo2" ? activeTxt : inactiveTxt;
+        TabTempTextColor = tab == "temp" ? activeTxt : inactiveTxt;
+    }
+
     private void BuildPlainEnglish(VitalsAnalysis a)
     {
         if (a.Systolic is null) return;
 
         var sys = a.Systolic;
-        var parts = new List<string>();
 
-        // Hypotension override
+        ShowDiastolicWarning = false;
+        DiastolicWarningText = string.Empty;
+
+        if (a.Classification == "borderline_hypotension" &&
+            a.Diastolic is not null &&
+            a.Diastolic.Significant &&
+            a.Diastolic.Slope > 0.2 &&
+            !sys.Significant)
+        {
+            ShowDiastolicWarning = true;
+            var momentumNote = a.Diastolic.Momentum == "accelerating"
+                ? " The rate of increase is accelerating."
+                : string.Empty;
+            DiastolicWarningText =
+                $"⚠️ While pumping pressure appears stable, resting pressure between beats " +
+                $"has been rising at a statistically significant rate " +
+                $"({a.Diastolic.SlopeDisplay} mmHg/day).{momentumNote} " +
+                $"This pattern warrants discussion with her care team.";
+        }
+
         if (a.Classification == "hypotension")
         {
             PlainEnglishSummary =
-                $"Your average blood pressure of {a.Systolic.Avg:F1}/{a.Diastolic?.Avg:F1} mmHg is below normal range. " +
-                "Low blood pressure can cause dizziness, fatigue, and fainting. " +
-                "If you are experiencing symptoms, contact your care team.";
+                $"Average blood pressure of {a.Systolic.Avg:F1}/{a.Diastolic?.Avg:F1} mmHg " +
+                $"is below normal range. Low blood pressure can cause dizziness, fatigue, " +
+                $"and fainting. If experiencing symptoms, contact the care team.";
+            BuildBurdenSummary(a);
             return;
         }
 
-        // Borderline hypotension override
         if (a.Classification == "borderline_hypotension")
         {
             var hypoBelow = a.HypoBurden is not null
-                ? $" About {a.HypoBurden.ModeratePct + a.HypoBurden.SeverePct:F0}% of readings fell below 90 mmHg" +
+                ? $" About {a.HypoBurden.ModeratePct + a.HypoBurden.SeverePct:F0}% of readings " +
+                  $"fell below 90 mmHg" +
                   (a.HypoBurden.SeverePct >= 5
                       ? $", including {a.HypoBurden.SeverePct:F0}% in the severe range below 80 mmHg."
                       : ".")
                 : string.Empty;
 
             PlainEnglishSummary =
-                $"Your average blood pressure of {a.Systolic.Avg:F1}/{a.Diastolic?.Avg:F1} mmHg is at the lower end of the normal range. " +
-                $"While not critically low, this pattern is worth monitoring — especially for symptoms like lightheadedness or dizziness on standing.{hypoBelow} " +
-                "Recording at consistent times and noting any symptoms will help your care team assess this pattern.";
+                $"Average blood pressure of {a.Systolic.Avg:F1}/{a.Diastolic?.Avg:F1} mmHg " +
+                $"is at the lower end of the normal range. While not critically low, this " +
+                $"pattern is worth monitoring — especially for symptoms like lightheadedness " +
+                $"or dizziness on standing.{hypoBelow} " +
+                $"Recording at consistent times and noting any symptoms will help the care " +
+                $"team assess this pattern.";
+            BuildBurdenSummary(a);
             return;
         }
 
-        // Trend statement
+        var parts = new List<string>();
+
         parts.Add(sys.Trend switch
         {
             "rising_significant" =>
-                $"Your systolic blood pressure has been rising at a statistically significant rate ({sys.SlopeDisplay}) over the past {SelectedDays} days.",
+                $"Pumping pressure has been rising at a statistically significant rate " +
+                $"({sys.SlopeDisplay}) over the past {SelectedDays} days.",
             "rising" =>
-                $"Your systolic blood pressure has been gradually rising ({sys.SlopeDisplay}) over the past {SelectedDays} days, though the trend is not yet statistically significant.",
+                $"Pumping pressure has been gradually rising ({sys.SlopeDisplay}) over " +
+                $"the past {SelectedDays} days, though the trend is not yet statistically significant.",
             "falling_significant" =>
-                $"Your systolic blood pressure has been falling at a statistically significant rate ({sys.SlopeDisplay}) over the past {SelectedDays} days — this is a positive sign.",
+                $"Pumping pressure has been falling at a statistically significant rate " +
+                $"({sys.SlopeDisplay}) over the past {SelectedDays} days — a positive sign.",
             "falling" =>
-                $"Your systolic blood pressure has been gradually improving ({sys.SlopeDisplay}) over the past {SelectedDays} days.",
+                $"Pumping pressure has been gradually improving ({sys.SlopeDisplay}) " +
+                $"over the past {SelectedDays} days.",
             "stable" =>
-                $"Your systolic blood pressure has been stable over the past {SelectedDays} days.",
+                $"Pumping pressure has been stable over the past {SelectedDays} days.",
             _ => string.Empty
         });
 
-        // Momentum statement
         if (sys.Trend is "rising_significant" or "rising")
         {
             parts.Add(sys.Momentum switch
@@ -192,33 +321,41 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         {
             parts.Add(sys.Momentum switch
             {
-                "accelerating" => "Your improvement is continuing to accelerate.",
-                "decelerating" => "Your improvement is slowing down.",
+                "accelerating" => "The improvement is continuing to accelerate.",
+                "decelerating" => "The improvement is slowing down.",
                 _ => string.Empty
             });
         }
 
-        // Consistency statement
         parts.Add(sys.Consistency switch
         {
-            "high" => "Your readings are very consistent, which improves the reliability of this analysis.",
-            "moderate" => "Your readings show moderate variability. Try to record at the same time each day for a more accurate picture.",
-            "low" => "Your readings are quite variable. Recording at the same time each day will help identify clearer trends.",
+            "high" => "Readings are very consistent, which improves the reliability of this analysis.",
+            "moderate" => "Readings show moderate variability. Recording at the same time each day gives a more accurate picture.",
+            "low" => "Readings are quite variable. Recording at the same time each day will help identify clearer trends.",
             _ => string.Empty
         });
 
-        // Burden statement
-        if (a.Burden is not null)
+        if (a.Diastolic is not null && a.Diastolic.Significant && a.Diastolic.Slope > 0.2)
         {
-            if (a.Burden.Stage2Pct > 20)
-                parts.Add($"About {a.Burden.Stage2Pct:F0}% of your readings fall in the Stage 2 range (≥140 mmHg). This is worth discussing with your doctor.");
-            else if (a.Burden.Stage1Pct > 30)
-                parts.Add($"About {a.Burden.Stage1Pct:F0}% of your readings fall in the Stage 1 range (130–139 mmHg).");
-            else if (a.Burden.NormalPct > 70)
-                parts.Add($"{a.Burden.NormalPct:F0}% of your readings are in the normal range — great work.");
+            var diaExtra = a.Diastolic.Momentum == "accelerating"
+                ? " The rate of increase is accelerating."
+                : a.Diastolic.Momentum == "decelerating"
+                    ? " The rate of increase appears to be slowing down."
+                    : string.Empty;
+            parts.Add(
+                $"Notably, resting pressure between beats has been rising at a statistically " +
+                $"significant rate ({a.Diastolic.SlopeDisplay} mmHg/day) — worth monitoring " +
+                $"even if pumping pressure appears stable.{diaExtra}");
+        }
+        else if (a.Diastolic is not null && a.Diastolic.Significant && a.Diastolic.Slope < -0.2)
+        {
+            parts.Add(
+                $"Resting pressure between beats has been falling at a statistically " +
+                $"significant rate ({a.Diastolic.SlopeDisplay} mmHg/day) — a positive sign.");
         }
 
         PlainEnglishSummary = string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+        BuildBurdenSummary(a);
     }
 
     private void BuildPcpLine(VitalsAnalysis a)
@@ -229,54 +366,43 @@ public partial class VitalsAnalysisViewModel : ObservableObject
             return;
         }
 
+        bool diastolicRising = a.Diastolic is not null &&
+                               a.Diastolic.Significant &&
+                               a.Diastolic.Slope > 0.2;
+
         if (!string.IsNullOrEmpty(a.NextFollowup))
             PcpLine = a.Classification switch
             {
                 "hypotension" =>
-                    $"Please discuss your low blood pressure readings with {a.PcpName} at your appointment on {a.NextFollowup}.",
+                    $"Please discuss the low blood pressure readings with {a.PcpName} " +
+                    $"at the appointment on {a.NextFollowup}.",
+                "borderline_hypotension" when diastolicRising =>
+                    $"Consider discussing the borderline-low pumping pressure and the " +
+                    $"rising resting pressure trend with {a.PcpName} at the appointment " +
+                    $"on {a.NextFollowup}.",
                 "borderline_hypotension" =>
-                    $"Consider mentioning your borderline-low blood pressure readings to {a.PcpName} at your appointment on {a.NextFollowup}.",
+                    $"Consider mentioning the borderline-low blood pressure readings to " +
+                    $"{a.PcpName} at the appointment on {a.NextFollowup}.",
                 _ =>
-                    $"Consider sharing this summary with {a.PcpName} at your next appointment on {a.NextFollowup}."
+                    $"Consider sharing this summary with {a.PcpName} at the next " +
+                    $"appointment on {a.NextFollowup}."
             };
         else
             PcpLine = a.Classification switch
             {
                 "hypotension" =>
-                    $"Please discuss your low blood pressure readings with {a.PcpName} at your next visit.",
+                    $"Please discuss the low blood pressure readings with {a.PcpName} " +
+                    $"at the next visit.",
+                "borderline_hypotension" when diastolicRising =>
+                    $"Consider discussing the borderline-low pumping pressure and the " +
+                    $"rising resting pressure trend with {a.PcpName} at the next visit.",
                 "borderline_hypotension" =>
-                    $"Consider mentioning your borderline-low blood pressure readings to {a.PcpName} at your next visit.",
+                    $"Consider mentioning the borderline-low blood pressure readings to " +
+                    $"{a.PcpName} at the next visit.",
                 _ =>
-                    $"You may want to discuss these results with {a.PcpName} during your next visit."
+                    $"You may want to discuss these results with {a.PcpName} during " +
+                    $"the next visit."
             };
-    }
-
-    private void UpdateButtonColors(int days)
-    {
-        var active = Color.FromArgb("#1976d2");
-        var inactive = Color.FromArgb("#0f3460");
-        Btn15Color = days == 15 ? active : inactive;
-        Btn30Color = days == 30 ? active : inactive;
-        Btn45Color = days == 45 ? active : inactive;
-        Btn60Color = days == 60 ? active : inactive;
-        BtnCustomColor = days == -1 ? active : inactive;
-    }
-
-    [RelayCommand]
-    public void SelectTab(string tab)
-    {
-        var active = Color.FromArgb("#1976d2");
-        var inactive = Color.FromArgb("#0f3460");
-
-        ShowBp = tab == "bp";
-        ShowHr = tab == "hr";
-        ShowSpo2 = tab == "spo2";
-        ShowTemp = tab == "temp";
-
-        TabBpColor = tab == "bp" ? active : inactive;
-        TabHrColor = tab == "hr" ? active : inactive;
-        TabSpo2Color = tab == "spo2" ? active : inactive;
-        TabTempColor = tab == "temp" ? active : inactive;
     }
 
     private void BuildHrSummary(VitalsAnalysis a)
@@ -420,5 +546,16 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         }
 
         TempSummary = string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+    }
+
+    private void BuildBurdenSummary(VitalsAnalysis a)
+    {
+        if (a.Map is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(PlainEnglishSummary))
+                PlainEnglishSummary += $" {a.Map.PlainEnglish}";
+            else
+                PlainEnglishSummary = a.Map.PlainEnglish;
+        }
     }
 }

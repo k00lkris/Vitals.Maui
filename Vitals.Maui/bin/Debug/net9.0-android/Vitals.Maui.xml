@@ -4,6 +4,43 @@
         <name>Vitals.Maui</name>
     </assembly>
     <members>
+        <member name="T:Vitals.Maui.Services.AppNavigation">
+             <summary>
+             Swaps the visible root page by setting the current Window's Page
+             property — NOT Application.Current.MainPage. This app overrides
+             App.CreateWindow(...) (see App.xaml.cs), and MAUI does not allow both
+             CreateWindow AND Application.MainPage to be used — if MainPage is ever
+             assigned, the next time CreateWindow is invoked (e.g. after Android
+             recreates the Activity following the app being backgrounded/killed),
+             MAUI throws "Both MainPage was set and CreateWindow was overridden to
+             provide a page." Window.Page has no such conflict and is the correct
+             way to swap root pages in an app using CreateWindow.
+            
+             Use this everywhere a screen needs to replace the whole visible page
+             (login/logout, sign-up, entering/leaving onboarding) instead of ever
+             setting Application.Current.MainPage directly.
+             </summary>
+        </member>
+        <member name="M:Vitals.Maui.Services.AppNavigation.RouteAfterGoogleAuth(System.Boolean,Vitals.Maui.Services.PatientStateService)">
+             <summary>
+             Routes to onboarding or AppShell based on what /api/auth/google
+             actually said about the account (AuthService.IsNewUser), not which
+             button the user tapped. Both LoginViewModel.SignInWithGoogleAsync
+             and SignUpViewModel.SignUpWithGoogleAsync call this after a
+             successful sign-in so a new user hitting "Sign in" on the Login
+             page still gets onboarding, and an existing user hitting "Sign up"
+             on the Sign Up page still lands in AppShell.
+            
+             Always resets PatientStateService first. It's a Singleton (lives
+             for the whole app process), so without this, signing in as a
+             different account without an app restart would keep showing
+             whichever household's patients were already cached from a previous
+             session — the auth identity would correctly switch, but the visible
+             data wouldn't. Resetting costs one extra API re-fetch even when it
+             turns out to be the same account; not resetting risks showing one
+             household's data under a different one's identity.
+             </summary>
+        </member>
         <member name="M:Vitals.Maui.Services.MathService.Loess(System.Double[],System.Double[],System.Double)">
             <summary>
             LOESS (Locally Weighted Scatterplot Smoothing)
@@ -17,6 +54,19 @@
         </member>
         <member name="T:Vitals.Maui.Services.PatientStateService">
             <inheritdoc/>
+        </member>
+        <member name="M:Vitals.Maui.Services.PatientStateService.Reset">
+            <summary>
+            Clears cached patient data. This service is registered as a Singleton
+            (see MauiProgram.cs), so it otherwise lives for the entire app process
+            — InitializeAsync's "if (Patients.Any()) return" guard means once
+            populated, it never reloads on its own. Without an explicit reset,
+            signing in as a different account within the same process (no app
+            restart) would keep showing whichever household's patients were
+            cached from before, even though AuthService correctly switched
+            identity. Call this on sign-out and right after any successful
+            sign-in, so a session boundary always means a clean slate.
+            </summary>
         </member>
         <member name="P:Vitals.Maui.Services.PatientStateService.Patients">
             <inheritdoc cref="F:Vitals.Maui.Services.PatientStateService._patients"/>
@@ -285,17 +335,29 @@
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.SelectedDays">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._selectedDays"/>
         </member>
-        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.Btn15Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btn15Color"/>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.BtnDay15Color">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btnDay15Color"/>
         </member>
-        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.Btn30Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btn30Color"/>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.BtnDay30Color">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btnDay30Color"/>
         </member>
-        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.Btn45Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btn45Color"/>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.BtnDay45Color">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btnDay45Color"/>
         </member>
-        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.Btn60Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btn60Color"/>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.BtnDay60Color">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btnDay60Color"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.BtnDay15TextColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btnDay15TextColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.BtnDay30TextColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btnDay30TextColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.BtnDay45TextColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btnDay45TextColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.BtnDay60TextColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._btnDay60TextColor"/>
         </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.IsBusy">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._isBusy"/>
@@ -545,21 +607,6 @@
         <member name="P:Vitals.Maui.ViewModels.GeneratePdfViewModel.SelectedDays">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.GeneratePdfViewModel._selectedDays"/>
         </member>
-        <member name="P:Vitals.Maui.ViewModels.GeneratePdfViewModel.Btn15Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.GeneratePdfViewModel._btn15Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.GeneratePdfViewModel.Btn30Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.GeneratePdfViewModel._btn30Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.GeneratePdfViewModel.Btn45Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.GeneratePdfViewModel._btn45Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.GeneratePdfViewModel.Btn60Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.GeneratePdfViewModel._btn60Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.GeneratePdfViewModel.BtnCustomColor">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.GeneratePdfViewModel._btnCustomColor"/>
-        </member>
         <member name="P:Vitals.Maui.ViewModels.GeneratePdfViewModel.CustomDaysLabel">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.GeneratePdfViewModel._customDaysLabel"/>
         </member>
@@ -758,6 +805,43 @@
         <member name="P:Vitals.Maui.ViewModels.IncidentLogViewModel.OpenAddIncidentCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.IncidentLogViewModel.OpenAddIncidentAsync"/>.</summary>
         </member>
+        <member name="T:Vitals.Maui.ViewModels.LoginViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.LoginViewModel.NavigateToSignUp">
+            <summary>
+            Resolves the target ViewModel from the DI container and swaps the
+            root page via AppNavigation, since Login/SignUp live outside Shell
+            (Shell.Current is null here — Shell only exists once AppShell has
+            been set post-auth).
+            </summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.LoginViewModel.IsBusy">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.LoginViewModel._isBusy"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.LoginViewModel.StatusMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.LoginViewModel._statusMessage"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.LoginViewModel.Email">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.LoginViewModel._email"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.LoginViewModel.Password">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.LoginViewModel._password"/>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.LoginViewModel.signInWithGoogleCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.LoginViewModel.SignInWithGoogleCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.LoginViewModel.SignInWithGoogleCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.LoginViewModel.SignInWithGoogleAsync"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.LoginViewModel.navigateToSignUpCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.LoginViewModel.NavigateToSignUpCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.LoginViewModel.NavigateToSignUpCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.LoginViewModel.NavigateToSignUp"/>.</summary>
+        </member>
         <member name="T:Vitals.Maui.ViewModels.MedicationDetailViewModel">
             <inheritdoc/>
             <inheritdoc/>
@@ -769,6 +853,95 @@
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.FormatStrength(System.String)">
+            <summary>
+            Cleans up an openFDA strength string for display: "40 mg/1" -> "40 mg"
+            (the "/1" is a per-single-unit denominator, not meaningful to show),
+            but "125 mg/5 mL" is left alone since the denominator is meaningful
+            for liquids.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.TryFetchUsageAsync(System.Net.Http.HttpClient,System.Text.Json.JsonElement,System.String)">
+            <summary>
+            Fetches a short usage/indication string. Tries pharm_class[EPC] first
+            — the "Established Pharmacologic Class" is FDA-standardized and short
+            — then translates it to plain language via a static lookup table (see
+            TranslateEpcToPlainLanguage) since raw clinical class names ("Proton
+            Pump Inhibitor") mean nothing to a caregiver. Falls back to the OTC
+            "purpose" field from drug/label.json if no EPC entry exists at all.
+            Deliberately does NOT fall back to truncating indications_and_usage
+            prose: that path amounts to summarizing unstructured text without
+            understanding it, which is the wrong tool for the job here.
+            </summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.MedicationDetailViewModel.EpcPlainLanguage">
+            <summary>
+            Translates an FDA Established Pharmacologic Class name into
+            caregiver-plain language. This is a small, hand-maintained lookup —
+            not a summarizer — because EPC terms are a closed, standardized FDA
+            vocabulary (a few hundred total), and a caregiving app only actually
+            encounters a modest recurring subset of them (BP, cholesterol,
+            diabetes, GI, pain, mood). Unmapped classes fall through to the raw
+            EPC term rather than blank — imperfect but still more actionable
+            than nothing — and get logged so the table can grow from real usage.
+            Lookup is case-insensitive; extend this dictionary as new drugs
+            surface unmapped classes in the debug log.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.TranslateEpcToPlainLanguage(System.String)">
+            <summary>
+            Looks up a plain-language translation for an EPC class name. Returns
+            the raw class name unchanged if there's no entry yet — but logs it,
+            since an unmapped class showing up in real usage is exactly the
+            signal for what to add to EpcPlainLanguage next.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.ExtractEpcClass(System.Text.Json.JsonElement)">
+            <summary>
+            Finds the FDA "Established Pharmacologic Class" entry in a
+            pharm_class array (e.g. "Proton Pump Inhibitor [EPC]") and strips
+            the trailing tag. Falls back to the first entry with any bracket
+            tag stripped if no [EPC]-tagged entry exists. Returns null if
+            pharm_class is absent or empty.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.TryFetchByFieldAsync(System.Net.Http.HttpClient,System.String,System.String)">
+            <summary>
+            Queries drug/ndc.json (the NDC Directory) for a single
+            {field}:"{value}" match. Returns null on NOT_FOUND, empty results,
+            or any HTTP/parse error — callers treat null as "try the next candidate."
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.GenerateUpcCandidates(System.String)">
+            <summary>
+            Generates plausible UPC candidates for the openfda.upc fallback.
+            A 12-digit UPC-A scans as-is. A 14-digit GTIN-14 wraps a UPC-A with
+            an indicator digit + check digit, so we also try stripping the
+            leading indicator digit and the trailing check digit. NDC-length
+            input (10/11) is passed through too, since some OTC products are
+            occasionally indexed under openfda.upc using their NDC-derived form.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.GenerateProductNdcCandidates(System.String)">
+            <summary>
+            Generates plausible 10-digit product_ndc strings (labeler-product)
+            from a scanned/typed NDC, covering all three FDA segment layouts
+            (4-4-2, 5-3-2, 5-4-1). The 11-digit code printed on a bottle is a
+            CMS billing normalization — one segment was zero-padded to make
+            every NDC 11 digits — and you can't tell which segment from the
+            digits alone. Order: 5-4-1 first (no product-segment padding, the
+            common case), then 5-3-2 (padded product segment — e.g. a bottle
+            reading 13668-0429-05 where the real product_ndc is 13668-429),
+            then 4-4-2 (padded labeler segment, rare).
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.GeneratePackageNdcCandidates(System.String)">
+            <summary>
+            Generates plausible package_ndc candidates (all three segments)
+            as a fallback when no product_ndc candidate matches.
+            </summary>
         </member>
         <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.IsEditing">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationDetailViewModel._isEditing"/>
@@ -848,6 +1021,12 @@
         <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.SelectedDoctor">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationDetailViewModel._selectedDoctor"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.NdcCode">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationDetailViewModel._ndcCode"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.NdcStatusMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationDetailViewModel._ndcStatusMessage"/>
+        </member>
         <member name="F:Vitals.Maui.ViewModels.MedicationDetailViewModel.startEditCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.StartEditCommand"/>.</summary>
         </member>
@@ -902,11 +1081,24 @@
         <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.SelectOtcCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.SelectOtc"/>.</summary>
         </member>
+        <member name="F:Vitals.Maui.ViewModels.MedicationDetailViewModel.lookupNdcCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.LookupNdcCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.LookupNdcCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.LookupNdcAsync"/>.</summary>
+        </member>
         <member name="T:Vitals.Maui.ViewModels.MedicationsViewModel">
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationsViewModel.ApplyFilterAndGroup">
+            <summary>
+            Filters _allMeds by HideInactiveMedications, then buckets by time of
+            day. Split out from LoadMedicationsAsync so toggling the switch just
+            re-filters the cached list rather than re-fetching from the API.
+            </summary>
         </member>
         <member name="P:Vitals.Maui.ViewModels.MedicationsViewModel.MorningMeds">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationsViewModel._morningMeds"/>
@@ -946,6 +1138,17 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.MedicationsViewModel.HasNoMedications">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationsViewModel._hasNoMedications"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.MedicationsViewModel.NoMedicationsMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationsViewModel._noMedicationsMessage"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.MedicationsViewModel.HideInactiveMedications">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationsViewModel._hideInactiveMedications"/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationsViewModel.OnHideInactiveMedicationsChanged(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.MedicationsViewModel.HideInactiveMedications"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.MedicationsViewModel.HideInactiveMedications"/> is changed.</remarks>
         </member>
         <member name="F:Vitals.Maui.ViewModels.MedicationsViewModel.loadCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.MedicationsViewModel.LoadCommand"/>.</summary>
@@ -1116,6 +1319,285 @@
         <member name="P:Vitals.Maui.ViewModels.NotesViewModel.OpenAddNoteCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.NotesViewModel.OpenAddNoteAsync"/>.</summary>
         </member>
+        <member name="T:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.Selection">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel._selection"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.MyselfCardColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel._myselfCardColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.FamilyCardColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel._familyCardColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.BothCardColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel._bothCardColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.StatusMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel._statusMessage"/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.OnSelectionChanged(System.String)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.Selection"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.Selection"/> is changed.</remarks>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.selectMyselfCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.SelectMyselfCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.SelectMyselfCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.SelectMyself"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.selectFamilyCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.SelectFamilyCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.SelectFamilyCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.SelectFamily"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.selectBothCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.SelectBothCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.SelectBothCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.SelectBoth"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.continueCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.ContinueCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.ContinueCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.Continue"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.backCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.BackCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.BackCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.Back"/>.</summary>
+        </member>
+        <member name="T:Vitals.Maui.ViewModels.OnboardingPurposeViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPurposeViewModel.continueCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPurposeViewModel.ContinueCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPurposeViewModel.ContinueCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPurposeViewModel.Continue"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPurposeViewModel.backCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPurposeViewModel.BackCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPurposeViewModel.BackCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPurposeViewModel.Back"/>.</summary>
+        </member>
+        <member name="T:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.CurrentStep">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._currentStep"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.TourTitle">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._tourTitle"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.TourDescription">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._tourDescription"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.TourButtonText">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._tourButtonText"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.StepIndicatorText">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._stepIndicatorText"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.HeaderOpacity">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._headerOpacity"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.LatestReadingOpacity">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._latestReadingOpacity"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.AveragesOpacity">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._averagesOpacity"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.AnalysisOpacity">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._analysisOpacity"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.HeaderStroke">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._headerStroke"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.LatestReadingStroke">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._latestReadingStroke"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.AveragesStroke">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._averagesStroke"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.AnalysisStroke">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._analysisStroke"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.ShowHeaderTooltip">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._showHeaderTooltip"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.ShowLatestReadingTooltip">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._showLatestReadingTooltip"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.ShowAveragesTooltip">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._showAveragesTooltip"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.ShowAnalysisTooltip">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel._showAnalysisTooltip"/>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.nextStepCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.NextStepCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.NextStepCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.NextStep"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.skipTourCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.SkipTourCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.SkipTourCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.SkipTour"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.backCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.BackCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.BackCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingSampleDashboardViewModel.Back"/>.</summary>
+        </member>
+        <member name="T:Vitals.Maui.ViewModels.OnboardingWelcomeViewModel">
+            <inheritdoc/>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingWelcomeViewModel.continueCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingWelcomeViewModel.ContinueCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingWelcomeViewModel.ContinueCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingWelcomeViewModel.Continue"/>.</summary>
+        </member>
+        <member name="T:Vitals.Maui.ViewModels.SettingsViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.CurrentTheme">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._currentTheme"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowHeartRate">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._showHeartRate"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowSpo2">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._showSpo2"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowTemperature">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._showTemperature"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowWeight">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._showWeight"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowGlucose">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._showGlucose"/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.SettingsViewModel.OnShowHeartRateChanged(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowHeartRate"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowHeartRate"/> is changed.</remarks>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.SettingsViewModel.OnShowSpo2Changed(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowSpo2"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowSpo2"/> is changed.</remarks>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.SettingsViewModel.OnShowTemperatureChanged(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowTemperature"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowTemperature"/> is changed.</remarks>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.SettingsViewModel.OnShowWeightChanged(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowWeight"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowWeight"/> is changed.</remarks>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.SettingsViewModel.OnShowGlucoseChanged(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowGlucose"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowGlucose"/> is changed.</remarks>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.SettingsViewModel.setThemeCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.SetThemeCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.SetThemeCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand`1"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.SettingsViewModel.SetTheme(System.String)"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.SettingsViewModel.signOutCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.SignOutCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.SignOutCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.SettingsViewModel.SignOutAsync"/>.</summary>
+        </member>
+        <member name="T:Vitals.Maui.ViewModels.SignUpViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.SignUpViewModel.SignUpWithGoogleAsync">
+             <summary>
+             Reuses the same Google sign-in flow as LoginViewModel — signing up
+             and signing in with Google are the same backend call (/api/auth/google
+             upserts by firebase_uid OR email), so there is no separate
+             "register with Google" endpoint needed. Routes via
+             AppNavigation.RouteAfterGoogleAuth based on what the backend actually
+             says about the account (is_new_user) — NOT always to onboarding —
+             since an existing user could end up on this screen too (e.g. they
+             meant to tap Sign In) and should land in AppShell like normal, not
+             get routed through onboarding again.
+            
+             Races the actual sign-in against a timeout, since AuthenticateAsync
+             can hang forever on some devices if the user backs out of the
+             browser without it registering as a cancellation. This guarantees
+             IsBusy always clears eventually even in that worst case.
+             </summary>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.SignUpViewModel.BackToLogin">
+            <summary>
+            Same DI-resolve + AppNavigation.SetRootPage pattern as
+            LoginViewModel.NavigateToSignUp. If a Google sign-in is still in
+            progress, treat back as cancelling it from the UI's perspective:
+            bump the operation id (so a late/stale result from the still-running
+            native call gets ignored — see SignUpWithGoogleAsync) and reset
+            IsBusy/StatusMessage before navigating, so the user is never left
+            looking at a stuck spinner.
+            </summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SignUpViewModel.Email">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SignUpViewModel._email"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SignUpViewModel.Password">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SignUpViewModel._password"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SignUpViewModel.ConfirmPassword">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SignUpViewModel._confirmPassword"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SignUpViewModel.IsBusy">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SignUpViewModel._isBusy"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SignUpViewModel.StatusMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SignUpViewModel._statusMessage"/>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.SignUpViewModel.signUpWithGoogleCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.SignUpViewModel.SignUpWithGoogleCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SignUpViewModel.SignUpWithGoogleCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.SignUpViewModel.SignUpWithGoogleAsync"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.SignUpViewModel.backToLoginCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.SignUpViewModel.BackToLoginCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SignUpViewModel.BackToLoginCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.SignUpViewModel.BackToLogin"/>.</summary>
+        </member>
         <member name="T:Vitals.Maui.ViewModels.VisitDetailViewModel">
             <inheritdoc/>
             <inheritdoc/>
@@ -1254,21 +1736,6 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectedDays">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._selectedDays"/>
         </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Btn15Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._btn15Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Btn30Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._btn30Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Btn45Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._btn45Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Btn60Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._btn60Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.BtnCustomColor">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._btnCustomColor"/>
-        </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.CustomDaysLabel">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._customDaysLabel"/>
         </member>
@@ -1277,18 +1744,6 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.PcpLine">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._pcpLine"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TabBpColor">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tabBpColor"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TabHrColor">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tabHrColor"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TabSpo2Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tabSpo2Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TabTempColor">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tabTempColor"/>
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowBp">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showBp"/>
@@ -1310,6 +1765,12 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TempSummary">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tempSummary"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowDiastolicWarning">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showDiastolicWarning"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.DiastolicWarningText">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._diastolicWarningText"/>
         </member>
         <member name="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.selectDaysCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectDaysCommand"/>.</summary>
@@ -1333,6 +1794,15 @@
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.LoadDisplayPreferences">
+            <summary>
+            Reads the same show/hide keys SettingsViewModel writes to. Called
+            from the constructor and again from LoadAsync (i.e. on page
+            appearing), since a Settings change made after this ViewModel was
+            first constructed wouldn't otherwise be picked up if the page/VM
+            instance is cached rather than recreated on navigation.
+            </summary>
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.Systolic">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._systolic"/>
@@ -1367,6 +1837,21 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.IsSuccess">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._isSuccess"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.ShowHeartRate">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._showHeartRate"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.ShowSpo2">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._showSpo2"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.ShowTemperature">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._showTemperature"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.ShowWeight">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._showWeight"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.ShowGlucose">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._showGlucose"/>
+        </member>
         <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.loadCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.LoadCommand"/>.</summary>
         </member>
@@ -1399,21 +1884,6 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.SelectedDays">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._selectedDays"/>
         </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.Btn15Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._btn15Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.Btn30Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._btn30Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.Btn45Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._btn45Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.Btn60Color">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._btn60Color"/>
-        </member>
-        <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.BtnCustomColor">
-            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._btnCustomColor"/>
-        </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.CustomDaysLabel">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._customDaysLabel"/>
         </member>
@@ -1428,6 +1898,17 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.SelectCustomDaysCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand`1"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsHistoryViewModel.SelectCustomDaysAsync(System.String)"/>.</summary>
+        </member>
+        <member name="M:Vitals.Maui.Views.SignUpPage.OnBackButtonPressed">
+            <summary>
+            SignUpPage is a bare MainPage (not wrapped in a NavigationPage), so
+            there's no stack for the Android hardware/gesture back button to pop
+            — its default behavior with nothing to pop is to close the app
+            entirely. That's correct on LoginPage (it's the true root screen)
+            but wrong here, since conceptually "back" from Sign Up should return
+            to Login. Intercepting it and routing through the same command the
+            on-screen back arrow uses keeps both paths consistent.
+            </summary>
         </member>
         <member name="T:Vitals.Maui.Resource">
             <summary>
@@ -1681,17 +2162,29 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.SelectedDays">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "SelectedDays" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Btn15Color">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Btn15Color" generated properties.</summary>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BtnDay15Color">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BtnDay15Color" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Btn30Color">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Btn30Color" generated properties.</summary>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BtnDay30Color">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BtnDay30Color" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Btn45Color">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Btn45Color" generated properties.</summary>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BtnDay45Color">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BtnDay45Color" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Btn60Color">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Btn60Color" generated properties.</summary>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BtnDay60Color">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BtnDay60Color" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BtnDay15TextColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BtnDay15TextColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BtnDay30TextColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BtnDay30TextColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BtnDay45TextColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BtnDay45TextColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BtnDay60TextColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BtnDay60TextColor" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ChartsExpanded">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ChartsExpanded" generated properties.</summary>
@@ -1771,9 +2264,6 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasNoReports">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HasNoReports" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BtnCustomColor">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BtnCustomColor" generated properties.</summary>
-        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.CustomDaysLabel">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "CustomDaysLabel" generated properties.</summary>
         </member>
@@ -1815,6 +2305,9 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasNoIncidents">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HasNoIncidents" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Password">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Password" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Dosage">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Dosage" generated properties.</summary>
@@ -1870,6 +2363,12 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.SelectedDoctor">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "SelectedDoctor" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.NdcCode">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "NdcCode" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.NdcStatusMessage">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "NdcStatusMessage" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.MorningMeds">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "MorningMeds" generated properties.</summary>
         </member>
@@ -1900,6 +2399,12 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasNoMedications">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HasNoMedications" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.NoMedicationsMessage">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "NoMedicationsMessage" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HideInactiveMedications">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HideInactiveMedications" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GeneralColor">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GeneralColor" generated properties.</summary>
         </member>
@@ -1929,6 +2434,90 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasNoNotes">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HasNoNotes" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Selection">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Selection" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.MyselfCardColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "MyselfCardColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.FamilyCardColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "FamilyCardColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BothCardColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BothCardColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.CurrentStep">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "CurrentStep" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TourTitle">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TourTitle" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TourDescription">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TourDescription" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TourButtonText">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TourButtonText" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.StepIndicatorText">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "StepIndicatorText" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HeaderOpacity">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HeaderOpacity" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.LatestReadingOpacity">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "LatestReadingOpacity" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.AveragesOpacity">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "AveragesOpacity" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.AnalysisOpacity">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "AnalysisOpacity" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HeaderStroke">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HeaderStroke" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.LatestReadingStroke">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "LatestReadingStroke" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.AveragesStroke">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "AveragesStroke" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.AnalysisStroke">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "AnalysisStroke" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowHeaderTooltip">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowHeaderTooltip" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowLatestReadingTooltip">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowLatestReadingTooltip" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowAveragesTooltip">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowAveragesTooltip" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowAnalysisTooltip">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowAnalysisTooltip" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.CurrentTheme">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "CurrentTheme" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowHeartRate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowHeartRate" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowSpo2">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowSpo2" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowTemperature">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowTemperature" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowWeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowWeight" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowGlucose">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowGlucose" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ConfirmPassword">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ConfirmPassword" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.PatientDoctors">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "PatientDoctors" generated properties.</summary>
@@ -1987,26 +2576,11 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.PcpLine">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "PcpLine" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TabBpColor">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TabBpColor" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TabHrColor">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TabHrColor" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TabSpo2Color">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TabSpo2Color" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TabTempColor">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TabTempColor" generated properties.</summary>
-        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowBp">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowBp" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowHr">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowHr" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowSpo2">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowSpo2" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowTemp">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowTemp" generated properties.</summary>
@@ -2019,6 +2593,12 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempSummary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowDiastolicWarning">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowDiastolicWarning" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.DiastolicWarningText">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "DiastolicWarningText" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Rows">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Rows" generated properties.</summary>
@@ -2152,17 +2732,29 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.SelectedDays">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "SelectedDays" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Btn15Color">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Btn15Color" generated properties.</summary>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BtnDay15Color">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BtnDay15Color" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Btn30Color">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Btn30Color" generated properties.</summary>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BtnDay30Color">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BtnDay30Color" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Btn45Color">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Btn45Color" generated properties.</summary>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BtnDay45Color">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BtnDay45Color" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Btn60Color">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Btn60Color" generated properties.</summary>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BtnDay60Color">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BtnDay60Color" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BtnDay15TextColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BtnDay15TextColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BtnDay30TextColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BtnDay30TextColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BtnDay45TextColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BtnDay45TextColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BtnDay60TextColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BtnDay60TextColor" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ChartsExpanded">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ChartsExpanded" generated properties.</summary>
@@ -2242,9 +2834,6 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasNoReports">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HasNoReports" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BtnCustomColor">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BtnCustomColor" generated properties.</summary>
-        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.CustomDaysLabel">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "CustomDaysLabel" generated properties.</summary>
         </member>
@@ -2286,6 +2875,9 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasNoIncidents">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HasNoIncidents" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Password">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Password" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Dosage">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Dosage" generated properties.</summary>
@@ -2341,6 +2933,12 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.SelectedDoctor">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "SelectedDoctor" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.NdcCode">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "NdcCode" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.NdcStatusMessage">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "NdcStatusMessage" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.MorningMeds">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "MorningMeds" generated properties.</summary>
         </member>
@@ -2371,6 +2969,12 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasNoMedications">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HasNoMedications" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.NoMedicationsMessage">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "NoMedicationsMessage" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HideInactiveMedications">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HideInactiveMedications" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GeneralColor">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GeneralColor" generated properties.</summary>
         </member>
@@ -2400,6 +3004,90 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasNoNotes">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HasNoNotes" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Selection">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Selection" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.MyselfCardColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "MyselfCardColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.FamilyCardColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "FamilyCardColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BothCardColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BothCardColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.CurrentStep">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "CurrentStep" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TourTitle">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TourTitle" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TourDescription">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TourDescription" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TourButtonText">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TourButtonText" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.StepIndicatorText">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "StepIndicatorText" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HeaderOpacity">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HeaderOpacity" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.LatestReadingOpacity">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "LatestReadingOpacity" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.AveragesOpacity">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "AveragesOpacity" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.AnalysisOpacity">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "AnalysisOpacity" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HeaderStroke">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HeaderStroke" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.LatestReadingStroke">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "LatestReadingStroke" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.AveragesStroke">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "AveragesStroke" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.AnalysisStroke">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "AnalysisStroke" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowHeaderTooltip">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowHeaderTooltip" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowLatestReadingTooltip">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowLatestReadingTooltip" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowAveragesTooltip">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowAveragesTooltip" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowAnalysisTooltip">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowAnalysisTooltip" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.CurrentTheme">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "CurrentTheme" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowHeartRate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowHeartRate" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowSpo2">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowSpo2" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowTemperature">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowTemperature" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowWeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowWeight" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowGlucose">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowGlucose" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ConfirmPassword">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ConfirmPassword" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.PatientDoctors">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "PatientDoctors" generated properties.</summary>
@@ -2458,26 +3146,11 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.PcpLine">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "PcpLine" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TabBpColor">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TabBpColor" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TabHrColor">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TabHrColor" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TabSpo2Color">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TabSpo2Color" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TabTempColor">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TabTempColor" generated properties.</summary>
-        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowBp">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowBp" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowHr">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowHr" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowSpo2">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowSpo2" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowTemp">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowTemp" generated properties.</summary>
@@ -2490,6 +3163,12 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempSummary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowDiastolicWarning">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowDiastolicWarning" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.DiastolicWarningText">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "DiastolicWarningText" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Rows">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Rows" generated properties.</summary>

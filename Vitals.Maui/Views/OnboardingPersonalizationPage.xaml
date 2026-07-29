@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             x:Class="Vitals.Maui.Views.OnboardingPersonalizationPage"
+             x:DataType="vm:OnboardingPersonalizationViewModel"
+             NavigationPage.HasNavigationBar="False"
+             BackgroundColor="{DynamicResource PageBackground}">
+
+    <ScrollView>
+        <Grid Padding="24" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="8">
+
+            <!-- Back -->
+            <Button Grid.Row="0"
+                    Text="←"
+                    Command="{Binding BackCommand}"
+                    BackgroundColor="Transparent"
+                    TextColor="{DynamicResource TextSecondary}"
+                    FontSize="22"
+                    HorizontalOptions="Start"
+                    WidthRequest="44"
+                    HeightRequest="44"
+                    Padding="0" />
+
+            <!-- Question + options -->
+            <VerticalStackLayout Grid.Row="1" Spacing="16" VerticalOptions="Center">
+
+                <Label Text="Who are you tracking for?"
+                       FontSize="26"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource TextPrimary}"
+                       HorizontalOptions="Center"
+                       HorizontalTextAlignment="Center"
+                       Margin="0,0,0,8" />
+
+                <!-- Myself -->
+                <Border Padding="16"
+                        BackgroundColor="{Binding MyselfCardColor}"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{DynamicResource CardStroke}">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SelectMyselfCommand}" />
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Myself"
+                               FontSize="17"
+                               FontAttributes="Bold"
+                               TextColor="White" />
+                        <Label Text="Track your own readings and medications."
+                               FontSize="14"
+                               TextColor="#DDE6F0" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- A family member -->
+                <Border Padding="16"
+                        BackgroundColor="{Binding FamilyCardColor}"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{DynamicResource CardStroke}">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SelectFamilyCommand}" />
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="A family member"
+                               FontSize="17"
+                               FontAttributes="Bold"
+                               TextColor="White" />
+                        <Label Text="Track readings and medications for someone you care for."
+                               FontSize="14"
+                               TextColor="#DDE6F0" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Both -->
+                <Border Padding="16"
+                        BackgroundColor="{Binding BothCardColor}"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{DynamicResource CardStroke}">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding SelectBothCommand}" />
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Both"
+                               FontSize="17"
+                               FontAttributes="Bold"
+                               TextColor="White" />
+                        <Label Text="Track yourself and someone you care for, in one place."
+                               FontSize="14"
+                               TextColor="#DDE6F0" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label Text="{Binding StatusMessage}"
+                       IsVisible="{Binding StatusMessage, Converter={StaticResource StringToBoolConverter}}"
+                       FontSize="13"
+                       TextColor="#E57373"
+                       HorizontalOptions="Center"
+                       Margin="0,4,0,0" />
+
+            </VerticalStackLayout>
+
+            <!-- Progress dots (3 of 5) -->
+            <HorizontalStackLayout Grid.Row="2"
+                                    Spacing="8"
+                                    HorizontalOptions="Center"
+                                    Margin="0,20,0,0">
+                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                         BackgroundColor="{DynamicResource DividerColor}" />
+                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                         BackgroundColor="{DynamicResource DividerColor}" />
+                <BoxView HeightRequest="8" WidthRequest="24" CornerRadius="4"
+                         BackgroundColor="{DynamicResource PrimaryAccent}" />
+                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                         BackgroundColor="{DynamicResource DividerColor}" />
+                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                         BackgroundColor="{DynamicResource DividerColor}" />
+            </HorizontalStackLayout>
+
+            <!-- Continue -->
+            <Button Grid.Row="4"
+                    Text="Continue"
+                    Command="{Binding ContinueCommand}"
+                    BackgroundColor="{DynamicResource ButtonBackground}"
+                    TextColor="{DynamicResource TextPrimary}"
+                    FontSize="16"
+                    FontAttributes="Bold"
+                    HeightRequest="56"
+                    CornerRadius="12"
+                    Margin="0,16,0,0" />
+
+        </Grid>
+    </ScrollView>
+</ContentPage>

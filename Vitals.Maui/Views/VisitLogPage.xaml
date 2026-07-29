@@ -5,33 +5,33 @@
              xmlns:models="clr-namespace:Vitals.Maui.Models"
              x:Class="Vitals.Maui.Views.VisitLogPage"
              x:DataType="vm:VisitLogViewModel"
-             BackgroundColor="#1a1a2e">
+             BackgroundColor="{DynamicResource PageBackground}">
 
     <RefreshView Command="{Binding LoadCommand}"
                  IsRefreshing="{Binding IsBusy}"
-                 RefreshColor="#90caf9">
+                 RefreshColor="{DynamicResource PrimaryAccent}">
         <ScrollView>
             <VerticalStackLayout Padding="16" Spacing="12">
 
                 <!-- Header -->
                 <Border Padding="16"
-                        BackgroundColor="#16213e"
+                        BackgroundColor="{DynamicResource CardBackground}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="#2a2a4a">
+                        Stroke="{DynamicResource CardStroke}">
                     <VerticalStackLayout Spacing="10">
-                        <Label FontSize="18" FontAttributes="Bold" TextColor="White">
+                        <Label FontSize="18" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}">
                             <Label.FormattedText>
                                 <FormattedString>
-                                    <Span Text="Visit Log — " TextColor="#90caf9" />
+                                    <Span Text="Visit Log — " TextColor="{DynamicResource PrimaryAccent}" />
                                     <Span Text="{Binding SelectedPatient.FullName,
                                               TargetNullValue='', FallbackValue=''}"
-                                          TextColor="White" FontAttributes="Bold" />
+                                          TextColor="{DynamicResource TextPrimary}" FontAttributes="Bold" />
                                 </FormattedString>
                             </Label.FormattedText>
                         </Label>
                         <Button Text="➕  Log Visit"
-                                BackgroundColor="#1976d2"
-                                TextColor="White"
+                                BackgroundColor="{DynamicResource ButtonBackground}"
+                                TextColor="{DynamicResource TextPrimary}"
                                 FontSize="13"
                                 HeightRequest="44"
                                 CornerRadius="8"
@@ -42,43 +42,42 @@
                 <!-- No Visits -->
                 <Label Text="No visits logged yet."
                        IsVisible="{Binding HasNoVisits}"
-                       FontSize="14" TextColor="#888888"
+                       FontSize="14" TextColor="{DynamicResource TextMuted}"
                        HorizontalOptions="Center"
                        Margin="0,16" />
 
                 <!-- Visit List -->
                 <Border Padding="16"
-                        BackgroundColor="#16213e"
+                        BackgroundColor="{DynamicResource CardBackground}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="#2a2a4a"
+                        Stroke="{DynamicResource CardStroke}"
                         IsVisible="{Binding HasNoVisits,
                             Converter={StaticResource InvertedBoolConverter}}">
                     <VerticalStackLayout Spacing="8">
 
                         <Label Text="🏥  Visits"
                                FontSize="20" FontAttributes="Bold"
-                               TextColor="White" Margin="0,0,0,8" />
+                               TextColor="{DynamicResource TextPrimary}" Margin="0,0,0,8" />
 
                         <CollectionView ItemsSource="{Binding Visits}">
                             <CollectionView.ItemTemplate>
                                 <DataTemplate x:DataType="models:VisitLog">
                                     <Border Padding="12"
                                             Margin="0,0,0,8"
-                                            BackgroundColor="#0f3460"
+                                            BackgroundColor="{DynamicResource PageBackground}"
                                             StrokeShape="RoundRectangle 8"
-                                            Stroke="#2a2a4a">
+                                            Stroke="{DynamicResource CardStroke}">
                                         <Grid ColumnDefinitions="*,Auto">
                                             <VerticalStackLayout Grid.Column="0" Spacing="4">
                                                 <Label Text="{Binding DisplayDate}"
-                                                       FontSize="13"
-                                                       FontAttributes="Bold"
-                                                       TextColor="White" />
+                                                       FontSize="13" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextPrimary}" />
                                                 <Label Text="{Binding DisplayDoctor}"
                                                        FontSize="13"
-                                                       TextColor="#90caf9" />
+                                                       TextColor="{DynamicResource PrimaryAccent}" />
                                                 <Label Text="{Binding Reason}"
                                                        FontSize="12"
-                                                       TextColor="#aaaaaa"
+                                                       TextColor="{DynamicResource TextMuted}"
                                                        LineBreakMode="WordWrap"
                                                        IsVisible="{Binding Reason,
                                                            Converter={StaticResource StringToBoolConverter}}" />
@@ -92,7 +91,7 @@
                                             <Label Grid.Column="1"
                                                    Text="›"
                                                    FontSize="24"
-                                                   TextColor="#90caf9"
+                                                   TextColor="{DynamicResource PrimaryAccent}"
                                                    VerticalOptions="Center" />
                                         </Grid>
                                         <Border.GestureRecognizers>

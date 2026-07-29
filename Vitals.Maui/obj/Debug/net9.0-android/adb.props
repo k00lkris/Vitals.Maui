@@ -1,2 +1,2 @@
-AdbTarget=-s R5CW20B34GD
+AdbTarget=-s emulator-5554
 AdbOptions=

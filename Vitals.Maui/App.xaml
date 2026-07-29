@@ -9,6 +9,28 @@
             <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
             <converters:InvertedBoolConverter x:Key="InvertedBoolConverter" />
             <converters:BoolToStringConverter x:Key="BoolToStringConverter" />
+            <converters:StringEqualsConverter x:Key="StringEqualsConverter" />
+
+            <!-- Theme color keys — overridden at runtime by ThemeService -->
+            <Color x:Key="PageBackground">#e8f4f8</Color>
+            <Color x:Key="CardBackground">#f0f9ff</Color>
+            <Color x:Key="CardStroke">#b2dff2</Color>
+            <Color x:Key="PrimaryAccent">#006e8c</Color>
+            <Color x:Key="TextPrimary">#0d2137</Color>
+            <Color x:Key="TextSecondary">#546e7a</Color>
+            <Color x:Key="TextMuted">#78909c</Color>
+            <Color x:Key="ButtonBackground">#00acc1</Color>
+            <Color x:Key="TileNormalBg">#e0f4f0</Color>
+            <Color x:Key="TileLowBg">#e1f5fe</Color>
+            <Color x:Key="TileSevereBg">#e8f5fd</Color>
+            <Color x:Key="TileCriticalBg">#b2ebf2</Color>
+            <Color x:Key="DividerColor">#b2dff2</Color>
+
+            <Color x:Key="ShellForeground">White</Color>
+            <Color x:Key="ShellTitle">White</Color>
+            <Color x:Key="ButtonSecondary">#b2dff2</Color>
+            <!-- was #0f3460 -->
+            <Color x:Key="ButtonSecondaryText">#0d2137</Color>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

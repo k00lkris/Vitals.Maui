@@ -50,10 +50,47 @@ public class VitalsAnalysis
     [JsonPropertyName("next_followup")]
     public string? NextFollowup { get; set; }
 
+    [JsonPropertyName("map")]
+    public MapAnalysis? Map { get; set; }
+
+    [JsonPropertyName("sbp_burden")]
+    public SbpBurdenAnalysis? SbpBurden { get; set; }
+
+    [JsonPropertyName("ttr")]
+    public TtrBurdenAnalysis? Ttr { get; set; }
+
+    [JsonPropertyName("dbp_burden")]
+    public DbpBurdenAnalysis? DbpBurden { get; set; }
+
+    [JsonPropertyName("low_dbp_burden")]
+    public LowDbpBurdenAnalysis? LowDbpBurden { get; set; }
     public bool IsHypotension =>
         Classification == "hypotension" || Classification == "borderline_hypotension";
     public bool IsInsufficient => Status == "insufficient_data";
     public bool IsOk => Status == "ok";
+
+    public bool ShowLowDiastolicAlert =>
+    LowDbpBurden?.HasCritical == true ||
+    LowDbpBurden?.SeverePct >= 15;
+
+    public string LowDiastolicAlertText
+    {
+        get
+        {
+            if (LowDbpBurden?.HasCritical == true)
+            {
+                var readings = string.Join(", ",
+                    LowDbpBurden.CriticalReadings.Select(r => $"{r:F0}"));
+                return $"⚠ Critical: diastolic reading(s) of {readings} mmHg recorded. " +
+                       $"Severely low diastolic pressure may impair coronary perfusion. " +
+                       $"Consider contacting the care team.";
+            }
+            if (LowDbpBurden?.SeverePct >= 15)
+                return $"⚠ Diastolic pressure was below 60 mmHg {LowDbpBurden.SeverePct:F1}% " +
+                       $"of the time — persistent diastolic hypotension. Clinical review recommended.";
+            return string.Empty;
+        }
+    }
 
     public string ClassificationDisplay => Classification switch
     {
@@ -418,4 +455,218 @@ public class SecondaryAnalysis
         "high_fever" => "#7b1fa2",
         _ => "#888888"
     };
+}
+
+// =====================================================
+// Add these classes to VitalsAnalysis.cs
+// Add these properties to the VitalsAnalysis class:
+//
+//   [JsonPropertyName("map")]
+//   public MapAnalysis? Map { get; set; }
+//
+//   [JsonPropertyName("sbp_burden")]
+//   public SbpBurden? SbpBurden { get; set; }
+//
+//   [JsonPropertyName("ttr")]
+//   public TtrAnalysis? Ttr { get; set; }
+//
+//   [JsonPropertyName("dbp_burden")]
+//   public DbpBurden? DbpBurden { get; set; }
+// =====================================================
+
+public class MapAnalysis
+{
+    [JsonPropertyName("avg")]
+    public double Avg { get; set; }
+
+    // Normal MAP range is 70–100 mmHg
+    public string Display => $"{Avg:F1} mmHg";
+
+    public string RangeLabel => Avg switch
+    {
+        < 70 => "⚠️ Low (risk of hypoperfusion)",
+        <= 100 => "✅ Normal",
+        _ => "🟡 Elevated"
+    };
+
+    public string RangeColor => Avg switch
+    {
+        < 70 => "#e65100",
+        <= 100 => "#388e3c",
+        _ => "#f57c00"
+    };
+
+    public string PlainEnglish =>
+        $"The average pressure her arteries experience throughout the full " +
+        $"heartbeat cycle is {Avg:F1} mmHg — normal range is 70–100 mmHg.";
+}
+
+public class SbpBurdenAnalysis
+{
+    [JsonPropertyName("pct")]
+    public double Pct { get; set; }
+
+    [JsonPropertyName("auc_above_130")]
+    public double AucAbove130 { get; set; }
+
+    [JsonPropertyName("total_sys_auc")]
+    public double TotalSysAuc { get; set; }
+
+    [JsonPropertyName("time_above_pct")]
+    public double TimeAbovePct { get; set; }
+
+    [JsonPropertyName("prop_above")]
+    public double PropAbove { get; set; }
+
+    public string PctDisplay => $"{Pct:F1}%";
+    public string TimeDisplay => $"{TimeAbovePct:F1}%";
+
+    // Caregiver plain English
+    public string PlainEnglish =>
+        Pct < 5
+            ? $"Blood pressure exceeded the healthy upper limit of 130 mmHg only {Pct:F1}% of the time — well controlled."
+            : Pct < 20
+                ? $"About {Pct:F1}% of readings exceeded the healthy upper limit of 130 mmHg."
+                : $"Blood pressure exceeded the healthy upper limit of 130 mmHg {Pct:F1}% of the time — this warrants attention.";
+
+    // Clinician PDF label
+    public string PdfLabel =>
+        $"SBP Burden: {Pct:F1}%  " +
+        $"(AUC above 130: {AucAbove130:F1} mmHg·day  |  " +
+        $"Time above 130: {TimeAbovePct:F1}%  |  " +
+        $"Weighted excess proportion: {PropAbove:F1}%)";
+}
+
+public class TtrBurdenAnalysis
+{
+    [JsonPropertyName("pct")]
+    public double Pct { get; set; }
+
+    [JsonPropertyName("time_in_days")]
+    public double TimeInDays { get; set; }
+
+    [JsonPropertyName("total_days")]
+    public double TotalDays { get; set; }
+
+    public string PctDisplay => $"{Pct:F1}%";
+
+    // Caregiver plain English
+    public string PlainEnglish =>
+        Pct >= 70
+            ? $"Blood pressure was within the healthy target range (100–130 mmHg) {Pct:F1}% of the time — great consistency."
+            : Pct >= 50
+                ? $"Blood pressure was within the healthy target range (100–130 mmHg) {Pct:F1}% of the time."
+                : $"Blood pressure was within the healthy target range (100–130 mmHg) only {Pct:F1}% of the time — consistent daily monitoring will help clarify this pattern.";
+
+    // Clinician PDF label
+    public string PdfLabel =>
+        $"SBP TTR: {Pct:F1}%  " +
+        $"(Target 100–130 mmHg  |  " +
+        $"{TimeInDays:F1} of {TotalDays:F1} days in range  |  " +
+        $"Rosendaal linear interpolation approximation)";
+}
+
+public class DbpBurdenAnalysis
+{
+    [JsonPropertyName("pct")]
+    public double Pct { get; set; }
+
+    [JsonPropertyName("auc_above_80")]
+    public double AucAbove80 { get; set; }
+
+    [JsonPropertyName("annualized_mmhg_year")]
+    public double AnnualizedMmhgYear { get; set; }
+
+    [JsonPropertyName("time_above_pct")]
+    public double TimeAbovePct { get; set; }
+
+    [JsonPropertyName("total_dia_auc")]
+    public double TotalDiaAuc { get; set; }
+
+    public string PctDisplay => $"{Pct:F1}%";
+    public string AnnualizedDisplay => $"{AnnualizedMmhgYear:F2} mmHg·year";
+    public string TimeDisplay => $"{TimeAbovePct:F1}%";
+
+    // Caregiver plain English — uses "heart at rest" framing
+    public string PlainEnglish =>
+        Pct < 10
+            ? $"Even while the heart was at rest between beats, resting pressure exceeded 80 mmHg only {Pct:F1}% of the time — reassuring."
+            : Pct < 25
+                ? $"About {Pct:F1}% of the time, even while the heart was at rest between beats, the pressure in the arteries remained above the healthy threshold of 80 mmHg."
+                : $"Resting pressure between heartbeats exceeded 80 mmHg {Pct:F1}% of the time. " +
+                  $"This means the cardiovascular system rarely had a chance to fully rest at a safe pressure level.";
+
+    // Clinician PDF label (Cho et al. methodology)
+    public string PdfLabel =>
+        $"Cumulative DBP Burden: {AnnualizedMmhgYear:F3} mmHg·year  " +
+        $"(AUC above 80 mmHg re-zeroed at threshold, annualized  |  " +
+        $"Proportional: {Pct:F1}% of total DBP AUC  |  " +
+        $"Time above 80 mmHg: {TimeAbovePct:F1}%  |  " +
+        $"Cho et al. Hypertension 2024;81:273–281)";
+}
+
+public class LowDbpBurdenAnalysis
+{
+    [JsonPropertyName("normal_pct")]
+    public double NormalPct { get; set; }
+
+    [JsonPropertyName("low_pct")]
+    public double LowPct { get; set; }
+
+    [JsonPropertyName("severe_pct")]
+    public double SeverePct { get; set; }
+
+    [JsonPropertyName("critical_pct")]
+    public double CriticalPct { get; set; }
+
+    [JsonPropertyName("auc_below_60")]
+    public double AucBelow60 { get; set; }
+
+    [JsonPropertyName("annualized_mmhg_year")]
+    public double AnnualizedMmhgYear { get; set; }
+
+    [JsonPropertyName("burden_pct")]
+    public double BurdenPct { get; set; }
+
+    [JsonPropertyName("lowest_dia")]
+    public double LowestDia { get; set; }
+
+    [JsonPropertyName("has_critical")]
+    public bool HasCritical { get; set; }
+
+    [JsonPropertyName("critical_readings")]
+    public List<double> CriticalReadings { get; set; } = new();
+
+    [JsonPropertyName("time_below_60_pct")]
+    public double TimeBelow60Pct { get; set; }
+
+    // ---- Display properties ----
+
+    public string NormalDisplay => $"{NormalPct:F1}%";
+    public string LowDisplay => $"{LowPct:F1}%";
+    public string SevereDisplay => $"{SeverePct:F1}%";
+    public string CriticalDisplay => $"{CriticalPct:F1}%";
+    public string BurdenDisplay => $"{BurdenPct:F1}%";
+    public string LowestDiaDisplay => $"{LowestDia:F0} mmHg";
+
+    public string PlainEnglish
+    {
+        get
+        {
+            if (HasCritical)
+            {
+                var readings = string.Join(", ", CriticalReadings.Select(r => $"{r:F0}"));
+                return $"One or more readings fell critically low ({readings} mmHg) — " +
+                       $"severely low diastolic pressure may impair coronary perfusion. " +
+                       $"Consider contacting the care team.";
+            }
+            if (SeverePct >= 15)
+                return $"Diastolic pressure was below 60 mmHg {SeverePct:F1}% of the time — " +
+                       $"a persistent pattern of diastolic hypotension worth monitoring.";
+            if (SeverePct > 0)
+                return $"Diastolic pressure occasionally fell below 60 mmHg ({SeverePct:F1}% of readings) — " +
+                       $"monitor for symptoms of low diastolic pressure.";
+            return $"Diastolic pressure remained above 60 mmHg throughout — reassuring.";
+        }
+    }
 }

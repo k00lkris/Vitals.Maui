@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             x:Class="Vitals.Maui.Views.OnboardingPurposePage"
+             x:DataType="vm:OnboardingPurposeViewModel"
+             NavigationPage.HasNavigationBar="False"
+             BackgroundColor="{DynamicResource PageBackground}">
+
+    <Grid Padding="24" RowDefinitions="Auto,*,Auto,Auto">
+
+        <!-- Back -->
+        <Button Grid.Row="0"
+                Text="←"
+                Command="{Binding BackCommand}"
+                BackgroundColor="Transparent"
+                TextColor="{DynamicResource TextSecondary}"
+                FontSize="22"
+                HorizontalOptions="Start"
+                WidthRequest="44"
+                HeightRequest="44"
+                Padding="0" />
+
+        <!-- Purpose copy -->
+        <VerticalStackLayout Grid.Row="1"
+                              Spacing="20"
+                              VerticalOptions="Center">
+
+            <Label Text="Why Vitals exists"
+                   FontSize="26"
+                   FontAttributes="Bold"
+                   TextColor="{DynamicResource TextPrimary}"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center" />
+
+            <!-- Purpose points, styled as cards to match the app's Border pattern -->
+            <Border Padding="16"
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{DynamicResource CardStroke}">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="See the trend, not just the number"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimary}" />
+                    <Label Text="A single reading rarely tells the whole story. Vitals tracks patterns over time, the way a physician would."
+                           FontSize="14"
+                           TextColor="{DynamicResource TextSecondary}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Padding="16"
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{DynamicResource CardStroke}">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Built for caregivers"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimary}" />
+                    <Label Text="Whether you're tracking your own health or caring for a family member, Vitals keeps everything organized in one place."
+                           FontSize="14"
+                           TextColor="{DynamicResource TextSecondary}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Padding="16"
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{DynamicResource CardStroke}">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Ready for the doctor's office"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimary}" />
+                    <Label Text="Export a physician-grade report in seconds, so appointments start with data instead of guesswork."
+                           FontSize="14"
+                           TextColor="{DynamicResource TextSecondary}" />
+                </VerticalStackLayout>
+            </Border>
+
+        </VerticalStackLayout>
+
+        <!-- Progress dots (2 of ~5) -->
+        <HorizontalStackLayout Grid.Row="2"
+                                Spacing="8"
+                                HorizontalOptions="Center"
+                                Margin="0,20,0,0">
+            <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                     BackgroundColor="{DynamicResource DividerColor}" />
+            <BoxView HeightRequest="8" WidthRequest="24" CornerRadius="4"
+                     BackgroundColor="{DynamicResource PrimaryAccent}" />
+            <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                     BackgroundColor="{DynamicResource DividerColor}" />
+            <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                     BackgroundColor="{DynamicResource DividerColor}" />
+            <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                     BackgroundColor="{DynamicResource DividerColor}" />
+        </HorizontalStackLayout>
+
+        <!-- Continue -->
+        <Button Grid.Row="3"
+                Text="Continue"
+                Command="{Binding ContinueCommand}"
+                BackgroundColor="{DynamicResource ButtonBackground}"
+                TextColor="{DynamicResource TextPrimary}"
+                FontSize="16"
+                FontAttributes="Bold"
+                HeightRequest="56"
+                CornerRadius="12"
+                Margin="0,16,0,0" />
+
+    </Grid>
+</ContentPage>

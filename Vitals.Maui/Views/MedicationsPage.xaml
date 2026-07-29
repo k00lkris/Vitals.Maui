@@ -5,69 +5,81 @@
              xmlns:models="clr-namespace:Vitals.Maui.Models"
              x:Class="Vitals.Maui.Views.MedicationsPage"
              x:DataType="vm:MedicationsViewModel"
-             BackgroundColor="#1a1a2e">
+             BackgroundColor="{DynamicResource PageBackground}">
 
     <RefreshView Command="{Binding LoadCommand}"
                  IsRefreshing="{Binding IsBusy}"
-                 RefreshColor="#90caf9">
+                 RefreshColor="{DynamicResource PrimaryAccent}">
         <ScrollView>
             <VerticalStackLayout Padding="16" Spacing="12">
 
                 <!-- Patient Header -->
                 <Border Padding="16"
-                        BackgroundColor="#16213e"
+                        BackgroundColor="{DynamicResource CardBackground}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="#2a2a4a">
+                        Stroke="{DynamicResource CardStroke}">
                     <VerticalStackLayout Spacing="10">
                         <Label FontSize="18"
                                FontAttributes="Bold"
-                               TextColor="White">
+                               TextColor="{DynamicResource TextPrimary}">
                             <Label.FormattedText>
                                 <FormattedString>
-                                    <Span Text="Medications for " TextColor="#90caf9" />
+                                    <Span Text="Medications for " TextColor="{DynamicResource PrimaryAccent}" />
                                     <Span Text="{Binding SelectedPatient.FullName}"
-                                          TextColor="White"
+                                          TextColor="{DynamicResource TextPrimary}"
                                           FontAttributes="Bold" />
                                 </FormattedString>
                             </Label.FormattedText>
                         </Label>
                         <Button Text="➕  Add Medication"
-                                BackgroundColor="#1976d2"
-                                TextColor="White"
+                                BackgroundColor="{DynamicResource ButtonBackground}"
+                                TextColor="{DynamicResource TextPrimary}"
                                 FontSize="13"
                                 HeightRequest="44"
                                 CornerRadius="8"
                                 Command="{Binding OpenAddMedicationCommand}" />
+
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="0,4" />
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="Hide inactive/discontinued medications"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource TextSecondary}"
+                                   VerticalOptions="Center" />
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding HideInactiveMedications}"
+                                    OnColor="{DynamicResource PrimaryAccent}" />
+                        </Grid>
                     </VerticalStackLayout>
                 </Border>
 
                 <!-- Medications Card -->
                 <Border Padding="16"
-                        BackgroundColor="#16213e"
+                        BackgroundColor="{DynamicResource CardBackground}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="#2a2a4a">
+                        Stroke="{DynamicResource CardStroke}">
                     <VerticalStackLayout Spacing="8">
 
                         <Label Text="💊  Medications"
                                FontSize="20"
                                FontAttributes="Bold"
-                               TextColor="White"
+                               TextColor="{DynamicResource TextPrimary}"
                                Margin="0,0,0,8" />
 
                         <!-- No Medications -->
-                        <Label Text="No active medications on record."
+                        <Label Text="{Binding NoMedicationsMessage}"
                                IsVisible="{Binding HasNoMedications}"
                                FontSize="14"
-                               TextColor="#888888"
+                               TextColor="{DynamicResource TextMuted}"
                                HorizontalOptions="Center"
                                Margin="0,16" />
 
                         <!-- Morning -->
                         <VerticalStackLayout IsVisible="{Binding HasMorning}" Spacing="4">
                             <Label Text="🌅  Morning"
-                                   FontSize="15"
-                                   FontAttributes="Bold"
-                                   TextColor="#90caf9"
+                                   FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryAccent}"
                                    Margin="0,8,0,4" />
                             <CollectionView ItemsSource="{Binding MorningMeds}">
                                 <CollectionView.ItemTemplate>
@@ -79,27 +91,33 @@
                                                         Path=OpenMedicationDetailCommand}"
                                                     CommandParameter="{Binding .}" />
                                             </VerticalStackLayout.GestureRecognizers>
-                                            <Label Text="{Binding Name}"
-                                                   FontSize="14"
-                                                   FontAttributes="Bold"
-                                                   TextColor="White" />
+                                            <HorizontalStackLayout Spacing="6">
+                                                <Label Text="{Binding Name}"
+                                                       FontSize="14" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextPrimary}" />
+                                                <Label Text="Inactive"
+                                                       IsVisible="{Binding IsActive, Converter={StaticResource InvertedBoolConverter}}"
+                                                       FontSize="11" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextMuted}"
+                                                       BackgroundColor="{DynamicResource DividerColor}"
+                                                       Padding="6,1"
+                                                       VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
                                             <Label Text="{Binding Dosage}"
-                                                   FontSize="13"
-                                                   TextColor="#aaaaaa"
-                                                   FontAttributes="Italic" />
+                                                   FontSize="13" FontAttributes="Italic"
+                                                   TextColor="{DynamicResource TextMuted}" />
                                         </VerticalStackLayout>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
                             </CollectionView>
-                            <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" Margin="0,4" />
+                            <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="0,4" />
                         </VerticalStackLayout>
 
                         <!-- Midday -->
                         <VerticalStackLayout IsVisible="{Binding HasMidday}" Spacing="4">
                             <Label Text="☀️  Midday"
-                                   FontSize="15"
-                                   FontAttributes="Bold"
-                                   TextColor="#90caf9"
+                                   FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryAccent}"
                                    Margin="0,8,0,4" />
                             <CollectionView ItemsSource="{Binding MiddayMeds}">
                                 <CollectionView.ItemTemplate>
@@ -111,27 +129,33 @@
                                                         Path=OpenMedicationDetailCommand}"
                                                     CommandParameter="{Binding .}" />
                                             </VerticalStackLayout.GestureRecognizers>
-                                            <Label Text="{Binding Name}"
-                                                   FontSize="14"
-                                                   FontAttributes="Bold"
-                                                   TextColor="White" />
+                                            <HorizontalStackLayout Spacing="6">
+                                                <Label Text="{Binding Name}"
+                                                       FontSize="14" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextPrimary}" />
+                                                <Label Text="Inactive"
+                                                       IsVisible="{Binding IsActive, Converter={StaticResource InvertedBoolConverter}}"
+                                                       FontSize="11" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextMuted}"
+                                                       BackgroundColor="{DynamicResource DividerColor}"
+                                                       Padding="6,1"
+                                                       VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
                                             <Label Text="{Binding Dosage}"
-                                                   FontSize="13"
-                                                   TextColor="#aaaaaa"
-                                                   FontAttributes="Italic" />
+                                                   FontSize="13" FontAttributes="Italic"
+                                                   TextColor="{DynamicResource TextMuted}" />
                                         </VerticalStackLayout>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
                             </CollectionView>
-                            <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" Margin="0,4" />
+                            <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="0,4" />
                         </VerticalStackLayout>
 
                         <!-- Evening -->
                         <VerticalStackLayout IsVisible="{Binding HasEvening}" Spacing="4">
                             <Label Text="🌆  Evening"
-                                   FontSize="15"
-                                   FontAttributes="Bold"
-                                   TextColor="#90caf9"
+                                   FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryAccent}"
                                    Margin="0,8,0,4" />
                             <CollectionView ItemsSource="{Binding EveningMeds}">
                                 <CollectionView.ItemTemplate>
@@ -143,27 +167,33 @@
                                                         Path=OpenMedicationDetailCommand}"
                                                     CommandParameter="{Binding .}" />
                                             </VerticalStackLayout.GestureRecognizers>
-                                            <Label Text="{Binding Name}"
-                                                   FontSize="14"
-                                                   FontAttributes="Bold"
-                                                   TextColor="White" />
+                                            <HorizontalStackLayout Spacing="6">
+                                                <Label Text="{Binding Name}"
+                                                       FontSize="14" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextPrimary}" />
+                                                <Label Text="Inactive"
+                                                       IsVisible="{Binding IsActive, Converter={StaticResource InvertedBoolConverter}}"
+                                                       FontSize="11" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextMuted}"
+                                                       BackgroundColor="{DynamicResource DividerColor}"
+                                                       Padding="6,1"
+                                                       VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
                                             <Label Text="{Binding Dosage}"
-                                                   FontSize="13"
-                                                   TextColor="#aaaaaa"
-                                                   FontAttributes="Italic" />
+                                                   FontSize="13" FontAttributes="Italic"
+                                                   TextColor="{DynamicResource TextMuted}" />
                                         </VerticalStackLayout>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
                             </CollectionView>
-                            <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" Margin="0,4" />
+                            <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="0,4" />
                         </VerticalStackLayout>
 
                         <!-- Night -->
                         <VerticalStackLayout IsVisible="{Binding HasNight}" Spacing="4">
                             <Label Text="🌙  Night"
-                                   FontSize="15"
-                                   FontAttributes="Bold"
-                                   TextColor="#90caf9"
+                                   FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryAccent}"
                                    Margin="0,8,0,4" />
                             <CollectionView ItemsSource="{Binding NightMeds}">
                                 <CollectionView.ItemTemplate>
@@ -175,27 +205,33 @@
                                                         Path=OpenMedicationDetailCommand}"
                                                     CommandParameter="{Binding .}" />
                                             </VerticalStackLayout.GestureRecognizers>
-                                            <Label Text="{Binding Name}"
-                                                   FontSize="14"
-                                                   FontAttributes="Bold"
-                                                   TextColor="White" />
+                                            <HorizontalStackLayout Spacing="6">
+                                                <Label Text="{Binding Name}"
+                                                       FontSize="14" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextPrimary}" />
+                                                <Label Text="Inactive"
+                                                       IsVisible="{Binding IsActive, Converter={StaticResource InvertedBoolConverter}}"
+                                                       FontSize="11" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextMuted}"
+                                                       BackgroundColor="{DynamicResource DividerColor}"
+                                                       Padding="6,1"
+                                                       VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
                                             <Label Text="{Binding Dosage}"
-                                                   FontSize="13"
-                                                   TextColor="#aaaaaa"
-                                                   FontAttributes="Italic" />
+                                                   FontSize="13" FontAttributes="Italic"
+                                                   TextColor="{DynamicResource TextMuted}" />
                                         </VerticalStackLayout>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
                             </CollectionView>
-                            <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" Margin="0,4" />
+                            <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="0,4" />
                         </VerticalStackLayout>
 
                         <!-- Other / PRN -->
                         <VerticalStackLayout IsVisible="{Binding HasOther}" Spacing="4">
                             <Label Text="🔄  Other / As Needed"
-                                   FontSize="15"
-                                   FontAttributes="Bold"
-                                   TextColor="#90caf9"
+                                   FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryAccent}"
                                    Margin="0,8,0,4" />
                             <CollectionView ItemsSource="{Binding OtherMeds}">
                                 <CollectionView.ItemTemplate>
@@ -207,14 +243,21 @@
                                                         Path=OpenMedicationDetailCommand}"
                                                     CommandParameter="{Binding .}" />
                                             </VerticalStackLayout.GestureRecognizers>
-                                            <Label Text="{Binding Name}"
-                                                   FontSize="14"
-                                                   FontAttributes="Bold"
-                                                   TextColor="White" />
+                                            <HorizontalStackLayout Spacing="6">
+                                                <Label Text="{Binding Name}"
+                                                       FontSize="14" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextPrimary}" />
+                                                <Label Text="Inactive"
+                                                       IsVisible="{Binding IsActive, Converter={StaticResource InvertedBoolConverter}}"
+                                                       FontSize="11" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextMuted}"
+                                                       BackgroundColor="{DynamicResource DividerColor}"
+                                                       Padding="6,1"
+                                                       VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
                                             <Label Text="{Binding Dosage}"
-                                                   FontSize="13"
-                                                   TextColor="#aaaaaa"
-                                                   FontAttributes="Italic" />
+                                                   FontSize="13" FontAttributes="Italic"
+                                                   TextColor="{DynamicResource TextMuted}" />
                                         </VerticalStackLayout>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
@@ -227,7 +270,7 @@
                 <!-- Busy Indicator -->
                 <ActivityIndicator IsRunning="{Binding IsBusy}"
                                    IsVisible="{Binding IsBusy}"
-                                   Color="#90caf9"
+                                   Color="{DynamicResource PrimaryAccent}"
                                    HorizontalOptions="Center" />
 
             </VerticalStackLayout>

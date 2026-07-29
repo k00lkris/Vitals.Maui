@@ -24,14 +24,20 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
-
-
         // Services
+        // Replace the existing HttpClient registration with this:
+        builder.Services.AddSingleton<AuthHeaderHandler>();
+        builder.Services.AddSingleton<AuthService>();
+
         builder.Services.AddSingleton<HttpClient>(sp =>
         {
-            var handler = new SocketsHttpHandler
+            var auth = sp.GetRequiredService<AuthService>();
+            var handler = new AuthHeaderHandler(auth)
             {
-                ConnectTimeout = TimeSpan.FromSeconds(10)
+                InnerHandler = new SocketsHttpHandler
+                {
+                    ConnectTimeout = TimeSpan.FromSeconds(10)
+                }
             };
             return new HttpClient(handler)
             {
@@ -39,9 +45,11 @@ public static class MauiProgram
                 Timeout = TimeSpan.FromSeconds(15)
             };
         });
+
         builder.Services.AddSingleton<ApiService>();
         builder.Services.AddSingleton<PatientStateService>();
         builder.Services.AddSingleton<AppShell>();
+
 
         // ViewModels
         builder.Services.AddSingleton<DashboardViewModel>();
@@ -61,7 +69,13 @@ public static class MauiProgram
         builder.Services.AddSingleton<NotesViewModel>();
         builder.Services.AddSingleton<NotesPage>();
         builder.Services.AddTransient<VitalsAnalysisViewModel>();
-
+        builder.Services.AddSingleton<SettingsViewModel>();
+        builder.Services.AddTransient<LoginViewModel>();
+        builder.Services.AddTransient<SignUpViewModel>();
+        builder.Services.AddTransient<OnboardingWelcomeViewModel>();
+        builder.Services.AddTransient<OnboardingPurposeViewModel>();
+        builder.Services.AddTransient<OnboardingPersonalizationViewModel>();
+        builder.Services.AddTransient<OnboardingSampleDashboardViewModel>();
 
 
         // Views
@@ -75,7 +89,6 @@ public static class MauiProgram
         builder.Services.AddTransient<VitalsHistoryPage>();
         builder.Services.AddSingleton<AllergiesPage>();
         builder.Services.AddTransient<AllergyDetailPopup>();
-        builder.Services.AddSingleton<GeneratePdfPage>();
         builder.Services.AddTransient<VisitDetailViewModel>();
         builder.Services.AddTransient<VisitDetailPopup>();
         builder.Services.AddTransient<IncidentDetailViewModel>();
@@ -83,11 +96,17 @@ public static class MauiProgram
         builder.Services.AddTransient<NoteDetailViewModel>();
         builder.Services.AddTransient<NoteDetailPopup>();
         builder.Services.AddTransient<VitalsAnalysisView>();
+        builder.Services.AddSingleton<SettingsPage>();
+        builder.Services.AddTransient<LoginPage>();
+        builder.Services.AddTransient<SignUpPage>();
+        builder.Services.AddTransient<OnboardingWelcomePage>();
+        builder.Services.AddTransient<OnboardingPurposePage>();
+        builder.Services.AddTransient<OnboardingPersonalizationPage>();
+        builder.Services.AddTransient<OnboardingSampleDashboardPage>();
 
 #if DEBUG
         builder.Logging.AddDebug();
 #endif
-
         return builder.Build();
     }
 }

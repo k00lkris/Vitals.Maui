@@ -5,27 +5,27 @@
              xmlns:models="clr-namespace:Vitals.Maui.Models"
              x:Class="Vitals.Maui.Views.GeneratePdfPage"
              x:DataType="vm:GeneratePdfViewModel"
-             BackgroundColor="#1a1a2e">
+             BackgroundColor="{DynamicResource PageBackground}">
 
     <ScrollView>
         <VerticalStackLayout Padding="16" Spacing="12">
 
             <!-- Header -->
             <Border Padding="16"
-                    BackgroundColor="#16213e"
+                    BackgroundColor="{DynamicResource CardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="#2a2a4a">
+                    Stroke="{DynamicResource CardStroke}">
                 <VerticalStackLayout Spacing="10">
                     <Label FontSize="18"
                            FontAttributes="Bold"
-                           TextColor="White">
+                           TextColor="{DynamicResource TextPrimary}">
                         <Label.FormattedText>
                             <FormattedString>
-                                <Span Text="Reports — " TextColor="#90caf9" />
+                                <Span Text="Reports — " TextColor="{DynamicResource PrimaryAccent}" />
                                 <Span Text="{Binding SelectedPatient.FullName,
                                           TargetNullValue='',
                                           FallbackValue=''}"
-                                      TextColor="White"
+                                      TextColor="{DynamicResource TextPrimary}"
                                       FontAttributes="Bold" />
                             </FormattedString>
                         </Label.FormattedText>
@@ -34,41 +34,41 @@
                     <!-- Day Range Buttons -->
                     <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="6">
                         <Button Grid.Column="0" Text="15d"
-                                BackgroundColor="{Binding Btn15Color}"
-                                TextColor="White" FontSize="12"
+                                BackgroundColor="{Binding BtnDay15Color}"
+                                TextColor="{Binding BtnDay15TextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectDaysCommand}"
                                 CommandParameter="15" />
                         <Button Grid.Column="1" Text="30d"
-                                BackgroundColor="{Binding Btn30Color}"
-                                TextColor="White" FontSize="12"
+                                BackgroundColor="{Binding BtnDay30Color}"
+                                TextColor="{Binding BtnDay30TextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectDaysCommand}"
                                 CommandParameter="30" />
                         <Button Grid.Column="2" Text="45d"
-                                BackgroundColor="{Binding Btn45Color}"
-                                TextColor="White" FontSize="12"
+                                BackgroundColor="{Binding BtnDay45Color}"
+                                TextColor="{Binding BtnDay45TextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectDaysCommand}"
                                 CommandParameter="45" />
                         <Button Grid.Column="3" Text="60d"
-                                BackgroundColor="{Binding Btn60Color}"
-                                TextColor="White" FontSize="12"
+                                BackgroundColor="{Binding BtnDay60Color}"
+                                TextColor="{Binding BtnDay60TextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectDaysCommand}"
                                 CommandParameter="60" />
                         <Button Grid.Column="4"
                                 Text="{Binding CustomDaysLabel}"
                                 BackgroundColor="{Binding BtnCustomColor}"
-                                TextColor="White" FontSize="12"
+                                TextColor="{Binding BtnCustomTextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Clicked="OnCustomDaysClicked" />
                     </Grid>
 
                     <!-- Generate Button -->
                     <Button Text="📄  Generate PDF"
-                            BackgroundColor="#1976d2"
-                            TextColor="White"
+                            BackgroundColor="{DynamicResource ButtonBackground}"
+                            TextColor="{DynamicResource TextPrimary}"
                             FontSize="15"
                             FontAttributes="Bold"
                             HeightRequest="48"
@@ -89,29 +89,29 @@
                     <!-- Busy -->
                     <ActivityIndicator IsRunning="{Binding IsBusy}"
                                        IsVisible="{Binding IsBusy}"
-                                       Color="#90caf9"
+                                       Color="{DynamicResource PrimaryAccent}"
                                        HorizontalOptions="Center" />
                 </VerticalStackLayout>
             </Border>
 
             <!-- Reports List -->
             <Border Padding="16"
-                    BackgroundColor="#16213e"
+                    BackgroundColor="{DynamicResource CardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="#2a2a4a">
+                    Stroke="{DynamicResource CardStroke}">
                 <VerticalStackLayout Spacing="8">
 
                     <Label Text="📋  Generated Reports"
                            FontSize="18"
                            FontAttributes="Bold"
-                           TextColor="White"
+                           TextColor="{DynamicResource TextPrimary}"
                            Margin="0,0,0,8" />
 
                     <!-- No Reports -->
                     <Label Text="No reports generated yet."
                            IsVisible="{Binding HasNoReports}"
                            FontSize="14"
-                           TextColor="#888888"
+                           TextColor="{DynamicResource TextMuted}"
                            HorizontalOptions="Center"
                            Margin="0,8" />
 
@@ -121,27 +121,24 @@
                             <DataTemplate x:DataType="models:PdfReport">
                                 <Border Padding="12"
                                         Margin="0,0,0,8"
-                                        BackgroundColor="#0f3460"
+                                        BackgroundColor="{DynamicResource PageBackground}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="#2a2a4a">
-                                    <Grid ColumnDefinitions="*,Auto,Auto"
-                                          ColumnSpacing="8">
-                                        <VerticalStackLayout Grid.Column="0"
-                                                             Spacing="2">
+                                        Stroke="{DynamicResource CardStroke}">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                        <VerticalStackLayout Grid.Column="0" Spacing="2">
                                             <Label Text="{Binding DisplayDays}"
-                                                   FontSize="14"
-                                                   FontAttributes="Bold"
-                                                   TextColor="White" />
+                                                   FontSize="14" FontAttributes="Bold"
+                                                   TextColor="{DynamicResource TextPrimary}" />
                                             <Label Text="{Binding DisplayDate}"
                                                    FontSize="12"
-                                                   TextColor="#aaaaaa" />
+                                                   TextColor="{DynamicResource TextMuted}" />
                                         </VerticalStackLayout>
 
                                         <!-- Share Button -->
                                         <Button Grid.Column="1"
                                                 Text="↑"
-                                                BackgroundColor="#1976d2"
-                                                TextColor="White"
+                                                BackgroundColor="{DynamicResource ButtonBackground}"
+                                                TextColor="{DynamicResource TextPrimary}"
                                                 FontSize="16"
                                                 WidthRequest="44"
                                                 HeightRequest="44"
@@ -150,7 +147,7 @@
                                                     Path=ShareReportCommand}"
                                                 CommandParameter="{Binding .}" />
 
-                                        <!-- Delete Button -->
+                                        <!-- Delete Button — red is semantic for destructive action -->
                                         <Button Grid.Column="2"
                                                 Text="✖"
                                                 BackgroundColor="#d32f2f"
@@ -164,7 +161,6 @@
                                                 CommandParameter="{Binding .}" />
                                     </Grid>
 
-                                    <!-- Tap to open -->
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer
                                             Command="{Binding Source={RelativeSource AncestorType={x:Type vm:GeneratePdfViewModel}},

@@ -41,11 +41,24 @@ public partial class MedicationsViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _hasNoMedications;
+    [ObservableProperty] private string _noMedicationsMessage = "No medications on record.";
+
+    // Default true: hide inactive/discontinued meds (e.g. a prescription a
+    // doctor took the patient off of) so the day-to-day list stays focused
+    // on what's currently being taken. Persisted the same way Settings
+    // preferences are, so the choice survives app restarts.
+    [ObservableProperty] private bool _hideInactiveMedications = true;
+
+    // Full, unfiltered list from the last API load. Re-filtering when the
+    // toggle changes works off this cache instead of re-hitting the API.
+    private List<Medication> _allMeds = new();
 
     public MedicationsViewModel(ApiService api, PatientStateService patientState)
     {
         _api = api;
         _patientState = patientState;
+
+        HideInactiveMedications = Preferences.Get("hide_inactive_medications", true);
 
         _patientState.PropertyChanged += async (s, e) =>
         {
@@ -55,6 +68,12 @@ public partial class MedicationsViewModel : ObservableObject
                 await LoadMedicationsAsync();
             }
         };
+    }
+
+    partial void OnHideInactiveMedicationsChanged(bool value)
+    {
+        Preferences.Set("hide_inactive_medications", value);
+        ApplyFilterAndGroup();
     }
 
     [RelayCommand]
@@ -75,30 +94,10 @@ public partial class MedicationsViewModel : ObservableObject
 
         try
         {
-            var meds = await _api.GetMedicationsAsync(
+            _allMeds = await _api.GetMedicationsAsync(
                 _patientState.SelectedPatient.PatientId);
 
-            // Group by time of day — a med can appear in multiple groups
-            MorningMeds = new ObservableCollection<Medication>(
-                meds.Where(m => m.TimeOfDay.Contains("morning")));
-            MiddayMeds = new ObservableCollection<Medication>(
-                meds.Where(m => m.TimeOfDay.Contains("midday")));
-            EveningMeds = new ObservableCollection<Medication>(
-                meds.Where(m => m.TimeOfDay.Contains("evening")));
-            NightMeds = new ObservableCollection<Medication>(
-                meds.Where(m => m.TimeOfDay.Contains("night")));
-            OtherMeds = new ObservableCollection<Medication>(
-                meds.Where(m => !m.TimeOfDay.Contains("morning") &&
-                                !m.TimeOfDay.Contains("midday") &&
-                                !m.TimeOfDay.Contains("evening") &&
-                                !m.TimeOfDay.Contains("night")));
-
-            HasMorning = MorningMeds.Any();
-            HasMidday = MiddayMeds.Any();
-            HasEvening = EveningMeds.Any();
-            HasNight = NightMeds.Any();
-            HasOther = OtherMeds.Any();
-            HasNoMedications = !meds.Any();
+            ApplyFilterAndGroup();
         }
         catch (Exception ex)
         {
@@ -108,6 +107,44 @@ public partial class MedicationsViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Filters _allMeds by HideInactiveMedications, then buckets by time of
+    /// day. Split out from LoadMedicationsAsync so toggling the switch just
+    /// re-filters the cached list rather than re-fetching from the API.
+    /// </summary>
+    private void ApplyFilterAndGroup()
+    {
+        var meds = HideInactiveMedications
+            ? _allMeds.Where(m => m.IsActive).ToList()
+            : _allMeds;
+
+        // Group by time of day — a med can appear in multiple groups
+        MorningMeds = new ObservableCollection<Medication>(
+            meds.Where(m => m.TimeOfDay.Contains("morning")));
+        MiddayMeds = new ObservableCollection<Medication>(
+            meds.Where(m => m.TimeOfDay.Contains("midday")));
+        EveningMeds = new ObservableCollection<Medication>(
+            meds.Where(m => m.TimeOfDay.Contains("evening")));
+        NightMeds = new ObservableCollection<Medication>(
+            meds.Where(m => m.TimeOfDay.Contains("night")));
+        OtherMeds = new ObservableCollection<Medication>(
+            meds.Where(m => !m.TimeOfDay.Contains("morning") &&
+                            !m.TimeOfDay.Contains("midday") &&
+                            !m.TimeOfDay.Contains("evening") &&
+                            !m.TimeOfDay.Contains("night")));
+
+        HasMorning = MorningMeds.Any();
+        HasMidday = MiddayMeds.Any();
+        HasEvening = EveningMeds.Any();
+        HasNight = NightMeds.Any();
+        HasOther = OtherMeds.Any();
+        HasNoMedications = !meds.Any();
+
+        NoMedicationsMessage = HideInactiveMedications && _allMeds.Any(m => !m.IsActive)
+            ? "No active medications on record. (Inactive medications are hidden.)"
+            : "No medications on record.";
     }
     [RelayCommand]
     public async Task OpenMedicationDetailAsync(Medication medication)

@@ -5,37 +5,37 @@
              xmlns:models="clr-namespace:Vitals.Maui.Models"
              x:Class="Vitals.Maui.Views.AllergiesPage"
              x:DataType="vm:AllergiesViewModel"
-             BackgroundColor="#1a1a2e">
+             BackgroundColor="{DynamicResource PageBackground}">
 
     <RefreshView Command="{Binding LoadCommand}"
                  IsRefreshing="{Binding IsBusy}"
-                 RefreshColor="#90caf9">
+                 RefreshColor="{DynamicResource PrimaryAccent}">
         <ScrollView>
             <VerticalStackLayout Padding="16" Spacing="12">
 
                 <!-- Header -->
                 <Border Padding="16"
-                        BackgroundColor="#16213e"
+                        BackgroundColor="{DynamicResource CardBackground}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="#2a2a4a">
+                        Stroke="{DynamicResource CardStroke}">
                     <VerticalStackLayout Spacing="10">
                         <Label FontSize="18"
                                FontAttributes="Bold"
-                               TextColor="White">
+                               TextColor="{DynamicResource TextPrimary}">
                             <Label.FormattedText>
                                 <FormattedString>
-                                    <Span Text="Allergies for " TextColor="#90caf9" />
+                                    <Span Text="Allergies for " TextColor="{DynamicResource PrimaryAccent}" />
                                     <Span Text="{Binding SelectedPatient.FullName,
                                               TargetNullValue='',
                                               FallbackValue=''}"
-                                          TextColor="White"
+                                          TextColor="{DynamicResource TextPrimary}"
                                           FontAttributes="Bold" />
                                 </FormattedString>
                             </Label.FormattedText>
                         </Label>
                         <Button Text="➕  Add Allergy"
-                                BackgroundColor="#1976d2"
-                                TextColor="White"
+                                BackgroundColor="{DynamicResource ButtonBackground}"
+                                TextColor="{DynamicResource TextPrimary}"
                                 FontSize="13"
                                 HeightRequest="44"
                                 CornerRadius="8"
@@ -47,15 +47,15 @@
                 <Label Text="No known allergies on record."
                        IsVisible="{Binding HasNoAllergies}"
                        FontSize="14"
-                       TextColor="#888888"
+                       TextColor="{DynamicResource TextMuted}"
                        HorizontalOptions="Center"
                        Margin="0,16" />
 
                 <!-- Allergies Card -->
                 <Border Padding="16"
-                        BackgroundColor="#16213e"
+                        BackgroundColor="{DynamicResource CardBackground}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="#2a2a4a"
+                        Stroke="{DynamicResource CardStroke}"
                         IsVisible="{Binding HasNoAllergies,
                             Converter={StaticResource InvertedBoolConverter}}">
                     <VerticalStackLayout Spacing="8">
@@ -63,21 +63,19 @@
                         <Label Text="⚠️  Allergies"
                                FontSize="20"
                                FontAttributes="Bold"
-                               TextColor="White"
+                               TextColor="{DynamicResource TextPrimary}"
                                Margin="0,0,0,8" />
 
                         <!-- Medication Allergies -->
                         <VerticalStackLayout IsVisible="{Binding HasMedication}" Spacing="4">
                             <Label Text="💊  Medication"
-                                   FontSize="15"
-                                   FontAttributes="Bold"
-                                   TextColor="#90caf9"
+                                   FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryAccent}"
                                    Margin="0,8,0,4" />
                             <CollectionView ItemsSource="{Binding MedicationAllergies}">
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate x:DataType="models:Allergy">
-                                        <Grid ColumnDefinitions="*,Auto"
-                                              Padding="8,8">
+                                        <Grid ColumnDefinitions="*,Auto" Padding="8,8">
                                             <Grid.GestureRecognizers>
                                                 <TapGestureRecognizer
                                                     Command="{Binding Source={RelativeSource AncestorType={x:Type vm:AllergiesViewModel}},
@@ -86,13 +84,11 @@
                                             </Grid.GestureRecognizers>
                                             <VerticalStackLayout Grid.Column="0" Spacing="2">
                                                 <Label Text="{Binding Allergen}"
-                                                       FontSize="14"
-                                                       FontAttributes="Bold"
-                                                       TextColor="White" />
+                                                       FontSize="14" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextPrimary}" />
                                                 <Label Text="{Binding Reaction}"
-                                                       FontSize="13"
-                                                       TextColor="#aaaaaa"
-                                                       FontAttributes="Italic"
+                                                       FontSize="13" FontAttributes="Italic"
+                                                       TextColor="{DynamicResource TextMuted}"
                                                        LineBreakMode="WordWrap" />
                                             </VerticalStackLayout>
                                             <Border Grid.Column="1"
@@ -101,29 +97,26 @@
                                                     StrokeShape="RoundRectangle 6"
                                                     VerticalOptions="Center">
                                                 <Label Text="{Binding SeverityDisplay}"
-                                                       FontSize="11"
-                                                       FontAttributes="Bold"
+                                                       FontSize="11" FontAttributes="Bold"
                                                        TextColor="White" />
                                             </Border>
                                         </Grid>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
                             </CollectionView>
-                            <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" Margin="0,4" />
+                            <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="0,4" />
                         </VerticalStackLayout>
 
                         <!-- Food Allergies -->
                         <VerticalStackLayout IsVisible="{Binding HasFood}" Spacing="4">
                             <Label Text="🍔  Food"
-                                   FontSize="15"
-                                   FontAttributes="Bold"
-                                   TextColor="#90caf9"
+                                   FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryAccent}"
                                    Margin="0,8,0,4" />
                             <CollectionView ItemsSource="{Binding FoodAllergies}">
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate x:DataType="models:Allergy">
-                                        <Grid ColumnDefinitions="*,Auto"
-                                              Padding="8,8">
+                                        <Grid ColumnDefinitions="*,Auto" Padding="8,8">
                                             <Grid.GestureRecognizers>
                                                 <TapGestureRecognizer
                                                     Command="{Binding Source={RelativeSource AncestorType={x:Type vm:AllergiesViewModel}},
@@ -132,13 +125,11 @@
                                             </Grid.GestureRecognizers>
                                             <VerticalStackLayout Grid.Column="0" Spacing="2">
                                                 <Label Text="{Binding Allergen}"
-                                                       FontSize="14"
-                                                       FontAttributes="Bold"
-                                                       TextColor="White" />
+                                                       FontSize="14" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextPrimary}" />
                                                 <Label Text="{Binding Reaction}"
-                                                       FontSize="13"
-                                                       TextColor="#aaaaaa"
-                                                       FontAttributes="Italic"
+                                                       FontSize="13" FontAttributes="Italic"
+                                                       TextColor="{DynamicResource TextMuted}"
                                                        LineBreakMode="WordWrap" />
                                             </VerticalStackLayout>
                                             <Border Grid.Column="1"
@@ -147,29 +138,26 @@
                                                     StrokeShape="RoundRectangle 6"
                                                     VerticalOptions="Center">
                                                 <Label Text="{Binding SeverityDisplay}"
-                                                       FontSize="11"
-                                                       FontAttributes="Bold"
+                                                       FontSize="11" FontAttributes="Bold"
                                                        TextColor="White" />
                                             </Border>
                                         </Grid>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
                             </CollectionView>
-                            <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" Margin="0,4" />
+                            <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="0,4" />
                         </VerticalStackLayout>
 
                         <!-- Environmental Allergies -->
                         <VerticalStackLayout IsVisible="{Binding HasEnvironmental}" Spacing="4">
                             <Label Text="🌿  Environmental"
-                                   FontSize="15"
-                                   FontAttributes="Bold"
-                                   TextColor="#90caf9"
+                                   FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryAccent}"
                                    Margin="0,8,0,4" />
                             <CollectionView ItemsSource="{Binding EnvironmentalAllergies}">
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate x:DataType="models:Allergy">
-                                        <Grid ColumnDefinitions="*,Auto"
-                                              Padding="8,8">
+                                        <Grid ColumnDefinitions="*,Auto" Padding="8,8">
                                             <Grid.GestureRecognizers>
                                                 <TapGestureRecognizer
                                                     Command="{Binding Source={RelativeSource AncestorType={x:Type vm:AllergiesViewModel}},
@@ -178,13 +166,11 @@
                                             </Grid.GestureRecognizers>
                                             <VerticalStackLayout Grid.Column="0" Spacing="2">
                                                 <Label Text="{Binding Allergen}"
-                                                       FontSize="14"
-                                                       FontAttributes="Bold"
-                                                       TextColor="White" />
+                                                       FontSize="14" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextPrimary}" />
                                                 <Label Text="{Binding Reaction}"
-                                                       FontSize="13"
-                                                       TextColor="#aaaaaa"
-                                                       FontAttributes="Italic"
+                                                       FontSize="13" FontAttributes="Italic"
+                                                       TextColor="{DynamicResource TextMuted}"
                                                        LineBreakMode="WordWrap" />
                                             </VerticalStackLayout>
                                             <Border Grid.Column="1"
@@ -193,29 +179,26 @@
                                                     StrokeShape="RoundRectangle 6"
                                                     VerticalOptions="Center">
                                                 <Label Text="{Binding SeverityDisplay}"
-                                                       FontSize="11"
-                                                       FontAttributes="Bold"
+                                                       FontSize="11" FontAttributes="Bold"
                                                        TextColor="White" />
                                             </Border>
                                         </Grid>
                                     </DataTemplate>
                                 </CollectionView.ItemTemplate>
                             </CollectionView>
-                            <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" Margin="0,4" />
+                            <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="0,4" />
                         </VerticalStackLayout>
 
                         <!-- Other Allergies -->
                         <VerticalStackLayout IsVisible="{Binding HasOther}" Spacing="4">
                             <Label Text="❓  Other"
-                                   FontSize="15"
-                                   FontAttributes="Bold"
-                                   TextColor="#90caf9"
+                                   FontSize="15" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryAccent}"
                                    Margin="0,8,0,4" />
                             <CollectionView ItemsSource="{Binding OtherAllergies}">
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate x:DataType="models:Allergy">
-                                        <Grid ColumnDefinitions="*,Auto"
-                                              Padding="8,8">
+                                        <Grid ColumnDefinitions="*,Auto" Padding="8,8">
                                             <Grid.GestureRecognizers>
                                                 <TapGestureRecognizer
                                                     Command="{Binding Source={RelativeSource AncestorType={x:Type vm:AllergiesViewModel}},
@@ -224,13 +207,11 @@
                                             </Grid.GestureRecognizers>
                                             <VerticalStackLayout Grid.Column="0" Spacing="2">
                                                 <Label Text="{Binding Allergen}"
-                                                       FontSize="14"
-                                                       FontAttributes="Bold"
-                                                       TextColor="White" />
+                                                       FontSize="14" FontAttributes="Bold"
+                                                       TextColor="{DynamicResource TextPrimary}" />
                                                 <Label Text="{Binding Reaction}"
-                                                       FontSize="13"
-                                                       TextColor="#aaaaaa"
-                                                       FontAttributes="Italic"
+                                                       FontSize="13" FontAttributes="Italic"
+                                                       TextColor="{DynamicResource TextMuted}"
                                                        LineBreakMode="WordWrap" />
                                             </VerticalStackLayout>
                                             <Border Grid.Column="1"
@@ -239,8 +220,7 @@
                                                     StrokeShape="RoundRectangle 6"
                                                     VerticalOptions="Center">
                                                 <Label Text="{Binding SeverityDisplay}"
-                                                       FontSize="11"
-                                                       FontAttributes="Bold"
+                                                       FontSize="11" FontAttributes="Bold"
                                                        TextColor="White" />
                                             </Border>
                                         </Grid>
@@ -263,7 +243,7 @@
                 <!-- Busy -->
                 <ActivityIndicator IsRunning="{Binding IsBusy}"
                                    IsVisible="{Binding IsBusy}"
-                                   Color="#90caf9"
+                                   Color="{DynamicResource PrimaryAccent}"
                                    HorizontalOptions="Center" />
 
             </VerticalStackLayout>

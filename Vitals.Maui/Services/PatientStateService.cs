@@ -43,6 +43,23 @@ public partial class PatientStateService : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Clears cached patient data. This service is registered as a Singleton
+    /// (see MauiProgram.cs), so it otherwise lives for the entire app process
+    /// — InitializeAsync's "if (Patients.Any()) return" guard means once
+    /// populated, it never reloads on its own. Without an explicit reset,
+    /// signing in as a different account within the same process (no app
+    /// restart) would keep showing whichever household's patients were
+    /// cached from before, even though AuthService correctly switched
+    /// identity. Call this on sign-out and right after any successful
+    /// sign-in, so a session boundary always means a clean slate.
+    /// </summary>
+    public void Reset()
+    {
+        Patients = new List<Patient>();
+        SelectedPatient = null;
+    }
+
     partial void OnSelectedPatientChanged(Patient? value)
     {
         if (value is not null)

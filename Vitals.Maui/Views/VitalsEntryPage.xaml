@@ -5,273 +5,280 @@
              x:Class="Vitals.Maui.Views.VitalsEntryPage"
              x:DataType="vm:VitalsEntryViewModel"
              Title="Vitals"
-             BackgroundColor="#1a1a2e">
+             BackgroundColor="{DynamicResource PageBackground}">
 
     <ScrollView>
         <VerticalStackLayout Padding="16" Spacing="12">
 
             <!-- Patient Card -->
             <Border Padding="16"
-                BackgroundColor="#16213e"
-                StrokeShape="RoundRectangle 12"
-                Stroke="#2a2a4a">
-                        <Label FontSize="18"
-                   FontAttributes="Bold"
-                   TextColor="White">
-                            <Label.FormattedText>
-                                <FormattedString>
-                                    <Span Text="Enter Vitals — " TextColor="#90caf9" />
-                                    <Span Text="{Binding SelectedPatient.FullName}"
-                              TextColor="White"
-                              FontAttributes="Bold" />
-                                </FormattedString>
-                            </Label.FormattedText>
-                        </Label>
-                    </Border>
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{DynamicResource CardStroke}">
+                <Label FontSize="18"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource TextPrimary}">
+                    <Label.FormattedText>
+                        <FormattedString>
+                            <Span Text="Enter Vitals — " TextColor="{DynamicResource PrimaryAccent}" />
+                            <Span Text="{Binding SelectedPatient.FullName}"
+                                  TextColor="{DynamicResource TextPrimary}"
+                                  FontAttributes="Bold" />
+                        </FormattedString>
+                    </Label.FormattedText>
+                </Label>
+            </Border>
 
             <!-- Enter Vitals Card -->
             <Border Padding="16"
-                    BackgroundColor="#16213e"
+                    BackgroundColor="{DynamicResource CardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="#2a2a4a">
+                    Stroke="{DynamicResource CardStroke}">
                 <VerticalStackLayout Spacing="0">
                     <Label Text="Enter Vitals"
                            FontSize="20"
                            FontAttributes="Bold"
-                           TextColor="White"
+                           TextColor="{DynamicResource TextPrimary}"
                            Margin="0,0,0,16" />
 
-                    <!-- Systolic -->
-                    <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+                    <!-- Systolic — no Settings toggle; blood pressure always shown -->
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
                     <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
                         <Label Grid.Column="0"
                                Text="—•—"
                                FontSize="13"
-                               TextColor="#90caf9"
+                               TextColor="{DynamicResource PrimaryAccent}"
                                VerticalOptions="Center"
                                Margin="0,0,12,0" />
                         <Label Grid.Column="1"
                                Text="Systolic (mmHg)"
                                FontSize="15"
-                               TextColor="#e0e0e0"
+                               TextColor="{DynamicResource TextSecondary}"
                                VerticalOptions="Center" />
                         <Entry Grid.Column="2"
                                Text="{Binding Systolic}"
                                Keyboard="Numeric"
                                HorizontalTextAlignment="End"
-                               TextColor="White"
+                               TextColor="{DynamicResource TextPrimary}"
                                BackgroundColor="Transparent"
-                               PlaceholderColor="#666"
+                               PlaceholderColor="{DynamicResource TextMuted}"
                                Placeholder="—"
                                WidthRequest="80" />
                     </Grid>
 
-                    <!-- Diastolic -->
-                    <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+                    <!-- Diastolic — no Settings toggle; blood pressure always shown -->
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
                     <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
                         <Label Grid.Column="0"
                                Text="—•—"
                                FontSize="13"
-                               TextColor="#90caf9"
+                               TextColor="{DynamicResource PrimaryAccent}"
                                VerticalOptions="Center"
                                Margin="0,0,12,0" />
                         <Label Grid.Column="1"
                                Text="Diastolic (mmHg)"
                                FontSize="15"
-                               TextColor="#e0e0e0"
+                               TextColor="{DynamicResource TextSecondary}"
                                VerticalOptions="Center" />
                         <Entry Grid.Column="2"
                                Text="{Binding Diastolic}"
                                Keyboard="Numeric"
                                HorizontalTextAlignment="End"
-                               TextColor="White"
+                               TextColor="{DynamicResource TextPrimary}"
                                BackgroundColor="Transparent"
-                               PlaceholderColor="#666"
+                               PlaceholderColor="{DynamicResource TextMuted}"
                                Placeholder="—"
                                WidthRequest="80" />
                     </Grid>
 
-                    <!-- Heart Rate -->
-                    <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
-                    <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
-                        <Label Grid.Column="0"
-                               Text="—•—"
-                               FontSize="13"
-                               TextColor="#90caf9"
-                               VerticalOptions="Center"
-                               Margin="0,0,12,0" />
-                        <Label Grid.Column="1"
-                               Text="Heart Rate (bpm)"
-                               FontSize="15"
-                               TextColor="#e0e0e0"
-                               VerticalOptions="Center" />
-                        <Entry Grid.Column="2"
-                               Text="{Binding HeartRate}"
-                               Keyboard="Numeric"
-                               HorizontalTextAlignment="End"
-                               TextColor="White"
-                               BackgroundColor="Transparent"
-                               PlaceholderColor="#666"
-                               Placeholder="—"
-                               WidthRequest="80" />
-                    </Grid>
+                    <!-- Heart Rate — toggled by ShowHeartRate -->
+                    <VerticalStackLayout Spacing="0" IsVisible="{Binding ShowHeartRate}">
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                        <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="—•—"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource PrimaryAccent}"
+                                   VerticalOptions="Center"
+                                   Margin="0,0,12,0" />
+                            <Label Grid.Column="1"
+                                   Text="Heart Rate (bpm)"
+                                   FontSize="15"
+                                   TextColor="{DynamicResource TextSecondary}"
+                                   VerticalOptions="Center" />
+                            <Entry Grid.Column="2"
+                                   Text="{Binding HeartRate}"
+                                   Keyboard="Numeric"
+                                   HorizontalTextAlignment="End"
+                                   TextColor="{DynamicResource TextPrimary}"
+                                   BackgroundColor="Transparent"
+                                   PlaceholderColor="{DynamicResource TextMuted}"
+                                   Placeholder="—"
+                                   WidthRequest="80" />
+                        </Grid>
+                    </VerticalStackLayout>
 
-                    <!-- SpO2 -->
-                    <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
-                    <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
-                        <Label Grid.Column="0"
-                               Text="—•—"
-                               FontSize="13"
-                               TextColor="#90caf9"
-                               VerticalOptions="Center"
-                               Margin="0,0,12,0" />
-                        <Label Grid.Column="1"
-                               Text="SpO₂ (%)"
-                               FontSize="15"
-                               TextColor="#e0e0e0"
-                               VerticalOptions="Center" />
-                        <Entry Grid.Column="2"
-                               Text="{Binding OxygenSaturation}"
-                               Keyboard="Numeric"
-                               HorizontalTextAlignment="End"
-                               TextColor="White"
-                               BackgroundColor="Transparent"
-                               PlaceholderColor="#666"
-                               Placeholder="—"
-                               WidthRequest="80" />
-                    </Grid>
+                    <!-- SpO2 — toggled by ShowSpo2 -->
+                    <VerticalStackLayout Spacing="0" IsVisible="{Binding ShowSpo2}">
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                        <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="—•—"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource PrimaryAccent}"
+                                   VerticalOptions="Center"
+                                   Margin="0,0,12,0" />
+                            <Label Grid.Column="1"
+                                   Text="SpO₂ (%)"
+                                   FontSize="15"
+                                   TextColor="{DynamicResource TextSecondary}"
+                                   VerticalOptions="Center" />
+                            <Entry Grid.Column="2"
+                                   Text="{Binding OxygenSaturation}"
+                                   Keyboard="Numeric"
+                                   HorizontalTextAlignment="End"
+                                   TextColor="{DynamicResource TextPrimary}"
+                                   BackgroundColor="Transparent"
+                                   PlaceholderColor="{DynamicResource TextMuted}"
+                                   Placeholder="—"
+                                   WidthRequest="80" />
+                        </Grid>
+                    </VerticalStackLayout>
 
-                    <!-- Temperature -->
-                    <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
-                    <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
-                        <Label Grid.Column="0"
-                               Text="—•—"
-                               FontSize="13"
-                               TextColor="#90caf9"
-                               VerticalOptions="Center"
-                               Margin="0,0,12,0" />
-                        <Label Grid.Column="1"
-                               Text="Temperature (°F)"
-                               FontSize="15"
-                               TextColor="#e0e0e0"
-                               VerticalOptions="Center" />
-                        <Entry Grid.Column="2"
-                               Text="{Binding Temperature}"
-                               Keyboard="Numeric"
-                               HorizontalTextAlignment="End"
-                               TextColor="White"
-                               BackgroundColor="Transparent"
-                               PlaceholderColor="#666"
-                               Placeholder="—"
-                               WidthRequest="80" />
-                    </Grid>
+                    <!-- Temperature — toggled by ShowTemperature -->
+                    <VerticalStackLayout Spacing="0" IsVisible="{Binding ShowTemperature}">
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                        <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="—•—"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource PrimaryAccent}"
+                                   VerticalOptions="Center"
+                                   Margin="0,0,12,0" />
+                            <Label Grid.Column="1"
+                                   Text="Temperature (°F)"
+                                   FontSize="15"
+                                   TextColor="{DynamicResource TextSecondary}"
+                                   VerticalOptions="Center" />
+                            <Entry Grid.Column="2"
+                                   Text="{Binding Temperature}"
+                                   Keyboard="Numeric"
+                                   HorizontalTextAlignment="End"
+                                   TextColor="{DynamicResource TextPrimary}"
+                                   BackgroundColor="Transparent"
+                                   PlaceholderColor="{DynamicResource TextMuted}"
+                                   Placeholder="—"
+                                   WidthRequest="80" />
+                        </Grid>
+                    </VerticalStackLayout>
 
-                    <!-- Blood Glucose -->
-                    <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
-                    <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
-                        <Label Grid.Column="0"
-                               Text="—•—"
-                               FontSize="13"
-                               TextColor="#90caf9"
-                               VerticalOptions="Center"
-                               Margin="0,0,12,0" />
-                        <Label Grid.Column="1"
-                               Text="Blood Glucose (mg/dL)"
-                               FontSize="15"
-                               TextColor="#e0e0e0"
-                               VerticalOptions="Center" />
-                        <Entry Grid.Column="2"
-                               Text="{Binding BloodGlucose}"
-                               Keyboard="Numeric"
-                               HorizontalTextAlignment="End"
-                               TextColor="White"
-                               BackgroundColor="Transparent"
-                               PlaceholderColor="#666"
-                               Placeholder="—"
-                               WidthRequest="80" />
-                    </Grid>
-                    <!-- Weight -->
-                    <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
-                    <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
-                        <Label Grid.Column="0"
-                               Text="—•—"
-                               FontSize="13"
-                               TextColor="#90caf9"
-                               VerticalOptions="Center"
-                               Margin="0,0,12,0" />
-                                            <Label Grid.Column="1"
-                               Text="Weight (lbs)"
-                               FontSize="15"
-                               TextColor="#e0e0e0"
-                               VerticalOptions="Center" />
-                                            <Entry Grid.Column="2"
-                               Text="{Binding Weight}"
-                               Keyboard="Numeric"
-                               HorizontalTextAlignment="End"
-                               TextColor="White"
-                               BackgroundColor="Transparent"
-                               PlaceholderColor="#666"
-                               Placeholder="—"
-                               WidthRequest="80" />
-                    </Grid>
+                    <!-- Blood Glucose — toggled by ShowGlucose -->
+                    <VerticalStackLayout Spacing="0" IsVisible="{Binding ShowGlucose}">
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                        <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="—•—"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource PrimaryAccent}"
+                                   VerticalOptions="Center"
+                                   Margin="0,0,12,0" />
+                            <Label Grid.Column="1"
+                                   Text="Blood Glucose (mg/dL)"
+                                   FontSize="15"
+                                   TextColor="{DynamicResource TextSecondary}"
+                                   VerticalOptions="Center" />
+                            <Entry Grid.Column="2"
+                                   Text="{Binding BloodGlucose}"
+                                   Keyboard="Numeric"
+                                   HorizontalTextAlignment="End"
+                                   TextColor="{DynamicResource TextPrimary}"
+                                   BackgroundColor="Transparent"
+                                   PlaceholderColor="{DynamicResource TextMuted}"
+                                   Placeholder="—"
+                                   WidthRequest="80" />
+                        </Grid>
+                    </VerticalStackLayout>
+
+                    <!-- Weight — toggled by ShowWeight -->
+                    <VerticalStackLayout Spacing="0" IsVisible="{Binding ShowWeight}">
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                        <Grid Padding="4,14" ColumnDefinitions="Auto,*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="—•—"
+                                   FontSize="13"
+                                   TextColor="{DynamicResource PrimaryAccent}"
+                                   VerticalOptions="Center"
+                                   Margin="0,0,12,0" />
+                            <Label Grid.Column="1"
+                                   Text="Weight (lbs)"
+                                   FontSize="15"
+                                   TextColor="{DynamicResource TextSecondary}"
+                                   VerticalOptions="Center" />
+                            <Entry Grid.Column="2"
+                                   Text="{Binding Weight}"
+                                   Keyboard="Numeric"
+                                   HorizontalTextAlignment="End"
+                                   TextColor="{DynamicResource TextPrimary}"
+                                   BackgroundColor="Transparent"
+                                   PlaceholderColor="{DynamicResource TextMuted}"
+                                   Placeholder="—"
+                                   WidthRequest="80" />
+                        </Grid>
+                    </VerticalStackLayout>
 
                     <!-- Notes -->
-                    <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
                     <Grid Padding="4,14" ColumnDefinitions="Auto,*">
                         <Label Grid.Column="0"
                                Text="—•—"
                                FontSize="13"
-                               TextColor="#90caf9"
+                               TextColor="{DynamicResource PrimaryAccent}"
                                VerticalOptions="Start"
                                Margin="0,2,12,0" />
                         <Editor Grid.Column="1"
                                 Text="{Binding Notes}"
                                 Placeholder="Notes (optional)"
-                                PlaceholderColor="#666"
-                                TextColor="White"
+                                PlaceholderColor="{DynamicResource TextMuted}"
+                                TextColor="{DynamicResource TextPrimary}"
                                 BackgroundColor="Transparent"
                                 AutoSize="TextChanges"
                                 MinimumHeightRequest="44" />
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="#2a2a4a" />
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
 
                 </VerticalStackLayout>
             </Border>
 
             <!-- Status Message -->
             <Label Text="{Binding StatusMessage}"
-                   IsVisible="{Binding StatusMessage, 
+                   IsVisible="{Binding StatusMessage,
                        Converter={StaticResource StringToBoolConverter}}"
-                   TextColor="{Binding IsSuccess, 
+                   TextColor="{Binding IsSuccess,
                        Converter={StaticResource BoolToColorConverter}}"
                    HorizontalOptions="Center"
                    FontSize="14" />
 
             <!-- Submit Button -->
             <Border Padding="0"
-                    BackgroundColor="#16213e"
+                    BackgroundColor="{DynamicResource CardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="#2a2a4a">
+                    Stroke="{DynamicResource CardStroke}">
                 <VerticalStackLayout Spacing="8" Padding="16">
                     <Button Text="⬆  Submit Vitals"
                             Command="{Binding SubmitVitalsCommand}"
                             IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
-                            BackgroundColor="Transparent"
-                            TextColor="White"
+                            BackgroundColor="{DynamicResource ButtonBackground}"
+                            TextColor="{DynamicResource TextPrimary}"
                             FontSize="16"
                             FontAttributes="Bold"
                             HeightRequest="56" />
-                    <BoxView HeightRequest="2"
-                             BackgroundColor="White"
-                             Margin="60,0"
-                             HorizontalOptions="Fill" />
                 </VerticalStackLayout>
             </Border>
 
             <!-- Busy Indicator -->
             <ActivityIndicator IsRunning="{Binding IsBusy}"
                                IsVisible="{Binding IsBusy}"
-                               Color="#90caf9"
+                               Color="{DynamicResource PrimaryAccent}"
                                HorizontalOptions="Center" />
 
         </VerticalStackLayout>

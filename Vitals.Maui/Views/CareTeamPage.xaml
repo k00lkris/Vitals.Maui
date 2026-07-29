@@ -5,35 +5,35 @@
              xmlns:models="clr-namespace:Vitals.Maui.Models"
              x:Class="Vitals.Maui.Views.CareTeamPage"
              x:DataType="vm:CareTeamViewModel"
-             BackgroundColor="#1a1a2e">
+             BackgroundColor="{DynamicResource PageBackground}">
 
     <RefreshView Command="{Binding LoadCommand}"
                  IsRefreshing="{Binding IsBusy}"
-                 RefreshColor="#90caf9">
+                 RefreshColor="{DynamicResource PrimaryAccent}">
         <ScrollView>
             <VerticalStackLayout Padding="16" Spacing="12">
 
                 <!-- Header Card -->
                 <Border Padding="16"
-                        BackgroundColor="#16213e"
+                        BackgroundColor="{DynamicResource CardBackground}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="#2a2a4a">
+                        Stroke="{DynamicResource CardStroke}">
                     <VerticalStackLayout Spacing="10">
                         <Label FontSize="18"
                                FontAttributes="Bold"
-                               TextColor="White">
+                               TextColor="{DynamicResource TextPrimary}">
                             <Label.FormattedText>
                                 <FormattedString>
-                                    <Span Text="Care Team for " TextColor="#90caf9" />
+                                    <Span Text="Care Team for " TextColor="{DynamicResource PrimaryAccent}" />
                                     <Span Text="{Binding SelectedPatient.FullName}"
-                                          TextColor="White"
+                                          TextColor="{DynamicResource TextPrimary}"
                                           FontAttributes="Bold" />
                                 </FormattedString>
                             </Label.FormattedText>
                         </Label>
                         <Button Text="➕  Add Provider"
-                                BackgroundColor="#1976d2"
-                                TextColor="White"
+                                BackgroundColor="{DynamicResource ButtonBackground}"
+                                TextColor="{DynamicResource TextPrimary}"
                                 FontSize="13"
                                 HeightRequest="44"
                                 CornerRadius="8"
@@ -45,7 +45,7 @@
                 <Label Text="No providers on record."
                        IsVisible="{Binding HasNoDoctors}"
                        FontSize="14"
-                       TextColor="#888888"
+                       TextColor="{DynamicResource TextMuted}"
                        HorizontalOptions="Center"
                        Margin="0,16" />
 
@@ -55,9 +55,9 @@
                         <DataTemplate x:DataType="models:Doctor">
                             <Border Padding="16"
                                     Margin="0,0,0,8"
-                                    BackgroundColor="#16213e"
+                                    BackgroundColor="{DynamicResource CardBackground}"
                                     StrokeShape="RoundRectangle 12"
-                                    Stroke="#2a2a4a">
+                                    Stroke="{DynamicResource CardStroke}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type vm:CareTeamViewModel}},
@@ -69,28 +69,28 @@
                                         <Label Text="{Binding Name}"
                                                FontSize="16"
                                                FontAttributes="Bold"
-                                               TextColor="White"
+                                               TextColor="{DynamicResource TextPrimary}"
                                                LineBreakMode="WordWrap" />
                                         <Label Text="{Binding Specialty}"
                                                FontSize="13"
-                                               TextColor="#aaaaaa"
-                                               FontAttributes="Italic" />
+                                               FontAttributes="Italic"
+                                               TextColor="{DynamicResource TextMuted}" />
                                     </VerticalStackLayout>
                                     <Border Grid.Column="1"
                                             Padding="8,4"
-                                            BackgroundColor="#1976d2"
+                                            BackgroundColor="{DynamicResource ButtonBackground}"
                                             StrokeShape="RoundRectangle 6"
                                             VerticalOptions="Center"
                                             IsVisible="{Binding IsPrimary}">
                                         <Label Text="🩺 PCP"
                                                FontSize="11"
                                                FontAttributes="Bold"
-                                               TextColor="White" />
+                                               TextColor="{DynamicResource TextPrimary}" />
                                     </Border>
                                     <Label Grid.Column="1"
                                            Text="›"
                                            FontSize="22"
-                                           TextColor="#1976d2"
+                                           TextColor="{DynamicResource PrimaryAccent}"
                                            VerticalOptions="Center"
                                            IsVisible="{Binding IsPrimary,
                                                Converter={StaticResource InvertedBoolConverter}}" />

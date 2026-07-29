@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             x:Class="Vitals.Maui.Views.SettingsPage"
+             x:DataType="vm:SettingsViewModel"
+             Title="Settings"
+             BackgroundColor="{DynamicResource PageBackground}">
+
+    <ScrollView Padding="16">
+        <VerticalStackLayout Spacing="16">
+
+            <!-- Theme -->
+            <Border Padding="16"
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{DynamicResource CardStroke}">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="THEME"
+                           FontSize="11" FontAttributes="Bold"
+                           TextColor="{DynamicResource PrimaryAccent}" />
+                    <Label Text="Choose how Vitals looks on your device."
+                           FontSize="12"
+                           TextColor="{DynamicResource TextSecondary}"
+                           LineBreakMode="WordWrap" />
+
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto"
+                          ColumnSpacing="8" RowSpacing="8">
+
+                        <!-- Dark -->
+                        <Border Grid.Row="0" Grid.Column="0"
+                                Padding="12,10"
+                                StrokeShape="RoundRectangle 10"
+                                Stroke="#444444"
+                                BackgroundColor="#0d0d0d">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SetThemeCommand}"
+                                                      CommandParameter="dark" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Dark"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="White"
+                                       HorizontalOptions="Center" />
+                                <Label Text="Blacks &amp; greys"
+                                       FontSize="10" TextColor="#888888"
+                                       HorizontalOptions="Center" />
+                                <BoxView HeightRequest="3" CornerRadius="2"
+                                         Color="#90caf9"
+                                         IsVisible="{Binding CurrentTheme,
+                                             Converter={StaticResource StringEqualsConverter},
+                                             ConverterParameter=dark}"
+                                         HorizontalOptions="Center"
+                                         WidthRequest="24" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Light -->
+                        <Border Grid.Row="0" Grid.Column="1"
+                                Padding="12,10"
+                                StrokeShape="RoundRectangle 10"
+                                Stroke="#e0e0e0"
+                                BackgroundColor="#f5f5f5">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SetThemeCommand}"
+                                                      CommandParameter="light" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Light"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="#212121"
+                                       HorizontalOptions="Center" />
+                                <Label Text="White background"
+                                       FontSize="10" TextColor="#757575"
+                                       HorizontalOptions="Center" />
+                                <BoxView HeightRequest="3" CornerRadius="2"
+                                         Color="#1976d2"
+                                         IsVisible="{Binding CurrentTheme,
+                                             Converter={StaticResource StringEqualsConverter},
+                                             ConverterParameter=light}"
+                                         HorizontalOptions="Center"
+                                         WidthRequest="24" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Vitals Blue -->
+                        <Border Grid.Row="1" Grid.Column="0"
+                                Padding="12,10"
+                                StrokeShape="RoundRectangle 10"
+                                Stroke="#b2dff2"
+                                BackgroundColor="#e8f4f8">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SetThemeCommand}"
+                                                      CommandParameter="vitals_blue" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Vitals Blue"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="#0d2137"
+                                       HorizontalOptions="Center" />
+                                <Label Text="Brand teal"
+                                       FontSize="10" TextColor="#546e7a"
+                                       HorizontalOptions="Center" />
+                                <BoxView HeightRequest="3" CornerRadius="2"
+                                         Color="#00acc1"
+                                         IsVisible="{Binding CurrentTheme,
+                                             Converter={StaticResource StringEqualsConverter},
+                                             ConverterParameter=vitals_blue}"
+                                         HorizontalOptions="Center"
+                                         WidthRequest="24" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- System -->
+                        <Border Grid.Row="1" Grid.Column="1"
+                                Padding="12,10"
+                                StrokeShape="RoundRectangle 10"
+                                Stroke="{DynamicResource CardStroke}"
+                                BackgroundColor="{DynamicResource CardBackground}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding SetThemeCommand}"
+                                                      CommandParameter="system" />
+                            </Border.GestureRecognizers>
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="System"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalOptions="Center" />
+                                <Label Text="Follows device"
+                                       FontSize="10"
+                                       TextColor="{DynamicResource TextSecondary}"
+                                       HorizontalOptions="Center" />
+                                <BoxView HeightRequest="3" CornerRadius="2"
+                                         Color="{DynamicResource PrimaryAccent}"
+                                         IsVisible="{Binding CurrentTheme,
+                                             Converter={StaticResource StringEqualsConverter},
+                                             ConverterParameter=system}"
+                                         HorizontalOptions="Center"
+                                         WidthRequest="24" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Vital Field Preferences -->
+            <Border Padding="16"
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{DynamicResource CardStroke}">
+                <VerticalStackLayout Spacing="14">
+                    <Label Text="VITAL FIELDS"
+                           FontSize="11" FontAttributes="Bold"
+                           TextColor="{DynamicResource PrimaryAccent}" />
+                    <Label Text="Choose which vitals appear on the entry form."
+                           FontSize="12"
+                           TextColor="{DynamicResource TextSecondary}"
+                           LineBreakMode="WordWrap" />
+
+                    <!-- Heart Rate -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="Heart Rate"
+                                   FontSize="13" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label Text="BPM — cardiovascular monitoring"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextSecondary}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding ShowHeartRate}"
+                                OnColor="{DynamicResource PrimaryAccent}"
+                                VerticalOptions="Center" />
+                    </Grid>
+
+                    <BoxView HeightRequest="0.5"
+                             BackgroundColor="{DynamicResource DividerColor}" />
+
+                    <!-- SpO2 -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="Oxygen Saturation (SpO₂)"
+                                   FontSize="13" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label Text="% — pulse oximeter reading"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextSecondary}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding ShowSpo2}"
+                                OnColor="{DynamicResource PrimaryAccent}"
+                                VerticalOptions="Center" />
+                    </Grid>
+
+                    <BoxView HeightRequest="0.5"
+                             BackgroundColor="{DynamicResource DividerColor}" />
+
+                    <!-- Temperature -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="Temperature"
+                                   FontSize="13" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label Text="°F — body temperature"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextSecondary}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding ShowTemperature}"
+                                OnColor="{DynamicResource PrimaryAccent}"
+                                VerticalOptions="Center" />
+                    </Grid>
+
+                    <BoxView HeightRequest="0.5"
+                             BackgroundColor="{DynamicResource DividerColor}" />
+
+                    <!-- Weight -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="Weight"
+                                   FontSize="13" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label Text="lbs — body weight tracking"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextSecondary}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding ShowWeight}"
+                                OnColor="{DynamicResource PrimaryAccent}"
+                                VerticalOptions="Center" />
+                    </Grid>
+
+                    <BoxView HeightRequest="0.5"
+                             BackgroundColor="{DynamicResource DividerColor}" />
+
+                    <!-- Glucose -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="Blood Glucose"
+                                   FontSize="13" FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                            <Label Text="mg/dL — diabetes monitoring (coming soon)"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextSecondary}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1"
+                                IsToggled="{Binding ShowGlucose}"
+                                OnColor="{DynamicResource PrimaryAccent}"
+                                VerticalOptions="Center" />
+                    </Grid>
+
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- About -->
+            <Border Padding="16"
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{DynamicResource CardStroke}">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="ABOUT"
+                           FontSize="11" FontAttributes="Bold"
+                           TextColor="{DynamicResource PrimaryAccent}" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0" Text="Version"
+                               FontSize="13"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Label Grid.Column="1" Text="0.1 alpha"
+                               FontSize="13"
+                               TextColor="{DynamicResource TextSecondary}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0" Text="Platform"
+                               FontSize="13"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Label Grid.Column="1" Text="Android"
+                               FontSize="13"
+                               TextColor="{DynamicResource TextSecondary}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <Label Grid.Column="0" Text="API"
+                               FontSize="13"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Label Grid.Column="1" Text="vitals-wellness.com"
+                               FontSize="13"
+                               TextColor="{DynamicResource PrimaryAccent}" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+            <!-- Account -->
+            <Border Padding="16"
+                BackgroundColor="{DynamicResource CardBackground}"
+                StrokeShape="RoundRectangle 12"
+                Stroke="{DynamicResource CardStroke}">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="ACCOUNT"
+                       FontSize="11" FontAttributes="Bold"
+                       TextColor="{DynamicResource PrimaryAccent}" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="{Binding DisplayName}"
+                               FontSize="13" FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}" />
+                            <Label Text="{Binding Email}"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextSecondary}" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="1"
+                           Text="Google"
+                           FontSize="11"
+                           TextColor="{DynamicResource TextMuted}"
+                           VerticalOptions="Center" />
+                    </Grid>
+                    <BoxView HeightRequest="0.5" BackgroundColor="{DynamicResource DividerColor}" />
+                    <Button Text="Sign Out"
+                        BackgroundColor="Transparent"
+                        TextColor="#d32f2f"
+                        FontSize="14"
+                        FontAttributes="Bold"
+                        HeightRequest="44"
+                        HorizontalOptions="Start"
+                        Command="{Binding SignOutCommand}" />
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

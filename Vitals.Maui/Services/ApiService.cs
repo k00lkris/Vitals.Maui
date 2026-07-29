@@ -14,8 +14,7 @@ public class ApiService
     public ApiService(HttpClient http)
     {
         _http = http;
-        _http.DefaultRequestHeaders.Add("X-API-KEY", AppConfig.ApiKey);
-
+        // Remove: _http.DefaultRequestHeaders.Add("X-API-KEY", AppConfig.ApiKey);
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
@@ -525,6 +524,27 @@ public class ApiService
         {
             System.Diagnostics.Debug.WriteLine($"=== ANALYSIS ERROR: {ex.Message}");
             return null;
+        }
+    }
+
+    // =====================================================
+    // USER PREFERENCES
+    // =====================================================
+    public async Task<bool> UpdateUserPreferencesAsync(string userId, object payload)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(payload, _jsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _http.PatchAsync(
+                $"/api/user/preferences?user_id={userId}", content);
+            System.Diagnostics.Debug.WriteLine($"=== UPDATE PREFS STATUS: {response.StatusCode}");
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== UPDATE PREFS ERROR: {ex.Message}");
+            return false;
         }
     }
 }

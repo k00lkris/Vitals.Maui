@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             x:Class="Vitals.Maui.Views.OnboardingWelcomePage"
+             x:DataType="vm:OnboardingWelcomeViewModel"
+             NavigationPage.HasNavigationBar="False"
+             BackgroundColor="{DynamicResource PageBackground}">
+
+    <Grid Padding="24" RowDefinitions="*,Auto,Auto,*,Auto">
+
+        <!-- Logo -->
+        <Image Grid.Row="1"
+               Source="vitals_logo.png"
+               HeightRequest="72"
+               HorizontalOptions="Center"
+               Margin="0,0,0,32" />
+
+        <!-- Welcome copy -->
+        <VerticalStackLayout Grid.Row="2" Spacing="12">
+            <Label Text="Welcome to Vitals"
+                   FontSize="28"
+                   FontAttributes="Bold"
+                   TextColor="{DynamicResource TextPrimary}"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center" />
+
+            <Label Text="Clinical clarity for the people who care most."
+                   FontSize="16"
+                   TextColor="{DynamicResource TextSecondary}"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center"
+                   Margin="0,0,0,8" />
+
+            <Label Text="Track blood pressure, medications, and more for yourself or someone you care for — and turn it into a clear picture your doctor can actually use."
+                   FontSize="15"
+                   TextColor="{DynamicResource TextSecondary}"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center"
+                   Margin="16,0,16,0" />
+        </VerticalStackLayout>
+
+        <!-- Progress dots (1 of ~5 onboarding screens) -->
+        <HorizontalStackLayout Grid.Row="3"
+                                Spacing="8"
+                                HorizontalOptions="Center"
+                                VerticalOptions="End">
+            <BoxView HeightRequest="8" WidthRequest="24" CornerRadius="4"
+                     BackgroundColor="{DynamicResource PrimaryAccent}" />
+            <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                     BackgroundColor="{DynamicResource DividerColor}" />
+            <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                     BackgroundColor="{DynamicResource DividerColor}" />
+            <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                     BackgroundColor="{DynamicResource DividerColor}" />
+            <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
+                     BackgroundColor="{DynamicResource DividerColor}" />
+        </HorizontalStackLayout>
+
+        <!-- Continue -->
+        <Button Grid.Row="4"
+                Text="Get Started"
+                Command="{Binding ContinueCommand}"
+                BackgroundColor="{DynamicResource ButtonBackground}"
+                TextColor="{DynamicResource TextPrimary}"
+                FontSize="16"
+                FontAttributes="Bold"
+                HeightRequest="56"
+                CornerRadius="12"
+                Margin="0,24,0,0" />
+
+    </Grid>
+</ContentPage>

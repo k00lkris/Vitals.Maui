@@ -19,13 +19,40 @@ public partial class GeneratePdfViewModel : ObservableObject
     [ObservableProperty] private bool _isSuccess;
     [ObservableProperty] private bool _hasNoReports;
 
-    // Day buttons
+    // Day buttons — background colors
     [ObservableProperty] private int _selectedDays = 15;
-    [ObservableProperty] private Color _btn15Color = Color.FromArgb("#1976d2");
-    [ObservableProperty] private Color _btn30Color = Color.FromArgb("#0f3460");
-    [ObservableProperty] private Color _btn45Color = Color.FromArgb("#0f3460");
-    [ObservableProperty] private Color _btn60Color = Color.FromArgb("#0f3460");
-    [ObservableProperty] private Color _btnCustomColor = Color.FromArgb("#0f3460");
+
+    private Color _btnDay15Color = Colors.Transparent;
+    public Color BtnDay15Color { get => _btnDay15Color; set { _btnDay15Color = value; OnPropertyChanged(); } }
+
+    private Color _btnDay30Color = Colors.Transparent;
+    public Color BtnDay30Color { get => _btnDay30Color; set { _btnDay30Color = value; OnPropertyChanged(); } }
+
+    private Color _btnDay45Color = Colors.Transparent;
+    public Color BtnDay45Color { get => _btnDay45Color; set { _btnDay45Color = value; OnPropertyChanged(); } }
+
+    private Color _btnDay60Color = Colors.Transparent;
+    public Color BtnDay60Color { get => _btnDay60Color; set { _btnDay60Color = value; OnPropertyChanged(); } }
+
+    private Color _btnCustomColor = Colors.Transparent;
+    public Color BtnCustomColor { get => _btnCustomColor; set { _btnCustomColor = value; OnPropertyChanged(); } }
+
+    // Day buttons — text colors
+    private Color _btnDay15TextColor = Colors.White;
+    public Color BtnDay15TextColor { get => _btnDay15TextColor; set { _btnDay15TextColor = value; OnPropertyChanged(); } }
+
+    private Color _btnDay30TextColor = Colors.White;
+    public Color BtnDay30TextColor { get => _btnDay30TextColor; set { _btnDay30TextColor = value; OnPropertyChanged(); } }
+
+    private Color _btnDay45TextColor = Colors.White;
+    public Color BtnDay45TextColor { get => _btnDay45TextColor; set { _btnDay45TextColor = value; OnPropertyChanged(); } }
+
+    private Color _btnDay60TextColor = Colors.White;
+    public Color BtnDay60TextColor { get => _btnDay60TextColor; set { _btnDay60TextColor = value; OnPropertyChanged(); } }
+
+    private Color _btnCustomTextColor = Colors.White;
+    public Color BtnCustomTextColor { get => _btnCustomTextColor; set { _btnCustomTextColor = value; OnPropertyChanged(); } }
+
     [ObservableProperty] private string _customDaysLabel = "Custom";
 
     private string ReportsFolder =>
@@ -49,6 +76,7 @@ public partial class GeneratePdfViewModel : ObservableObject
     [RelayCommand]
     public Task LoadAsync()
     {
+        UpdateButtonColors(SelectedDays);
         LoadReports();
         return Task.CompletedTask;
     }
@@ -99,13 +127,10 @@ public partial class GeneratePdfViewModel : ObservableObject
                 return;
             }
 
-            // Build filename
-            var safeName = $"{patient.FirstName}_{patient.LastName}"
-                .Replace(" ", "_");
+            var safeName = $"{patient.FirstName}_{patient.LastName}".Replace(" ", "_");
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HHmm");
             var fileName = $"Vitals_{safeName}_{SelectedDays}day_{timestamp}.pdf";
 
-            // Ensure folder exists
             if (!Directory.Exists(ReportsFolder))
                 Directory.CreateDirectory(ReportsFolder);
 
@@ -113,7 +138,7 @@ public partial class GeneratePdfViewModel : ObservableObject
             await File.WriteAllBytesAsync(filePath, bytes);
 
             IsSuccess = true;
-            StatusMessage = $"PDF generated successfully.";
+            StatusMessage = "PDF generated successfully.";
             LoadReports();
         }
         catch (Exception ex)
@@ -131,12 +156,10 @@ public partial class GeneratePdfViewModel : ObservableObject
     {
         try
         {
-            var uri = new Uri(report.FilePath);
-            await Launcher.OpenAsync(
-                new OpenFileRequest
-                {
-                    File = new ReadOnlyFile(report.FilePath)
-                });
+            await Launcher.OpenAsync(new OpenFileRequest
+            {
+                File = new ReadOnlyFile(report.FilePath)
+            });
         }
         catch (Exception ex)
         {
@@ -231,12 +254,24 @@ public partial class GeneratePdfViewModel : ObservableObject
 
     private void UpdateButtonColors(int days)
     {
-        var active = Color.FromArgb("#1976d2");
-        var inactive = Color.FromArgb("#0f3460");
-        Btn15Color = days == 15 ? active : inactive;
-        Btn30Color = days == 30 ? active : inactive;
-        Btn45Color = days == 45 ? active : inactive;
-        Btn60Color = days == 60 ? active : inactive;
+        if (Application.Current?.Resources is null) return;
+
+        var res = Application.Current.Resources;
+        var active = res.TryGetValue("ButtonBackground", out var a) ? (Color)a : Color.FromArgb("#00acc1");
+        var inactive = res.TryGetValue("ButtonSecondary", out var i) ? (Color)i : Color.FromArgb("#b2dff2");
+        var activeTxt = res.TryGetValue("TextPrimary", out var at) ? (Color)at : Colors.White;
+        var inactiveTxt = res.TryGetValue("ButtonSecondaryText", out var it) ? (Color)it : Color.FromArgb("#0d2137");
+
+        BtnDay15Color = days == 15 ? active : inactive;
+        BtnDay30Color = days == 30 ? active : inactive;
+        BtnDay45Color = days == 45 ? active : inactive;
+        BtnDay60Color = days == 60 ? active : inactive;
         BtnCustomColor = days == -1 ? active : inactive;
+
+        BtnDay15TextColor = days == 15 ? activeTxt : inactiveTxt;
+        BtnDay30TextColor = days == 30 ? activeTxt : inactiveTxt;
+        BtnDay45TextColor = days == 45 ? activeTxt : inactiveTxt;
+        BtnDay60TextColor = days == 60 ? activeTxt : inactiveTxt;
+        BtnCustomTextColor = days == -1 ? activeTxt : inactiveTxt;
     }
 }

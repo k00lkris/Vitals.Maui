@@ -48,11 +48,16 @@ public partial class DashboardViewModel : ObservableObject
     // Selected days button
     [ObservableProperty] private int _selectedDays = 15;
 
-    // Button states
-    [ObservableProperty] private Color _btn15Color = Color.FromArgb("#1976d2");
-    [ObservableProperty] private Color _btn30Color = Color.FromArgb("#0f3460");
-    [ObservableProperty] private Color _btn45Color = Color.FromArgb("#0f3460");
-    [ObservableProperty] private Color _btn60Color = Color.FromArgb("#0f3460");
+    // Button background colors — initialized to transparent; UpdateButtonColors() sets real values
+    [ObservableProperty] private Color _btnDay15Color = Colors.Transparent;
+    [ObservableProperty] private Color _btnDay30Color = Colors.Transparent;
+    [ObservableProperty] private Color _btnDay45Color = Colors.Transparent;
+    [ObservableProperty] private Color _btnDay60Color = Colors.Transparent;
+
+    [ObservableProperty] private Color _btnDay15TextColor = Colors.White;
+    [ObservableProperty] private Color _btnDay30TextColor = Colors.White;
+    [ObservableProperty] private Color _btnDay45TextColor = Colors.White;
+    [ObservableProperty] private Color _btnDay60TextColor = Colors.White;
 
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
@@ -94,6 +99,7 @@ public partial class DashboardViewModel : ObservableObject
         await _patientState.InitializeAsync();
         OnPropertyChanged(nameof(Patients));
         OnPropertyChanged(nameof(SelectedPatient));
+        UpdateButtonColors();
         await LoadDashboardDataAsync();
     }
 
@@ -103,7 +109,7 @@ public partial class DashboardViewModel : ObservableObject
         if (int.TryParse(days, out var d))
         {
             SelectedDays = d;
-            UpdateButtonColors(d);
+            UpdateButtonColors();
             await LoadAveragesAsync();
 
             if (ChartsExpanded)
@@ -111,14 +117,26 @@ public partial class DashboardViewModel : ObservableObject
         }
     }
 
-    private void UpdateButtonColors(int days)
+    private void UpdateButtonColors()
     {
-        var active = Color.FromArgb("#1976d2");
-        var inactive = Color.FromArgb("#0f3460");
-        Btn15Color = days == 15 ? active : inactive;
-        Btn30Color = days == 30 ? active : inactive;
-        Btn45Color = days == 45 ? active : inactive;
-        Btn60Color = days == 60 ? active : inactive;
+        if (Application.Current?.Resources is null) return;
+
+        var res = Application.Current.Resources;
+
+        var active = res.TryGetValue("ButtonBackground", out var a) ? (Color)a : Color.FromArgb("#00acc1");
+        var inactive = res.TryGetValue("ButtonSecondary", out var i) ? (Color)i : Color.FromArgb("#b2dff2");
+        var activeTxt = res.TryGetValue("TextPrimary", out var at) ? (Color)at : Colors.White;
+        var inactiveTxt = res.TryGetValue("ButtonSecondaryText", out var it) ? (Color)it : Color.FromArgb("#0d2137");
+
+        BtnDay15Color = SelectedDays == 15 ? active : inactive;
+        BtnDay30Color = SelectedDays == 30 ? active : inactive;
+        BtnDay45Color = SelectedDays == 45 ? active : inactive;
+        BtnDay60Color = SelectedDays == 60 ? active : inactive;
+
+        BtnDay15TextColor = SelectedDays == 15 ? activeTxt : inactiveTxt;
+        BtnDay30TextColor = SelectedDays == 30 ? activeTxt : inactiveTxt;
+        BtnDay45TextColor = SelectedDays == 45 ? activeTxt : inactiveTxt;
+        BtnDay60TextColor = SelectedDays == 60 ? activeTxt : inactiveTxt;
     }
 
     private async Task LoadDashboardDataAsync()
@@ -253,7 +271,6 @@ public partial class DashboardViewModel : ObservableObject
             var yValid = validIdx.Select(t => t.v).ToArray();
             var smoothed = MathService.Loess(xValid, yValid, 0.3);
 
-            // Map back to full array
             var result = yAll.ToArray();
             for (int k = 0; k < validIdx.Count; k++)
                 result[validIdx[k].i] = smoothed[k];
@@ -266,7 +283,6 @@ public partial class DashboardViewModel : ObservableObject
         var spo2Smoothed = LoessFiltered(xDays, spo2Raw);
         var tempSmoothed = LoessFiltered(xDays, tempRaw);
 
-        // Helper — raw scatter series
         static LineSeries<double?> RawSeries(double[] raw, string name, string hex) =>
             new LineSeries<double?>
             {
@@ -280,7 +296,6 @@ public partial class DashboardViewModel : ObservableObject
                 LineSmoothness = 0
             };
 
-        // Helper — LOESS smooth line (no dots)
         static LineSeries<double?> SmoothedSeries(double[] smoothed, string name, string hex) =>
             new LineSeries<double?>
             {
@@ -298,56 +313,48 @@ public partial class DashboardViewModel : ObservableObject
                 LineSmoothness = 0.6
             };
 
-        // Blood Pressure
         BpSeries = new ISeries[]
         {
-        RawSeries(sysRaw,  "Systolic",       "#d32f2f"),
-        RawSeries(diaRaw,  "Diastolic",      "#1976d2"),
-        SmoothedSeries(sysSmoothed,  "Systolic Trend",  "#ff6659"),
-        SmoothedSeries(diaSmoothed,  "Diastolic Trend", "#63a4ff"),
+            RawSeries(sysRaw,         "Systolic",        "#d32f2f"),
+            RawSeries(diaRaw,         "Diastolic",       "#1976d2"),
+            SmoothedSeries(sysSmoothed,  "Systolic Trend",  "#ff6659"),
+            SmoothedSeries(diaSmoothed,  "Diastolic Trend", "#63a4ff"),
         };
 
-        // Heart Rate
         HeartRateSeries = new ISeries[]
         {
-        RawSeries(hrRaw,       "Heart Rate",    "#388e3c"),
-        SmoothedSeries(hrSmoothed,   "HR Trend",      "#6abf69"),
+            RawSeries(hrRaw,           "Heart Rate",  "#388e3c"),
+            SmoothedSeries(hrSmoothed, "HR Trend",    "#6abf69"),
         };
 
-        // SpO2
         Spo2Series = new ISeries[]
         {
-        RawSeries(spo2Raw,     "SpO\u2082",     "#7b1fa2"),
-        SmoothedSeries(spo2Smoothed, "SpO\u2082 Trend", "#ae52d4"),
+            RawSeries(spo2Raw,           "SpO\u2082",       "#7b1fa2"),
+            SmoothedSeries(spo2Smoothed, "SpO\u2082 Trend", "#ae52d4"),
         };
 
-        // Temperature
         TempSeries = new ISeries[]
         {
-        RawSeries(tempRaw,     "Temp \u00b0F",  "#f57c00"),
-        SmoothedSeries(tempSmoothed, "Temp Trend",    "#ffad42"),
+            RawSeries(tempRaw,           "Temp \u00b0F", "#f57c00"),
+            SmoothedSeries(tempSmoothed, "Temp Trend",   "#ffad42"),
         };
 
-        // Date axis
         DateAxes = new Axis[]
         {
-        new Axis
-        {
-            Labels = history
-                .Select(r => DateTime.Parse(r.Date).ToString("MM/dd"))
-                .ToArray(),
-            LabelsRotation = 45,
-            TextSize = 10,
-            LabelsPaint = new SolidColorPaint(SKColor.Parse("#90caf9"))
-        }
+            new Axis
+            {
+                Labels          = history.Select(r => DateTime.Parse(r.Date).ToString("MM/dd")).ToArray(),
+                LabelsRotation  = 45,
+                TextSize        = 10,
+                LabelsPaint     = new SolidColorPaint(SKColor.Parse("#90caf9"))
+            }
         };
     }
 
     [RelayCommand]
     public async Task GoToVitalsHistoryAsync()
     {
-        await Shell.Current.GoToAsync(
-            $"//VitalsHistory?days={SelectedDays}");
+        await Shell.Current.GoToAsync($"//VitalsHistory?days={SelectedDays}");
     }
 
     [RelayCommand]
