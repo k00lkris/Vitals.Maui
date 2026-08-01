@@ -27,6 +27,9 @@ import json
 import os
 import psycopg2
 import re
+import bcrypt
+import secrets
+import requests
 
 
 load_dotenv()
@@ -48,7 +51,14 @@ print("HOUSEHOLD_ID FROM ENV:", HOUSEHOLD_ID)
 JWT_SECRET = os.getenv("JWT_SECRET", "vitals_jwt_secret_2026x")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7  # 7 days
-PUBLIC_PATHS = {"/api/auth/google", "/api/health"}
+PUBLIC_PATHS = {
+    "/api/auth/google", "/api/health",
+    "/api/auth/register", "/api/auth/login",
+    "/api/auth/verify-email", "/api/auth/resend-verification",
+}
+
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+EMAIL_FROM = "Vitals <noreply@vitals-wellness.com>"
 
 # --------------------
 # Auth dependency
@@ -62,11 +72,14 @@ def get_auth(
     if request.url.path in PUBLIC_PATHS:
         return {}
 
-    # Accept legacy API key (Home Assistant)
-    if x_api_key and x_api_key == API_KEY:
-        return {"type": "api_key"}
-
-    # Accept JWT from mobile app
+    # Prefer JWT (mobile app) when present — it identifies a specific
+    # user/household. The mobile client always sends X-API-KEY alongside
+    # the JWT too (several other endpoints separately require it via their
+    # own check_key() call), so checking the API key first meant EVERY
+    # mobile request was being silently treated as the legacy single-tenant
+    # path, regardless of which account was actually signed in. This is
+    # what caused new patients to be written into the original hardcoded
+    # household instead of whichever household the JWT actually belonged to.
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         try:
@@ -75,7 +88,52 @@ def get_auth(
         except JWTError:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+    # Legacy API key (Home Assistant) — only reached when no Bearer token
+    # was sent at all.
+    if x_api_key and x_api_key == API_KEY:
+        return {"type": "api_key"}
+
     raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def get_household_id(auth: dict = Depends(get_auth)) -> str:
+    """
+    Derives the caller's household_id from their auth context, instead of
+    the hardcoded HOUSEHOLD_ID env var (a leftover from the pre-multi-tenant,
+    single-household Raspberry Pi/Home Assistant era). Without this, every
+    mobile user — regardless of which household they actually belong to —
+    would read and write against the one household HOUSEHOLD_ID points to.
+
+    - Legacy API-key callers (Home Assistant) have no per-household concept,
+      so they keep using the env var for backward compatibility.
+    - JWT callers (the mobile app) get the household_id claim actually
+      encoded in their token by create_jwt().
+    """
+    if auth.get("type") == "api_key":
+        return HOUSEHOLD_ID
+
+    household_id = auth.get("household_id")
+    if not household_id:
+        raise HTTPException(status_code=401, detail="Token missing household_id")
+    return household_id
+
+
+def get_own_user_id(auth: dict = Depends(get_auth)) -> Optional[str]:
+    """
+    For endpoints that take a user_id directly as a query/path parameter
+    (e.g. /api/user/preferences), confirms the caller is the SAME user_id
+    they're trying to read or modify — otherwise anyone with a valid
+    session could pass a different user's user_id and read or change that
+    user's settings. Returns None for the legacy API-key path, which has
+    no per-user concept and is handled separately by callers.
+    """
+    if auth.get("type") == "api_key":
+        return None
+
+    user_id = auth.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Token missing user id")
+    return user_id
 
 
 app = FastAPI(
@@ -105,6 +163,42 @@ def get_conn():
 def check_key(key):
     if key != API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+# --------------------
+# Household ownership check
+# --------------------
+def verify_patient_household(cur, patient_id: str, household_id: str):
+    """
+    Confirms patient_id actually belongs to household_id before any read or
+    write proceeds. Without this, any authenticated caller — mobile JWT or
+    the shared legacy API key both — could read or modify any OTHER
+    household's patient data just by passing a different patient_id, since
+    check_key() only validates the static API key and never checked which
+    household a patient_id actually belongs to. Call this right after
+    opening the cursor, before the endpoint's main query.
+    """
+    cur.execute(
+        "SELECT 1 FROM patients WHERE patient_id = %s AND household_id = %s",
+        (patient_id, household_id)
+    )
+    if cur.fetchone() is None:
+        raise HTTPException(status_code=403, detail="Patient not found in your household")
+
+
+def verify_child_record_household(cur, table: str, id_column: str, record_id: str, household_id: str):
+    """
+    Same idea as verify_patient_household, but for endpoints that take a
+    child record's own id (medication_id, allergy_id, visit_id,
+    incident_id, note_id) rather than a patient_id directly — joins through
+    to patients to find which household actually owns it.
+    """
+    cur.execute(f"""
+        SELECT 1 FROM {table} t
+        JOIN patients p ON p.patient_id = t.patient_id
+        WHERE t.{id_column} = %s AND p.household_id = %s
+    """, (record_id, household_id))
+    if cur.fetchone() is None:
+        raise HTTPException(status_code=403, detail="Record not found in your household")
 
 # --------------------
 # Validation
@@ -146,7 +240,11 @@ class PatientCreate(BaseModel):
     last_name: str
     dob: Optional[date] = None
     gender: Optional[str]
-    household_id: str
+    # household_id intentionally NOT a client-supplied field — it's derived
+    # server-side from the authenticated caller via get_household_id(), never
+    # trusted from the request body. (It used to be listed here but was never
+    # actually read from `p.household_id` in create_patient — dead weight
+    # that also made Pydantic wrongly require clients to supply it.)
 
 class PatientOut(BaseModel):
     patient_id: str
@@ -293,6 +391,18 @@ class NoteUpdate(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     id_token: str
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    display_name: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class ResendVerificationRequest(BaseModel):
+    email: str
 
 # --------------------
 # Utility functions
@@ -710,6 +820,153 @@ def create_jwt(user_id: str, household_id: str, email: str) -> str:
     }
     return jose_jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+# --------------------
+# Password hashing (email/password auth)
+# --------------------
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+def verify_password(password: str, password_hash: str) -> bool:
+    return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+
+# --------------------
+# Verification email (Resend)
+# --------------------
+def send_verification_email(to_email: str, token: str):
+    verify_url = f"https://vitals-wellness.com/api/auth/verify-email?token={token}"
+    try:
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": EMAIL_FROM,
+                "to": [to_email],
+                "subject": "Verify your Vitals account",
+                # Inline styles throughout — email clients (Gmail especially)
+                # commonly strip <style> blocks and external stylesheets, so
+                # anything not inlined won't render. Matches the landing
+                # page's navy/teal palette; DM Serif Display/DM Sans won't
+                # load in most mail clients, so this falls back to Georgia
+                # (serif, same fallback the site's own CSS already uses)
+                # and a plain sans-serif stack.
+                "html": f"""
+                <body style="margin:0; padding:0; background:#F4F6F9; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F9; padding:40px 16px;">
+                    <tr>
+                      <td align="center">
+                        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px; width:100%; background:#FFFFFF; border:1px solid rgba(26,38,64,0.1); border-radius:16px; padding:40px 36px;">
+                          <tr>
+                            <td align="center" style="padding-bottom:28px;">
+                              <img src="https://vitals-wellness.com/logo.png" alt="Vitals" height="30" style="height:30px;">
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="font-family:Georgia,'Times New Roman',serif; font-size:24px; color:#1A2640; text-align:center; padding-bottom:16px;">
+                              Welcome to Vitals
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="font-size:15px; color:#5A6A82; line-height:1.7; text-align:center; padding-bottom:28px;">
+                              Click below to verify your email and finish setting up your account.
+                            </td>
+                          </tr>
+                          <tr>
+                            <td align="center" style="padding-bottom:28px;">
+                              <a href="{verify_url}" style="display:inline-block; background:#00A8C8; color:#FFFFFF; font-size:15px; font-weight:500; text-decoration:none; padding:14px 32px; border-radius:8px;">
+                                Verify my email
+                              </a>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="font-size:13px; color:#5A6A82; line-height:1.6; text-align:center; border-top:1px solid rgba(26,38,64,0.1); padding-top:20px;">
+                              This link expires in 24 hours. If you didn't create a Vitals account, you can safely ignore this email.
+                            </td>
+                          </tr>
+                        </table>
+                        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px; width:100%;">
+                          <tr>
+                            <td align="center" style="font-size:12px; color:#5A6A82; padding-top:20px;">
+                              &copy; 2026 Vitals-Wellness.com
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                """,
+            },
+            timeout=10,
+        )
+        print(f"=== RESEND STATUS: {response.status_code} {response.text}")
+    except Exception as e:
+        # Don't let a failed email send crash registration itself — the
+        # account still exists; the user can request a new verification
+        # email via /api/auth/resend-verification if this silently failed.
+        print(f"=== RESEND ERROR: {e}")
+
+
+def verification_page(title: str, message: str, is_error: bool = False) -> str:
+    """
+    Shared styled HTML shell for every /api/auth/verify-email outcome
+    (success, already-verified, expired, invalid). Matches the actual
+    vitals-wellness.com landing page's palette and typography (navy/teal,
+    DM Serif Display headline, DM Sans body) rather than the app's dark UI,
+    since this page is reached from an email link, in a browser — it
+    should look like the brand's public site, not the mobile app.
+    """
+    accent = "#d32f2f" if is_error else "#00A8C8"
+    icon = "!" if is_error else "&#10003;"
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Vitals</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+        <style>
+            * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+            body {{
+                min-height: 100vh; display: flex; align-items: center; justify-content: center;
+                background: #F4F6F9;
+                font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                padding: 24px;
+            }}
+            .card {{
+                background: #FFFFFF; border: 1px solid rgba(26,38,64,0.1); border-radius: 16px;
+                padding: 48px 40px; max-width: 420px; width: 100%; text-align: center;
+                box-shadow: 0 4px 24px rgba(13,21,37,0.06);
+            }}
+            .logo {{ height: 32px; margin-bottom: 32px; }}
+            .icon {{
+                width: 56px; height: 56px; border-radius: 50%;
+                background: {accent}; color: white; font-size: 24px; font-weight: 500;
+                display: flex; align-items: center; justify-content: center;
+                margin: 0 auto 24px;
+            }}
+            h1 {{
+                font-family: 'DM Serif Display', Georgia, 'Times New Roman', serif;
+                font-weight: 400; font-size: 26px; letter-spacing: -0.02em;
+                color: #1A2640; margin-bottom: 12px;
+            }}
+            p {{ color: #5A6A82; font-size: 15px; font-weight: 300; line-height: 1.7; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <img class="logo" src="https://vitals-wellness.com/logo.png" alt="Vitals">
+            <div class="icon">{icon}</div>
+            <h1>{title}</h1>
+            <p>{message}</p>
+        </div>
+    </body>
+    </html>
+    """
+
 # =====================================================
 # ENDPOINTS
 # =====================================================
@@ -720,11 +977,13 @@ def create_jwt(user_id: str, household_id: str, email: str) -> str:
 @app.post("/api/vitals")
 def record_vitals(
     vital: VitalCreate,
-    x_api_key: str = Header(..., alias="X-API-KEY")
+    x_api_key: str = Header(..., alias="X-API-KEY"),
+    household_id: str = Depends(get_household_id)
 ):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, vital.patient_id, household_id)
     cur.execute("""
         INSERT INTO vitals (
             household_id, patient_id, recorded_at,
@@ -735,7 +994,7 @@ def record_vitals(
         VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING vital_id;
     """, (
-        HOUSEHOLD_ID, vital.patient_id, vital.recorded_at,
+        household_id, vital.patient_id, vital.recorded_at,
         vital.systolic, vital.diastolic, vital.oxygen_saturation,
         vital.heart_rate, vital.temperature, vital.blood_glucose,
         vital.weight, vital.source, vital.notes
@@ -747,7 +1006,11 @@ def record_vitals(
     return {"status": "success", "vital_id": vital_id, "message": "Vitals recorded"}
 
 @app.get("/api/vitals/latest")
-def get_latest_vitals(patient_id: str, x_api_key: str = Header(...)):
+def get_latest_vitals(
+    patient_id: str,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     try:
         UUID(patient_id)
@@ -755,6 +1018,7 @@ def get_latest_vitals(patient_id: str, x_api_key: str = Header(...)):
         return {}
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT recorded_at, systolic, diastolic, oxygen_saturation,
                heart_rate, temperature, weight, blood_glucose
@@ -783,7 +1047,8 @@ def get_latest_vitals(patient_id: str, x_api_key: str = Header(...)):
 def get_vitals_history(
     patient_id: str,
     days: int = 30,
-    x_api_key: str = Header(...)
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
 ):
     check_key(x_api_key)
     try:
@@ -792,6 +1057,7 @@ def get_vitals_history(
         return {"rows": []}
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT recorded_at, systolic, diastolic, oxygen_saturation,
                heart_rate, round(temperature, 1), weight, blood_glucose
@@ -823,7 +1089,8 @@ def get_vitals_history(
 def get_vitals_averages(
     patient_id: str,
     days: int = 15,
-    x_api_key: str = Header(...)
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
 ):
     check_key(x_api_key)
     try:
@@ -832,6 +1099,7 @@ def get_vitals_averages(
         return {}
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT
             round(avg(systolic), 1),
@@ -845,7 +1113,7 @@ def get_vitals_averages(
         WHERE patient_id = %s
           AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
-    """, (patient_id, HOUSEHOLD_ID, days))
+    """, (patient_id, household_id, days))
     row = cur.fetchone()
     cur.close()
     conn.close()
@@ -864,7 +1132,8 @@ def get_vitals_averages(
 def get_vitals_analysis(
     patient_id: str,
     days: int = 30,
-    x_api_key: str = Header(...)
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
 ):
     check_key(x_api_key)
     try:
@@ -874,6 +1143,7 @@ def get_vitals_analysis(
 
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
 
     cur.execute("""
         SELECT recorded_at, systolic, diastolic,
@@ -885,7 +1155,7 @@ def get_vitals_analysis(
           AND diastolic IS NOT NULL
           AND recorded_at >= now() - interval '%s days'
         ORDER BY recorded_at ASC;
-    """, (patient_id, HOUSEHOLD_ID, days))
+    """, (patient_id, household_id, days))
     rows = cur.fetchall()
 
     cur.execute("""
@@ -907,7 +1177,7 @@ def get_vitals_analysis(
           AND pd.is_primary = true
           AND d.is_active = true
         LIMIT 1;
-    """, (patient_id, HOUSEHOLD_ID, patient_id))
+    """, (patient_id, household_id, patient_id))
     pcp = cur.fetchone()
 
     cur.close()
@@ -964,7 +1234,7 @@ def get_vitals_analysis(
 # PATIENTS ENDPOINTS
 # --------------------
 @app.get("/api/patients", response_model=list[PatientOut])
-def list_patients():
+def list_patients(household_id: str = Depends(get_household_id)):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -972,7 +1242,7 @@ def list_patients():
         FROM patients
         WHERE household_id = %s
         ORDER BY first_name
-    """, (HOUSEHOLD_ID,))
+    """, (household_id,))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -982,14 +1252,14 @@ def list_patients():
     ]
 
 @app.post("/api/patients", response_model=PatientOut)
-def create_patient(p: PatientCreate):
+def create_patient(p: PatientCreate, household_id: str = Depends(get_household_id)):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO patients (first_name, last_name, dob, gender, household_id)
         VALUES (%s, %s, %s, %s, %s)
         RETURNING patient_id, first_name, last_name, dob, gender
-    """, (p.first_name, p.last_name, p.dob, p.gender, HOUSEHOLD_ID))
+    """, (p.first_name, p.last_name, p.dob, p.gender, household_id))
     row = cur.fetchone()
     conn.commit()
     cur.close()
@@ -997,7 +1267,7 @@ def create_patient(p: PatientCreate):
     return {"patient_id": row[0], "first_name": row[1], "last_name": row[2], "dob": row[3], "gender": row[4]}
 
 @app.get("/api/patients_wrapped")
-def list_patients_wrapped():
+def list_patients_wrapped(household_id: str = Depends(get_household_id)):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -1005,7 +1275,7 @@ def list_patients_wrapped():
         FROM patients
         WHERE household_id = %s
         ORDER BY first_name
-    """, (HOUSEHOLD_ID,))
+    """, (household_id,))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -1023,7 +1293,8 @@ def list_patients_wrapped():
 async def create_medication(
     request: Request,
     m: MedicationCreate,
-    x_api_key: str = Header(...)
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
 ):
     raw = await request.json()
     print("RAW PAYLOAD FROM HA:", raw)
@@ -1035,6 +1306,7 @@ async def create_medication(
 
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, str(m.patient_id), household_id)
     time_of_day = [t.lower() for t in m.time_of_day] if m.time_of_day else None
 
     cur.execute("""
@@ -1049,7 +1321,7 @@ async def create_medication(
         str(m.patient_id), m.name, m.dosage, time_of_day,
         m.qty, m.days_supply, m.fill_date, est_refill,
         str(m.prescribing_doctor_id) if m.prescribing_doctor_id else None,
-        m.is_active, HOUSEHOLD_ID, m.rxotc or "rx", m.purpose
+        m.is_active, household_id, m.rxotc or "rx", m.purpose
     ))
     med_id = cur.fetchone()[0]
     conn.commit()
@@ -1058,12 +1330,17 @@ async def create_medication(
     return {"status": "success", "medication_id": med_id, "est_refill": est_refill}
 
 @app.get("/api/medications")
-def get_medications(patient_id: str, x_api_key: str = Header(...)):
+def get_medications(
+    patient_id: str,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     if patient_id in (None, "", "unknown"):
         return {"medications": []}
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT m.medication_id, m.patient_id, m.name, m.dosage, m.time_of_day,
                m.qty, m.days_supply, m.est_refill, m.fill_date,
@@ -1073,7 +1350,7 @@ def get_medications(patient_id: str, x_api_key: str = Header(...)):
         LEFT JOIN doctors d ON m.prescribing_doctor_id = d.doctor_id
         WHERE m.patient_id = %s AND m.household_id = %s AND m.discontinued = false
         ORDER BY m.name;
-    """, (patient_id, HOUSEHOLD_ID))
+    """, (patient_id, household_id))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -1095,9 +1372,14 @@ def get_medications(patient_id: str, x_api_key: str = Header(...)):
 def update_medication(
     medication_id: UUID,
     m: MedicationUpdate,
-    x_api_key: str = Header(...)
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
 ):
     check_key(x_api_key)
+    conn = get_conn()
+    cur = conn.cursor()
+    verify_child_record_household(cur, "medications", "medication_id", str(medication_id), household_id)
+
     updates = []
     values = []
     payload = m.model_dump(exclude_unset=True)
@@ -1112,11 +1394,11 @@ def update_medication(
             updates.append(f"{field} = %s")
             values.append(value)
     if not updates:
+        cur.close()
+        conn.close()
         return {"status": "no_changes"}
     values.append(str(medication_id))
     sql = f"UPDATE medications SET {', '.join(updates)} WHERE medication_id = %s RETURNING medication_id;"
-    conn = get_conn()
-    cur = conn.cursor()
     cur.execute(sql, tuple(values))
     result = cur.fetchone()
     conn.commit()
@@ -1129,11 +1411,11 @@ def update_medication(
 @app.get("/api/medications/{patient_id}/pdf")
 def export_medications_pdf(
     patient_id: UUID,
-    token: str = Query(...),
-    days: int = Query(default=15)
+    days: int = Query(default=15),
+    x_api_key: str = Header(..., alias="X-API-KEY"),
+    household_id: str = Depends(get_household_id)
 ):
-    if token != "ha":
-        raise HTTPException(status_code=401, detail="Invalid token")
+    check_key(x_api_key)
 
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=LETTER)
@@ -1144,11 +1426,12 @@ def export_medications_pdf(
 
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, str(patient_id), household_id)
 
     cur.execute("""
         SELECT first_name, last_name, dob
         FROM patients WHERE patient_id = %s AND household_id = %s;
-    """, (str(patient_id), HOUSEHOLD_ID))
+    """, (str(patient_id), household_id))
     p = cur.fetchone()
     patient_name = f"{p[0]} {p[1]}" if p else "Unknown Patient"
     patient_dob  = p[2].strftime("%m/%d/%Y") if p and p[2] else "Unknown DOB"
@@ -1157,7 +1440,7 @@ def export_medications_pdf(
         SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation, temperature
         FROM vitals WHERE patient_id = %s AND household_id = %s
         ORDER BY recorded_at DESC LIMIT 1;
-    """, (str(patient_id), HOUSEHOLD_ID))
+    """, (str(patient_id), household_id))
     latest = cur.fetchone()
 
     cur.execute("""
@@ -1165,7 +1448,7 @@ def export_medications_pdf(
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
         ORDER BY recorded_at DESC;
-    """, (str(patient_id), HOUSEHOLD_ID, days))
+    """, (str(patient_id), household_id, days))
     history = cur.fetchall()
 
     cur.execute("""
@@ -1174,7 +1457,7 @@ def export_medications_pdf(
         LEFT JOIN doctors d ON m.prescribing_doctor_id = d.doctor_id
         WHERE m.patient_id = %s AND m.household_id = %s AND m.discontinued = false
         ORDER BY m.name;
-    """, (str(patient_id), HOUSEHOLD_ID))
+    """, (str(patient_id), household_id))
     meds = cur.fetchall()
 
     cur.execute("""
@@ -1183,14 +1466,14 @@ def export_medications_pdf(
         JOIN doctors d ON d.doctor_id = pd.doctor_id
         WHERE pd.patient_id = %s AND d.household_id = %s AND d.is_active = true
         ORDER BY pd.is_primary DESC, d.name;
-    """, (str(patient_id), HOUSEHOLD_ID))
+    """, (str(patient_id), household_id))
     doctors = cur.fetchall()
 
     cur.execute("""
         SELECT allergen, allergy_type, reaction, severity, notes
         FROM allergies WHERE patient_id = %s AND household_id = %s AND is_active = true
         ORDER BY allergy_type, allergen;
-    """, (str(patient_id), HOUSEHOLD_ID))
+    """, (str(patient_id), household_id))
     allergies = cur.fetchall()
 
     cur.execute("""
@@ -1198,7 +1481,7 @@ def export_medications_pdf(
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
         ORDER BY recorded_at;
-    """, (str(patient_id), HOUSEHOLD_ID, days))
+    """, (str(patient_id), household_id, days))
     chart_data = cur.fetchall()
 
     cur.execute("""
@@ -1207,7 +1490,7 @@ def export_medications_pdf(
           AND systolic IS NOT NULL AND diastolic IS NOT NULL
           AND recorded_at >= now() - interval '%s days'
         ORDER BY recorded_at ASC;
-    """, (str(patient_id), HOUSEHOLD_ID, days))
+    """, (str(patient_id), household_id, days))
     bp_analysis_rows = cur.fetchall()
     bp = run_bp_analysis(bp_analysis_rows)
 
@@ -1217,7 +1500,7 @@ def export_medications_pdf(
           AND recorded_at >= now() - interval '%s days'
           AND (heart_rate IS NOT NULL OR oxygen_saturation IS NOT NULL OR temperature IS NOT NULL)
         ORDER BY recorded_at ASC;
-    """, (str(patient_id), HOUSEHOLD_ID, days))
+    """, (str(patient_id), household_id, days))
     secondary_rows = cur.fetchall()
 
     hr_rows_pdf   = [(r[0], r[1]) for r in secondary_rows if r[1] is not None]
@@ -1550,7 +1833,7 @@ def export_medications_pdf(
                round(avg(oxygen_saturation),1), round(avg(temperature),1)
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
-    """, (str(patient_id), HOUSEHOLD_ID, days))
+    """, (str(patient_id), household_id, days))
     avg = cur2.fetchone()
     cur2.close()
     conn2.close()
@@ -2133,7 +2416,8 @@ def export_medications_pdf(
 def get_doctors(
     patient_id: str,
     active_only: bool = True,
-    x_api_key: str = Header(...)
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
 ):
     check_key(x_api_key)
     if patient_id in (None, "", "unknown", "00000000-0000-0000-0000-000000000000"):
@@ -2145,6 +2429,7 @@ def get_doctors(
 
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     active_filter = "AND d.is_active = true" if active_only else ""
     cur.execute(f"""
         SELECT d.doctor_id, d.name, d.specialty, d.phone, d.fax,
@@ -2153,7 +2438,7 @@ def get_doctors(
         JOIN doctors d ON d.doctor_id = pd.doctor_id
         WHERE pd.patient_id = %s AND d.household_id = %s {active_filter}
         ORDER BY pd.is_primary DESC, d.name;
-    """, (str(patient_id), HOUSEHOLD_ID))
+    """, (str(patient_id), household_id))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -2169,7 +2454,10 @@ def get_doctors(
     }
 
 @app.get("/api/doctors/household")
-def get_household_doctors(x_api_key: str = Header(...)):
+def get_household_doctors(
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
@@ -2177,7 +2465,7 @@ def get_household_doctors(x_api_key: str = Header(...)):
         SELECT doctor_id, name, specialty, phone, fax,
                email, address, notes, is_active, created_at
         FROM doctors WHERE household_id = %s AND is_active = true ORDER BY name;
-    """, (HOUSEHOLD_ID,))
+    """, (household_id,))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -2193,18 +2481,22 @@ def get_household_doctors(x_api_key: str = Header(...)):
     }
 
 @app.post("/api/doctors")
-def create_doctor(payload: DoctorCreate, x_api_key: str = Header(...)):
+def create_doctor(
+    payload: DoctorCreate,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
     try:
         cur.execute("SELECT 1 FROM patients WHERE patient_id = %s AND household_id = %s",
-                    (str(payload.patient_id), HOUSEHOLD_ID))
+                    (str(payload.patient_id), household_id))
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Patient not found.")
 
         cur.execute("SELECT doctor_id FROM doctors WHERE household_id = %s AND lower(name) = lower(%s)",
-                    (HOUSEHOLD_ID, payload.name))
+                    (household_id, payload.name))
         existing = cur.fetchone()
 
         if existing:
@@ -2214,7 +2506,7 @@ def create_doctor(payload: DoctorCreate, x_api_key: str = Header(...)):
                 INSERT INTO doctors (household_id, name, specialty, phone, fax,
                                      email, address, notes, created_at, updated_at)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,now(),now()) RETURNING doctor_id;
-            """, (HOUSEHOLD_ID, payload.name, payload.specialty, payload.phone,
+            """, (household_id, payload.name, payload.specialty, payload.phone,
                   payload.fax, payload.email, payload.address, payload.notes))
             doctor_id = cur.fetchone()[0]
 
@@ -2239,7 +2531,12 @@ def create_doctor(payload: DoctorCreate, x_api_key: str = Header(...)):
         conn.close()
 
 @app.patch("/api/doctors/{doctor_id}")
-def update_doctor(doctor_id: UUID, doctor: DoctorUpdate, x_api_key: str = Header(...)):
+def update_doctor(
+    doctor_id: UUID,
+    doctor: DoctorUpdate,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     fields = doctor.dict(exclude_unset=True)
     if not fields:
@@ -2251,13 +2548,14 @@ def update_doctor(doctor_id: UUID, doctor: DoctorUpdate, x_api_key: str = Header
                          if k in ["name", "specialty", "phone", "fax", "email", "address", "notes", "is_active"]}
         if doctor_fields:
             set_clause = ", ".join([f"{k} = %s" for k in doctor_fields])
-            values = list(doctor_fields.values()) + [str(doctor_id), HOUSEHOLD_ID]
+            values = list(doctor_fields.values()) + [str(doctor_id), household_id]
             cur.execute(f"UPDATE doctors SET {set_clause}, updated_at = now() WHERE doctor_id = %s AND household_id = %s",
                         tuple(values))
 
         relationship_fields = {k: v for k, v in fields.items() if k in ["is_primary", "relationship_notes"]}
         if relationship_fields:
             patient_id = str(fields["patient_id"])
+            verify_patient_household(cur, patient_id, household_id)
             if relationship_fields.get("is_primary") is True:
                 cur.execute("UPDATE patient_doctors SET is_primary = false WHERE patient_id = %s", (patient_id,))
             set_clause = ", ".join([f"{k} = %s" for k in relationship_fields])
@@ -2275,11 +2573,21 @@ def update_doctor(doctor_id: UUID, doctor: DoctorUpdate, x_api_key: str = Header
         conn.close()
 
 @app.post("/api/patient_doctors")
-def link_doctor_to_patient(link: PatientDoctorCreate, x_api_key: str = Header(...)):
+def link_doctor_to_patient(
+    link: PatientDoctorCreate,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
     try:
+        verify_patient_household(cur, str(link.patient_id), household_id)
+        cur.execute("SELECT 1 FROM doctors WHERE doctor_id = %s AND household_id = %s",
+                    (str(link.doctor_id), household_id))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Doctor not found in your household")
+
         cur.execute("""
             INSERT INTO patient_doctors (patient_id, doctor_id, is_primary, relationship_notes)
             VALUES (%s,%s,%s,%s)
@@ -2288,6 +2596,9 @@ def link_doctor_to_patient(link: PatientDoctorCreate, x_api_key: str = Header(..
                     relationship_notes = EXCLUDED.relationship_notes;
         """, (link.patient_id, link.doctor_id, link.is_primary, link.relationship_notes))
         conn.commit()
+    except HTTPException:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -2297,10 +2608,16 @@ def link_doctor_to_patient(link: PatientDoctorCreate, x_api_key: str = Header(..
     return {"status": "success"}
 
 @app.delete("/api/patient_doctors")
-def unlink_doctor_from_patient(patient_id: str, doctor_id: str, x_api_key: str = Header(...)):
+def unlink_doctor_from_patient(
+    patient_id: str,
+    doctor_id: str,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     cur.execute("DELETE FROM patient_doctors WHERE patient_id = %s AND doctor_id = %s",
                 (patient_id, doctor_id))
     conn.commit()
@@ -2393,7 +2710,12 @@ def doctor_list_page(patient_id: str, token: str = Query(...)):
 # ALLERGY ENDPOINTS
 # =====================================================
 @app.get("/api/allergies")
-def get_allergies(patient_id: str, active_only: bool = True, x_api_key: str = Header(..., alias="X-API-KEY")):
+def get_allergies(
+    patient_id: str,
+    active_only: bool = True,
+    x_api_key: str = Header(..., alias="X-API-KEY"),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     try:
         UUID(patient_id)
@@ -2401,12 +2723,13 @@ def get_allergies(patient_id: str, active_only: bool = True, x_api_key: str = He
         return {"allergies": []}
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     query = """
         SELECT allergy_id, patient_id, allergen, allergy_type,
                reaction, severity, notes, is_active, created_at
         FROM allergies WHERE patient_id = %s AND household_id = %s
     """
-    params = [patient_id, HOUSEHOLD_ID]
+    params = [patient_id, household_id]
     if active_only:
         query += " AND is_active = true"
     query += " ORDER BY allergy_type, allergen;"
@@ -2426,15 +2749,20 @@ def get_allergies(patient_id: str, active_only: bool = True, x_api_key: str = He
     }
 
 @app.post("/api/allergies")
-def create_allergy(allergy: AllergyCreate, x_api_key: str = Header(..., alias="X-API-KEY")):
+def create_allergy(
+    allergy: AllergyCreate,
+    x_api_key: str = Header(..., alias="X-API-KEY"),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, str(allergy.patient_id), household_id)
     cur.execute("""
         INSERT INTO allergies (patient_id, household_id, allergen, allergy_type,
                                reaction, severity, notes, is_active)
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING allergy_id;
-    """, (str(allergy.patient_id), HOUSEHOLD_ID, allergy.allergen, allergy.allergy_type,
+    """, (str(allergy.patient_id), household_id, allergy.allergen, allergy.allergy_type,
           allergy.reaction, allergy.severity, allergy.notes, allergy.is_active))
     allergy_id = cur.fetchone()[0]
     conn.commit()
@@ -2443,7 +2771,12 @@ def create_allergy(allergy: AllergyCreate, x_api_key: str = Header(..., alias="X
     return {"status": "success", "allergy_id": str(allergy_id)}
 
 @app.patch("/api/allergies/{allergy_id}")
-def update_allergy(allergy_id: UUID, updates: AllergyUpdate, x_api_key: str = Header(..., alias="X-API-KEY")):
+def update_allergy(
+    allergy_id: UUID,
+    updates: AllergyUpdate,
+    x_api_key: str = Header(..., alias="X-API-KEY"),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     fields = {k: v for k, v in updates.dict().items() if v is not None}
     if not fields:
@@ -2451,7 +2784,7 @@ def update_allergy(allergy_id: UUID, updates: AllergyUpdate, x_api_key: str = He
     conn = get_conn()
     cur = conn.cursor()
     set_clause = ", ".join(f"{k} = %s" for k in fields)
-    values = list(fields.values()) + [str(allergy_id), HOUSEHOLD_ID]
+    values = list(fields.values()) + [str(allergy_id), household_id]
     cur.execute(f"UPDATE allergies SET {set_clause} WHERE allergy_id = %s AND household_id = %s;", values)
     conn.commit()
     cur.close()
@@ -2462,10 +2795,15 @@ def update_allergy(allergy_id: UUID, updates: AllergyUpdate, x_api_key: str = He
 # VISIT LOG ENDPOINTS
 # =====================================================
 @app.get("/api/visits")
-def get_visits(patient_id: str, x_api_key: str = Header(...)):
+def get_visits(
+    patient_id: str,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT v.visit_id, v.patient_id, v.doctor_id, d.name AS doctor_name,
                v.visit_date, v.reason, v.notes, v.follow_up_date, v.created_at
@@ -2473,7 +2811,7 @@ def get_visits(patient_id: str, x_api_key: str = Header(...)):
         LEFT JOIN doctors d ON v.doctor_id = d.doctor_id
         WHERE v.patient_id = %s AND v.household_id = %s AND v.is_active = true
         ORDER BY v.visit_date DESC;
-    """, (patient_id, HOUSEHOLD_ID))
+    """, (patient_id, household_id))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -2492,16 +2830,21 @@ def get_visits(patient_id: str, x_api_key: str = Header(...)):
     }
 
 @app.post("/api/visits")
-def create_visit(visit: VisitCreate, x_api_key: str = Header(...)):
+def create_visit(
+    visit: VisitCreate,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
     try:
+        verify_patient_household(cur, str(visit.patient_id), household_id)
         cur.execute("""
             INSERT INTO visit_logs (patient_id, doctor_id, household_id,
                                     visit_date, reason, notes, follow_up_date)
             VALUES (%s,%s,%s,COALESCE(%s, now()),%s,%s,%s) RETURNING visit_id;
-        """, (visit.patient_id, visit.doctor_id, HOUSEHOLD_ID,
+        """, (visit.patient_id, visit.doctor_id, household_id,
               visit.visit_date, visit.reason, visit.notes, visit.follow_up_date))
         visit_id = cur.fetchone()[0]
 
@@ -2514,11 +2857,14 @@ def create_visit(visit: VisitCreate, x_api_key: str = Header(...)):
                                     heart_rate, temperature, blood_glucose,
                                     weight, source, notes)
                 VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (HOUSEHOLD_ID, visit.patient_id, visit.visit_date,
+            """, (household_id, visit.patient_id, visit.visit_date,
                   visit.systolic, visit.diastolic, visit.oxygen_saturation,
                   visit.heart_rate, visit.temperature, visit.blood_glucose,
                   visit.weight, "doctor_visit", visit.notes))
         conn.commit()
+    except HTTPException:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -2528,7 +2874,12 @@ def create_visit(visit: VisitCreate, x_api_key: str = Header(...)):
     return {"status": "success", "visit_id": str(visit_id)}
 
 @app.patch("/api/visits/{visit_id}")
-def update_visit(visit_id: str, update: VisitUpdate, x_api_key: str = Header(...)):
+def update_visit(
+    visit_id: str,
+    update: VisitUpdate,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
@@ -2540,7 +2891,7 @@ def update_visit(visit_id: str, update: VisitUpdate, x_api_key: str = Header(...
     if not fields:
         return {"status": "no changes"}
     fields.append("updated_at = now()")
-    values.extend([visit_id, HOUSEHOLD_ID])
+    values.extend([visit_id, household_id])
     cur.execute(f"UPDATE visit_logs SET {', '.join(fields)} WHERE visit_id = %s AND household_id = %s", values)
     conn.commit()
     cur.close()
@@ -2548,15 +2899,21 @@ def update_visit(visit_id: str, update: VisitUpdate, x_api_key: str = Header(...
     return {"status": "success"}
 
 @app.get("/api/visits/latest")
-def get_latest_visit(patient_id: str, doctor_id: str, x_api_key: str = Header(...)):
+def get_latest_visit(
+    patient_id: str,
+    doctor_id: str,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT visit_date, reason FROM visit_logs
         WHERE patient_id = %s AND doctor_id = %s AND household_id = %s AND is_active = true
         ORDER BY visit_date DESC LIMIT 1;
-    """, (patient_id, doctor_id, HOUSEHOLD_ID))
+    """, (patient_id, doctor_id, household_id))
     latest = cur.fetchone()
     if not latest:
         cur.close()
@@ -2567,7 +2924,7 @@ def get_latest_visit(patient_id: str, doctor_id: str, x_api_key: str = Header(..
         WHERE patient_id = %s AND doctor_id = %s AND household_id = %s AND is_active = true
           AND follow_up_date IS NOT NULL AND follow_up_date >= current_date
         ORDER BY follow_up_date ASC LIMIT 1;
-    """, (patient_id, doctor_id, HOUSEHOLD_ID))
+    """, (patient_id, doctor_id, household_id))
     followup = cur.fetchone()
     cur.close()
     conn.close()
@@ -2581,17 +2938,22 @@ def get_latest_visit(patient_id: str, doctor_id: str, x_api_key: str = Header(..
 # INCIDENT LOG ENDPOINTS
 # =====================================================
 @app.get("/api/incidents")
-def get_incidents(patient_id: str, x_api_key: str = Header(...)):
+def get_incidents(
+    patient_id: str,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT incident_id, patient_id, incident_date, severity, incident_type,
                location, description, outcome, follow_up_needed, follow_up_notes, created_at
         FROM incident_logs
         WHERE patient_id = %s AND household_id = %s AND is_active = true
         ORDER BY incident_date DESC;
-    """, (patient_id, HOUSEHOLD_ID))
+    """, (patient_id, household_id))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -2610,22 +2972,30 @@ def get_incidents(patient_id: str, x_api_key: str = Header(...)):
     }
 
 @app.post("/api/incidents")
-def create_incident(incident: IncidentCreate, x_api_key: str = Header(...)):
+def create_incident(
+    incident: IncidentCreate,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
     try:
+        verify_patient_household(cur, str(incident.patient_id), household_id)
         cur.execute("""
             INSERT INTO incident_logs (patient_id, household_id, incident_date,
                                        severity, incident_type, location, description,
                                        outcome, follow_up_needed, follow_up_notes)
             VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s) RETURNING incident_id;
-        """, (incident.patient_id, HOUSEHOLD_ID, incident.incident_date,
+        """, (incident.patient_id, household_id, incident.incident_date,
               incident.severity, incident.incident_type, incident.location,
               incident.description, incident.outcome, incident.follow_up_needed,
               incident.follow_up_notes))
         incident_id = cur.fetchone()[0]
         conn.commit()
+    except HTTPException:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -2635,7 +3005,12 @@ def create_incident(incident: IncidentCreate, x_api_key: str = Header(...)):
     return {"status": "success", "incident_id": str(incident_id)}
 
 @app.patch("/api/incidents/{incident_id}")
-def update_incident(incident_id: str, update: IncidentUpdate, x_api_key: str = Header(...)):
+def update_incident(
+    incident_id: str,
+    update: IncidentUpdate,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
@@ -2647,7 +3022,7 @@ def update_incident(incident_id: str, update: IncidentUpdate, x_api_key: str = H
     if not fields:
         return {"status": "no changes"}
     fields.append("updated_at = now()")
-    values.extend([incident_id, HOUSEHOLD_ID])
+    values.extend([incident_id, household_id])
     cur.execute(f"UPDATE incident_logs SET {', '.join(fields)} WHERE incident_id = %s AND household_id = %s", values)
     conn.commit()
     cur.close()
@@ -2658,16 +3033,21 @@ def update_incident(incident_id: str, update: IncidentUpdate, x_api_key: str = H
 # NOTES ENDPOINTS
 # =====================================================
 @app.get("/api/notes")
-def get_notes(patient_id: str, x_api_key: str = Header(...)):
+def get_notes(
+    patient_id: str,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
+    verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT note_id, patient_id, note_type, title, body, created_at, updated_at
         FROM patient_notes
         WHERE patient_id = %s AND household_id = %s AND is_active = true
         ORDER BY created_at DESC;
-    """, (patient_id, HOUSEHOLD_ID))
+    """, (patient_id, household_id))
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -2684,17 +3064,25 @@ def get_notes(patient_id: str, x_api_key: str = Header(...)):
     }
 
 @app.post("/api/notes")
-def create_note(note: NoteCreate, x_api_key: str = Header(...)):
+def create_note(
+    note: NoteCreate,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
     try:
+        verify_patient_household(cur, str(note.patient_id), household_id)
         cur.execute("""
             INSERT INTO patient_notes (patient_id, household_id, note_type, title, body)
             VALUES (%s,%s,%s,%s,%s) RETURNING note_id;
-        """, (note.patient_id, HOUSEHOLD_ID, note.note_type, note.title, note.body))
+        """, (note.patient_id, household_id, note.note_type, note.title, note.body))
         note_id = cur.fetchone()[0]
         conn.commit()
+    except HTTPException:
+        conn.rollback()
+        raise
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -2704,7 +3092,12 @@ def create_note(note: NoteCreate, x_api_key: str = Header(...)):
     return {"status": "success", "note_id": str(note_id)}
 
 @app.patch("/api/notes/{note_id}")
-def update_note(note_id: str, update: NoteUpdate, x_api_key: str = Header(...)):
+def update_note(
+    note_id: str,
+    update: NoteUpdate,
+    x_api_key: str = Header(...),
+    household_id: str = Depends(get_household_id)
+):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
@@ -2716,7 +3109,7 @@ def update_note(note_id: str, update: NoteUpdate, x_api_key: str = Header(...)):
     if not fields:
         return {"status": "no changes"}
     fields.append("updated_at = now()")
-    values.extend([note_id, HOUSEHOLD_ID])
+    values.extend([note_id, household_id])
     cur.execute(f"UPDATE patient_notes SET {', '.join(fields)} WHERE note_id = %s AND household_id = %s", values)
     conn.commit()
     cur.close()
@@ -2731,7 +3124,13 @@ def health_check():
 # USER PREFERENCES
 # =====================================================
 @app.get("/api/user/preferences")
-def get_user_preferences(user_id: str = Query(...)):
+def get_user_preferences(
+    user_id: str = Query(...),
+    household_id: str = Depends(get_household_id),
+    caller_user_id: str = Depends(get_own_user_id)
+):
+    if caller_user_id is not None and caller_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Cannot access another user's preferences")
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -2739,7 +3138,7 @@ def get_user_preferences(user_id: str = Query(...)):
                show_heart_rate, show_spo2, show_temperature,
                show_weight, show_glucose
         FROM users WHERE user_id = %s AND household_id = %s;
-    """, (user_id, HOUSEHOLD_ID))
+    """, (user_id, household_id))
     row = cur.fetchone()
     cur.close()
     conn.close()
@@ -2757,7 +3156,15 @@ def get_user_preferences(user_id: str = Query(...)):
     }
 
 @app.patch("/api/user/preferences")
-def update_user_preferences(user_id: str = Query(...), payload: dict = Body(...)):
+def update_user_preferences(
+    user_id: str = Query(...),
+    payload: dict = Body(...),
+    household_id: str = Depends(get_household_id),
+    caller_user_id: str = Depends(get_own_user_id)
+):
+    if caller_user_id is not None and caller_user_id != user_id:
+        raise HTTPException(status_code=403, detail="Cannot modify another user's preferences")
+
     allowed = {"theme", "show_heart_rate", "show_spo2",
                "show_temperature", "show_weight", "show_glucose"}
     updates = {k: v for k, v in payload.items() if k in allowed}
@@ -2765,7 +3172,7 @@ def update_user_preferences(user_id: str = Query(...), payload: dict = Body(...)
         raise HTTPException(status_code=400, detail="No valid fields to update")
 
     fields = ", ".join(f"{k} = %s" for k in updates)
-    values = list(updates.values()) + [user_id, HOUSEHOLD_ID]
+    values = list(updates.values()) + [user_id, household_id]
 
     conn = get_conn()
     cur = conn.cursor()
@@ -2817,20 +3224,28 @@ def auth_google(body: GoogleAuthRequest):
             """, (firebase_uid, user_id))
             is_new_user = False
         else:
+            # households.name is NOT NULL — derive a sensible default from
+            # the Google display name (e.g. "Kristopher's Household"). This
+            # constraint was only ever exercised by a genuinely new signup
+            # creating a brand-new household; every account tested until now
+            # already had an existing household row, so this insert had
+            # never actually run.
+            household_name = f"{display_name}'s Household" if display_name else "New Household"
+
             cur.execute("""
-                INSERT INTO households (created_at)
-                VALUES (now())
+                INSERT INTO households (name, created_at)
+                VALUES (%s, now())
                 RETURNING household_id;
-            """)
+            """, (household_name,))
             household_id = str(cur.fetchone()[0])
 
             cur.execute("""
                 INSERT INTO users (
                     household_id, email, display_name,
                     firebase_uid, auth_provider, provider_user_id,
-                    subscription_status, last_seen_at
+                    subscription_status, last_seen_at, has_logged_in
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, 'trial', now())
+                VALUES (%s, %s, %s, %s, %s, %s, 'trial', now(), true)
                 RETURNING user_id;
             """, (household_id, email, display_name,
                   firebase_uid, provider, firebase_uid))
@@ -2855,3 +3270,248 @@ def auth_google(body: GoogleAuthRequest):
     finally:
         cur.close()
         conn.close()
+
+
+@app.post("/api/auth/register")
+def register(body: RegisterRequest):
+    email = body.email.strip().lower()
+
+    if not body.password or len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not body.display_name.strip():
+        raise HTTPException(status_code=400, detail="Display name is required")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT 1 FROM users WHERE email = %s", (email,))
+        if cur.fetchone():
+            raise HTTPException(status_code=409, detail="An account with this email already exists")
+
+        # households.name is NOT NULL — same pattern as the Google signup path.
+        household_name = f"{body.display_name}'s Household" if body.display_name else "New Household"
+        cur.execute("""
+            INSERT INTO households (name, created_at)
+            VALUES (%s, now())
+            RETURNING household_id;
+        """, (household_name,))
+        household_id = str(cur.fetchone()[0])
+
+        password_hash = hash_password(body.password)
+        verification_token = secrets.token_urlsafe(32)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+        cur.execute("""
+            INSERT INTO users (
+                household_id, email, display_name, auth_provider,
+                password_hash, email_verified, verification_token,
+                verification_token_expires_at, subscription_status,
+                last_seen_at, has_logged_in
+            )
+            VALUES (%s, %s, %s, 'password', %s, false, %s, %s, 'trial', now(), false)
+            RETURNING user_id;
+        """, (household_id, email, body.display_name.strip(), password_hash,
+              verification_token, expires_at))
+        user_id = str(cur.fetchone()[0])
+        conn.commit()
+
+        send_verification_email(email, verification_token)
+
+        return {
+            "status":  "verification_sent",
+            "email":   email,
+            "message": "Check your email to verify your account, then sign in.",
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Registration error: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.get("/api/auth/verify-email", response_class=HTMLResponse)
+def verify_email(token: str = Query(...)):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT user_id, verification_token_expires_at, email_verified
+            FROM users WHERE verification_token = %s
+        """, (token,))
+        row = cur.fetchone()
+
+        if not row:
+            return HTMLResponse(
+                verification_page(
+                    "Link not valid",
+                    "This verification link is invalid or has already been used.",
+                    is_error=True),
+                status_code=400)
+
+        user_id, expires_at, already_verified = row
+
+        if already_verified:
+            return HTMLResponse(
+                verification_page(
+                    "Already verified",
+                    "Your email is already verified — you can sign in to Vitals now."))
+
+        if expires_at and expires_at < datetime.now(timezone.utc):
+            return HTMLResponse(
+                verification_page(
+                    "Link expired",
+                    "This verification link has expired. Please request a new one from the app.",
+                    is_error=True),
+                status_code=400)
+
+        cur.execute("""
+            UPDATE users SET email_verified = true, verification_token = NULL,
+                             verification_token_expires_at = NULL
+            WHERE user_id = %s
+        """, (str(user_id),))
+        conn.commit()
+        return HTMLResponse(
+            verification_page(
+                "Email verified!",
+                "Your account is ready. Head back to Vitals and sign in."))
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.post("/api/auth/resend-verification")
+def resend_verification(body: ResendVerificationRequest):
+    email = body.email.strip().lower()
+    # Same message whether or not the email exists / is already verified —
+    # avoids letting this endpoint be used to enumerate registered emails.
+    generic_response = {
+        "status": "ok",
+        "message": "If that email has a pending verification, a new link has been sent.",
+    }
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT user_id, email_verified FROM users
+            WHERE email = %s AND auth_provider = 'password'
+        """, (email,))
+        row = cur.fetchone()
+        if not row:
+            return generic_response
+
+        user_id, email_verified = row
+        if email_verified:
+            return generic_response
+
+        verification_token = secrets.token_urlsafe(32)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+        cur.execute("""
+            UPDATE users SET verification_token = %s, verification_token_expires_at = %s
+            WHERE user_id = %s
+        """, (verification_token, expires_at, str(user_id)))
+        conn.commit()
+        send_verification_email(email, verification_token)
+        return generic_response
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.post("/api/auth/login")
+def login(body: LoginRequest):
+    email = body.email.strip().lower()
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT user_id, household_id, display_name, password_hash,
+                   auth_provider, email_verified, has_logged_in
+            FROM users WHERE email = %s
+        """, (email,))
+        row = cur.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        (user_id, household_id, display_name, password_hash,
+         auth_provider, email_verified, has_logged_in) = row
+
+        if auth_provider != "password" or not password_hash:
+            other = "Google" if auth_provider == "google.com" else "a different sign-in method"
+            raise HTTPException(
+                status_code=401,
+                detail=f"This email is registered with {other}. Please use that to sign in instead."
+            )
+
+        if not verify_password(body.password, password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        if not email_verified:
+            raise HTTPException(
+                status_code=403,
+                detail="Please verify your email before signing in. Check your inbox for the verification link."
+            )
+
+        # is_new_user reflects whether this is the account's first-ever
+        # successful login — NOT whether the row already existed (it always
+        # does, by the time someone reaches /login). A fresh registration's
+        # first login is exactly as "new" as a first-time Google signup and
+        # needs the same onboarding flow; every login after that is a
+        # returning user.
+        is_new_user = not has_logged_in
+
+        cur.execute("UPDATE users SET last_seen_at = now(), has_logged_in = true WHERE user_id = %s", (str(user_id),))
+        conn.commit()
+
+        token = create_jwt(str(user_id), str(household_id), email)
+        return {
+            "token":        token,
+            "user_id":      str(user_id),
+            "household_id": str(household_id),
+            "display_name": display_name,
+            "email":        email,
+            "is_new_user":  is_new_user,
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.get("/api/auth/verify")
+def verify_session(auth: dict = Depends(get_auth)):
+    """
+    Confirms the JWT's user_id still has a real row in the database — a
+    valid, unexpired JWT alone doesn't mean that; the account (or its
+    household) could have been deleted server-side after the token was
+    issued, and the token itself has no way to reflect that until it
+    naturally expires (up to 7 days). The mobile app calls this on launch
+    before trusting a locally-cached session, instead of just checking
+    whether a JWT is present.
+    """
+    if auth.get("type") == "api_key":
+        return {"valid": True}
+
+    user_id = auth.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Token missing user id")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM users WHERE user_id = %s", (user_id,))
+    exists = cur.fetchone() is not None
+    cur.close()
+    conn.close()
+
+    if not exists:
+        raise HTTPException(status_code=401, detail="Account no longer exists")
+
+    return {"valid": True}
