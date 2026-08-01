@@ -101,6 +101,18 @@ public partial class DashboardViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedPatient));
         UpdateButtonColors();
         await LoadDashboardDataAsync();
+
+        // One-time reminder if the user skipped the rest of onboarding
+        // (see OnboardingResumePromptViewModel.SkipOnboarding) — shown once,
+        // then cleared, so it doesn't repeat on every subsequent Dashboard visit.
+        if (Preferences.Get("pending_onboarding_tip", false))
+        {
+            Preferences.Set("pending_onboarding_tip", false);
+            await Shell.Current.DisplayAlert(
+                "Welcome to Vitals",
+                "You can finish setting your vital preferences anytime from Settings.",
+                "Got it");
+        }
     }
 
     [RelayCommand]

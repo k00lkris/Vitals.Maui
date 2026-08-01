@@ -24,34 +24,29 @@
                HorizontalTextAlignment="Center" />
         </VerticalStackLayout>
 
-        <!-- Email / password (disabled placeholder — no backend yet) -->
+        <!-- Email / password -->
         <VerticalStackLayout Spacing="12" WidthRequest="280">
             <Entry Placeholder="Email address"
                    Text="{Binding Email}"
-                   IsEnabled="False"
                    Keyboard="Email"
                    TextColor="{DynamicResource TextPrimary}"
                    PlaceholderColor="{DynamicResource TextMuted}"
                    BackgroundColor="{DynamicResource CardBackground}" />
             <Entry Placeholder="Password"
                    Text="{Binding Password}"
-                   IsEnabled="False"
                    IsPassword="True"
                    TextColor="{DynamicResource TextPrimary}"
                    PlaceholderColor="{DynamicResource TextMuted}"
                    BackgroundColor="{DynamicResource CardBackground}" />
             <Button Text="Sign In"
-                    IsEnabled="False"
-                    BackgroundColor="{DynamicResource ButtonSecondary}"
-                    TextColor="{DynamicResource ButtonSecondaryText}"
+                    Command="{Binding SignInWithEmailCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
+                    BackgroundColor="{DynamicResource ButtonBackground}"
+                    TextColor="{DynamicResource TextPrimary}"
                     FontSize="15"
                     FontAttributes="Bold"
                     HeightRequest="48"
                     CornerRadius="10" />
-            <Label Text="Email sign-in is coming soon — use Google for now."
-                   FontSize="12"
-                   TextColor="{DynamicResource TextMuted}"
-                   HorizontalOptions="Center" />
         </VerticalStackLayout>
 
         <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">

@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vitals — Caregiver Health Tracking</title>
+<meta name="description" content="Vitals brings hospital-grade health tracking to family caregivers. Clinical trend analysis, ACC/AHA BP classification, and physician-ready PDF reports. Launching September 2026." />
+<meta name="keywords" content="caregiver health tracking, blood pressure monitoring, clinical PDF reports, ACC/AHA classification, family caregiver app" />
+<meta name="author" content="Vitals Wellness" />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://vitals-wellness.com/" />
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" sizes="32x32" href="icon.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="icon.png" />
+<link rel="apple-touch-icon" href="icon.png" />
+<link rel="shortcut icon" href="icon.png" />
+
+<!-- Open Graph / Social -->
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://vitals-wellness.com/" />
+<meta property="og:title" content="Vitals — Caregiver Health Tracking" />
+<meta property="og:description" content="Hospital-grade health tracking for family caregivers. Clinical trend analysis, ACC/AHA BP classification, and physician-ready PDF reports." />
+<meta property="og:image" content="https://vitals-wellness.com/icon.png" />
+<meta property="og:site_name" content="Vitals Wellness" />
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Vitals — Caregiver Health Tracking" />
+<meta name="twitter:description" content="Hospital-grade health tracking for family caregivers. Launching September 2026." />
+<meta name="twitter:image" content="https://vitals-wellness.com/icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:           #F4F6F9;
+    --bg-card:      #FFFFFF;
+    --bg-dark:      #0D1525;
+    --navy:         #1A2640;
+    --navy-mid:     #2E3E5C;
+    --teal:         #00A8C8;
+    --teal-bright:  #00D4C8;
+    --teal-deep:    #0077A8;
+    --text-primary: #0D1525;
+    --text-muted:   #5A6A82;
+    --border:       rgba(26,38,64,0.1);
+    --border-teal:  rgba(0,168,200,0.25);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 3rem;
+    height: 48px;
+    background: rgba(244,246,249,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+  }
+  .nav-logo { width: auto; height: 100%; max-height: 38px; max-width: 200px; display: block; object-fit: contain; }
+  .nav-pill {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--teal-deep);
+    background: rgba(0,168,200,0.08);
+    border: 1px solid var(--border-teal);
+    padding: 0.35rem 1rem;
+    border-radius: 999px;
+  }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 9rem 2rem 5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 800px; height: 600px;
+    background: radial-gradient(ellipse, rgba(0,168,200,0.07) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .hero-icon {
+    width: 84px; height: 84px;
+    border-radius: 20px;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 24px rgba(0,119,168,0.18), 0 1px 4px rgba(0,0,0,0.08);
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.1s forwards;
+  }
+  .hero-eyebrow {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--teal-deep);
+    margin-bottom: 1.25rem;
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.2s forwards;
+  }
+  .hero-headline {
+    font-family: 'DM Serif Display', Georgia, 'Times New Roman', serif;
+    font-size: clamp(2.6rem, 5.5vw, 4.5rem);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    color: var(--navy);
+    max-width: 760px;
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.35s forwards;
+  }
+  .hero-headline em {
+    font-style: italic;
+    background: linear-gradient(90deg, var(--teal), var(--teal-bright));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-sub {
+    font-size: 1.05rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    max-width: 500px;
+    line-height: 1.75;
+    margin-bottom: 3rem;
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.5s forwards;
+  }
+  .hero-divider {
+    width: 1px; height: 48px;
+    background: linear-gradient(to bottom, var(--teal), transparent);
+    margin: 0 auto 1.5rem;
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.65s forwards;
+  }
+  .hero-launch {
+    font-size: 0.75rem;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    opacity: 0;
+    animation: fadeUp 0.6s ease 0.8s forwards;
+  }
+
+  /* STATS STRIP */
+  .stats-strip {
+    background: var(--navy);
+    padding: 2.25rem 3rem;
+    display: flex;
+    justify-content: center;
+    gap: 5rem;
+    flex-wrap: wrap;
+  }
+  .stat { text-align: center; }
+  .stat-num {
+    font-family: 'DM Serif Display', Georgia, 'Times New Roman', serif;
+    font-size: 1.9rem;
+    background: linear-gradient(135deg, var(--teal-bright), var(--teal));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.02em;
+  }
+  .stat-label {
+    font-size: 0.72rem;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+    margin-top: 0.25rem;
+  }
+
+  /* FEATURES */
+  .features {
+    padding: 7rem 3rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--teal-deep);
+    margin-bottom: 1rem;
+  }
+  .section-headline {
+    font-family: 'DM Serif Display', Georgia, 'Times New Roman', serif;
+    font-size: clamp(1.9rem, 3vw, 2.6rem);
+    letter-spacing: -0.02em;
+    color: var(--navy);
+    max-width: 480px;
+    line-height: 1.2;
+    margin-bottom: 3.5rem;
+  }
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .feature-card {
+    background: var(--bg-card);
+    padding: 2rem 2rem 2.25rem;
+    transition: background 0.2s;
+  }
+  .feature-card:hover { background: var(--bg); }
+  .feature-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: rgba(0,168,200,0.08);
+    border: 1px solid rgba(0,168,200,0.18);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 1.25rem;
+  }
+  .feature-icon svg {
+    width: 20px; height: 20px;
+    stroke: var(--teal-deep);
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .feature-title {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--navy);
+    margin-bottom: 0.5rem;
+  }
+  .feature-desc {
+    font-size: 0.875rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  /* CALLOUT */
+  .callout {
+    max-width: 1040px;
+    margin: 0 auto 5rem;
+    padding: 0 3rem;
+  }
+  .callout-inner {
+    border: 1px solid var(--border-teal);
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(0,168,200,0.05) 0%, rgba(0,119,168,0.02) 100%);
+    padding: 4rem 3rem;
+    text-align: center;
+  }
+  .callout-headline {
+    font-family: 'DM Serif Display', Georgia, 'Times New Roman', serif;
+    font-size: clamp(1.6rem, 2.5vw, 2.2rem);
+    color: var(--navy);
+    letter-spacing: -0.02em;
+    max-width: 580px;
+    margin: 0 auto 1.25rem;
+    line-height: 1.25;
+  }
+  .callout-sub {
+    font-size: 0.95rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.75;
+  }
+  .callout-badges {
+    display: flex;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-top: 2.5rem;
+    flex-wrap: wrap;
+  }
+  .badge {
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    background: rgba(0,119,168,0.07);
+    border: 1px solid rgba(0,119,168,0.2);
+    color: var(--teal-deep);
+  }
+
+  /* FOOTER */
+  footer {
+    padding: 2rem 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--border);
+  }
+  .footer-logo { width: 120px; height: auto; opacity: 0.55; }
+  footer p { font-size: 0.78rem; color: var(--text-muted); }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 700px) {
+    nav { padding: 0 1.25rem; }
+    .stats-strip { gap: 2rem; padding: 2rem 1.25rem; }
+    .features { padding: 5rem 1.25rem; }
+    .callout { padding: 0 1.25rem; }
+    .callout-inner { padding: 3rem 1.5rem; }
+    footer { flex-direction: column; gap: 0.75rem; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <img class="nav-logo" src="logo.png" alt="Vitals" />
+  <span class="nav-pill">Coming Soon</span>
+</nav>
+
+<section class="hero">
+  <img class="hero-icon" src="icon.png" alt="Vitals app icon" />
+  <p class="hero-eyebrow">Caregiver Health Platform</p>
+  <h1 class="hero-headline">Clinical clarity for the people who care <em>most.</em></h1>
+  <p class="hero-sub">Vitals brings hospital-grade health tracking to family caregivers — so the people you love get the oversight they deserve.</p>
+  <div class="hero-divider"></div>
+  <p class="hero-launch">Launching September 2026</p>
+</section>
+
+<div class="stats-strip">
+  <div class="stat">
+    <div class="stat-num">7+</div>
+    <div class="stat-label">Clinical endorsements</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">ACC/AHA</div>
+    <div class="stat-label">BP classification</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">PDF</div>
+    <div class="stat-label">Clinical-grade reports</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">LOESS</div>
+    <div class="stat-label">Trend analysis</div>
+  </div>
+</div>
+
+<section class="features">
+  <p class="section-label">What Vitals does</p>
+  <h2 class="section-headline">Everything a caregiver needs. Nothing they don't.</h2>
+  <div class="feature-grid">
+
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <p class="feature-title">Vitals tracking</p>
+      <p class="feature-desc">Log blood pressure, heart rate, oxygen, temperature, and weight over time with intuitive entry on any device.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </div>
+      <p class="feature-title">Clinical trend analysis</p>
+      <p class="feature-desc">LOESS smoothing, OLS regression, and ACC/AHA blood pressure classification surface patterns that matter clinically.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      </div>
+      <p class="feature-title">Clinical PDF reports</p>
+      <p class="feature-desc">Physician-ready PDFs with trend charts, clinical narrative, medication lists, and care team contacts — ready to scan into any chart.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <p class="feature-title">Dashboard overview</p>
+      <p class="feature-desc">At-a-glance patient dashboard with color-coded BP classification, recent readings, and trend direction.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <p class="feature-title">Medications &amp; allergies</p>
+      <p class="feature-desc">Full medication roster with dosage and frequency, plus allergy documentation — surfaced in every clinical report.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <p class="feature-title">Care team coordination</p>
+      <p class="feature-desc">Keep every provider's contact information centralized — attached to reports so handoffs are seamless.</p>
+    </div>
+
+  </div>
+</section>
+
+<div class="callout">
+  <div class="callout-inner">
+    <h2 class="callout-headline">Already trusted in clinical settings.</h2>
+    <p class="callout-sub">A Vitals-generated PDF was used as a primary clinical reference by a WellMed nurse and scanned into a patient's official chart. That's the standard we build to.</p>
+    <div class="callout-badges">
+      <span class="badge">SBP/DBP Burden Methodology</span>
+      <span class="badge">Time in Therapeutic Range</span>
+      <span class="badge">OLS Regression</span>
+      <span class="badge">ACC/AHA Classification</span>
+      <span class="badge">LOESS Smoothing</span>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <img class="footer-logo" src="logo.png" alt="Vitals" />
+  <p>&copy; 2026 Vitals-Wellness.com &nbsp;&mdash;&nbsp; Launching September 2026</p>
+</footer>
+
+</body>
+</html>

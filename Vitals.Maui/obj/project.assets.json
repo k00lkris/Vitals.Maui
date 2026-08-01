@@ -15283,7 +15283,7 @@
         }
       }
     },
-    "net9.0-ios26.0": {
+    "net9.0-ios26.5": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -15998,7 +15998,7 @@
         }
       }
     },
-    "net9.0-ios26.0/android-arm64": {
+    "net9.0-ios26.5/android-arm64": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -16645,7 +16645,7 @@
         }
       }
     },
-    "net9.0-ios26.0/android-x64": {
+    "net9.0-ios26.5/android-x64": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -17292,7 +17292,7 @@
         }
       }
     },
-    "net9.0-ios26.0/iossimulator-x64": {
+    "net9.0-ios26.5/iossimulator-x64": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -17951,7 +17951,7 @@
         }
       }
     },
-    "net9.0-ios26.0/maccatalyst-x64": {
+    "net9.0-ios26.5/maccatalyst-x64": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -18610,7 +18610,7 @@
         }
       }
     },
-    "net9.0-ios26.0/win10-x64": {
+    "net9.0-ios26.5/win10-x64": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -19257,7 +19257,7 @@
         }
       }
     },
-    "net9.0-maccatalyst26.0": {
+    "net9.0-maccatalyst26.5": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -19916,7 +19916,7 @@
         }
       }
     },
-    "net9.0-maccatalyst26.0/android-arm64": {
+    "net9.0-maccatalyst26.5/android-arm64": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -20563,7 +20563,7 @@
         }
       }
     },
-    "net9.0-maccatalyst26.0/android-x64": {
+    "net9.0-maccatalyst26.5/android-x64": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -21210,7 +21210,7 @@
         }
       }
     },
-    "net9.0-maccatalyst26.0/iossimulator-x64": {
+    "net9.0-maccatalyst26.5/iossimulator-x64": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -21857,7 +21857,7 @@
         }
       }
     },
-    "net9.0-maccatalyst26.0/maccatalyst-x64": {
+    "net9.0-maccatalyst26.5/maccatalyst-x64": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -22510,7 +22510,7 @@
         }
       }
     },
-    "net9.0-maccatalyst26.0/win10-x64": {
+    "net9.0-maccatalyst26.5/win10-x64": {
       "CommunityToolkit.Maui/9.1.1": {
         "type": "package",
         "dependencies": {
@@ -33184,7 +33184,7 @@
       "Microsoft.Maui.Controls >= 9.0.120",
       "Microsoft.NET.ILLink.Tasks >= 9.0.13"
     ],
-    "net9.0-ios26.0": [
+    "net9.0-ios26.5": [
       "CommunityToolkit.Maui >= 9.1.1",
       "CommunityToolkit.Mvvm >= 8.4.2",
       "LiveChartsCore.SkiaSharpView.Maui >= 2.0.0",
@@ -33192,7 +33192,7 @@
       "Microsoft.Maui.Controls >= 9.0.120",
       "Microsoft.NET.ILLink.Tasks >= 9.0.13"
     ],
-    "net9.0-maccatalyst26.0": [
+    "net9.0-maccatalyst26.5": [
       "CommunityToolkit.Maui >= 9.1.1",
       "CommunityToolkit.Mvvm >= 8.4.2",
       "LiveChartsCore.SkiaSharpView.Maui >= 2.0.0",
@@ -33246,11 +33246,11 @@
           "targetAlias": "net9.0-android",
           "projectReferences": {}
         },
-        "net9.0-ios26.0": {
+        "net9.0-ios26.5": {
           "targetAlias": "net9.0-ios",
           "projectReferences": {}
         },
-        "net9.0-maccatalyst26.0": {
+        "net9.0-maccatalyst26.5": {
           "targetAlias": "net9.0-maccatalyst",
           "projectReferences": {}
         },
@@ -33313,6 +33313,12 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
+        "downloadDependencies": [
+          {
+            "name": "Microsoft.NETCore.App.Ref",
+            "version": "[9.0.18, 9.0.18]"
+          }
+        ],
         "frameworkReferences": {
           "Microsoft.Android": {
             "privateAssets": "all"
@@ -33323,7 +33329,7 @@
         },
         "runtimeIdentifierGraphPath": "c:\\program files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
       },
-      "net9.0-ios26.0": {
+      "net9.0-ios26.5": {
         "targetAlias": "net9.0-ios",
         "dependencies": {
           "CommunityToolkit.Maui": {
@@ -33364,6 +33370,12 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
+        "downloadDependencies": [
+          {
+            "name": "Microsoft.NETCore.App.Ref",
+            "version": "[9.0.18, 9.0.18]"
+          }
+        ],
         "frameworkReferences": {
           "Microsoft.iOS": {
             "privateAssets": "all"
@@ -33374,7 +33386,7 @@
         },
         "runtimeIdentifierGraphPath": "c:\\program files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
       },
-      "net9.0-maccatalyst26.0": {
+      "net9.0-maccatalyst26.5": {
         "targetAlias": "net9.0-maccatalyst",
         "dependencies": {
           "CommunityToolkit.Maui": {
@@ -33416,6 +33428,12 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
+        "downloadDependencies": [
+          {
+            "name": "Microsoft.NETCore.App.Ref",
+            "version": "[9.0.18, 9.0.18]"
+          }
+        ],
         "frameworkReferences": {
           "Microsoft.MacCatalyst": {
             "privateAssets": "all"

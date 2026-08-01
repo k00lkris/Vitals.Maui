@@ -44,6 +44,34 @@ public class ApiService
         }
     }
 
+    /// <summary>
+    /// Creates a new patient under the caller's household (server derives
+    /// household from the JWT — see get_household_id in main.py) and
+    /// returns the created record, including its new patient_id, so the
+    /// caller can select it immediately without a second round-trip.
+    /// Returns null on failure.
+    /// </summary>
+    public async Task<Patient?> AddPatientAsync(object payload)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(payload, _jsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _http.PostAsync("/api/patients", content);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine($"=== ADD PATIENT STATUS: {response.StatusCode}");
+            System.Diagnostics.Debug.WriteLine($"=== ADD PATIENT RESPONSE: {raw}");
+
+            if (!response.IsSuccessStatusCode) return null;
+            return JsonSerializer.Deserialize<Patient>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== ADD PATIENT ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
     public async Task<bool> RecordVitalsAsync(VitalEntry vital)
     {
         var json = JsonSerializer.Serialize(vital, _jsonOptions);
@@ -270,10 +298,20 @@ public class ApiService
     {
         try
         {
+            // No token=ha param anymore — that literal-string bypass was
+            // removed server-side now that Home Assistant no longer touches
+            // this endpoint. AuthHeaderHandler already attaches the real
+            // X-API-KEY and JWT to every request through this HttpClient,
+            // so nothing extra needs to be added here.
             var response = await _http.GetAsync(
-                $"/api/medications/{patientId}/pdf?token=ha&days={days}");
+                $"/api/medications/{patientId}/pdf?days={days}");
             System.Diagnostics.Debug.WriteLine($"=== PDF STATUS: {response.StatusCode}");
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode)
+            {
+                var raw = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"=== PDF ERROR RESPONSE: {raw}");
+                return null;
+            }
             return await response.Content.ReadAsByteArrayAsync();
         }
         catch (Exception ex)

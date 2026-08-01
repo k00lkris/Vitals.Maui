@@ -41,7 +41,26 @@ namespace Vitals.Maui
                     {
                         MainThread.BeginInvokeOnMainThread(() =>
                         {
-                            window.Page = new AppShell(_patientState);
+                            // Reset the patient cache before showing anything
+                            // authenticated. PatientStateService is a
+                            // Singleton — without this, a cold launch that
+                            // restores a session would still show whatever
+                            // household's patients were cached from an
+                            // earlier session in the same process, even
+                            // though the auth identity just verified
+                            // correctly for a (possibly different) account.
+                            _patientState.Reset();
+
+                            if (!Preferences.Get("onboarding_complete", false))
+                            {
+                                var resumeVm = Application.Current!.Handler!.MauiContext!
+                                    .Services.GetService<OnboardingResumePromptViewModel>()!;
+                                window.Page = new OnboardingResumePromptPage(resumeVm);
+                            }
+                            else
+                            {
+                                window.Page = new AppShell(_patientState);
+                            }
                         });
                     }
                 });

@@ -9,6 +9,8 @@ public partial class OnboardingPurposePage : ContentPage
         InitializeComponent();
         BindingContext = vm;
 
+        Preferences.Set("onboarding_last_step", "purpose");
+
         vm.OnBack = async () => await Navigation.PopAsync();
 
         // Personalization ("Who are you tracking for?") is now built.

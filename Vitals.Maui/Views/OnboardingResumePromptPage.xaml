@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             x:Class="Vitals.Maui.Views.OnboardingResumePromptPage"
+             x:DataType="vm:OnboardingResumePromptViewModel"
+             NavigationPage.HasNavigationBar="False"
+             BackgroundColor="{DynamicResource PageBackground}">
+
+    <Grid Padding="24" RowDefinitions="*,Auto,Auto,Auto,*">
+
+        <VerticalStackLayout Grid.Row="1" Spacing="12">
+            <Image Source="vitals_logo.png" HeightRequest="56" HorizontalOptions="Center" Margin="0,0,0,8" />
+            <Label Text="Welcome back"
+                   FontSize="26"
+                   FontAttributes="Bold"
+                   TextColor="{DynamicResource TextPrimary}"
+                   HorizontalOptions="Center" />
+            <Label Text="You didn't finish setting up Vitals last time. Want to pick up where you left off?"
+                   FontSize="14"
+                   TextColor="{DynamicResource TextSecondary}"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center"
+                   Margin="16,0,16,0" />
+        </VerticalStackLayout>
+
+        <Button Grid.Row="2"
+                Text="Continue setup"
+                Command="{Binding ContinueOnboardingCommand}"
+                BackgroundColor="{DynamicResource ButtonBackground}"
+                TextColor="{DynamicResource TextPrimary}"
+                FontSize="16"
+                FontAttributes="Bold"
+                HeightRequest="56"
+                CornerRadius="12"
+                Margin="0,24,0,0" />
+
+        <VerticalStackLayout Grid.Row="3" Spacing="4" Margin="0,12,0,0">
+            <Button Text="Skip for now"
+                    Command="{Binding SkipOnboardingCommand}"
+                    BackgroundColor="Transparent"
+                    TextColor="{DynamicResource TextSecondary}"
+                    FontSize="15"
+                    HeightRequest="44" />
+            <Label Text="You can finish these preferences anytime from Settings."
+                   FontSize="12"
+                   TextColor="{DynamicResource TextMuted}"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center" />
+        </VerticalStackLayout>
+
+    </Grid>
+</ContentPage>

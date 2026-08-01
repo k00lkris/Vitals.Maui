@@ -7,7 +7,7 @@
              NavigationPage.HasNavigationBar="False"
              BackgroundColor="{DynamicResource PageBackground}">
 
-    <ScrollView>
+    <ScrollView x:Name="DashboardScrollView">
         <VerticalStackLayout Padding="16" Spacing="12">
 
             <!-- Back + Example banner -->
@@ -42,7 +42,8 @@
             </Border>
 
             <!-- Header / Enter Vitals Card -->
-            <Border Padding="16"
+            <Border x:Name="HeaderCard"
+                    Padding="16"
                     Opacity="{Binding HeaderOpacity}"
                     BackgroundColor="{DynamicResource CardBackground}"
                     StrokeShape="RoundRectangle 12"
@@ -94,7 +95,8 @@
             </Border>
 
             <!-- Latest Vitals Card -->
-            <Border Padding="16"
+            <Border x:Name="LatestReadingCard"
+                    Padding="16"
                     Opacity="{Binding LatestReadingOpacity}"
                     BackgroundColor="{DynamicResource CardBackground}"
                     StrokeShape="RoundRectangle 12"
@@ -160,7 +162,8 @@
             </Border>
 
             <!-- Average Vitals Card -->
-            <Border Padding="16"
+            <Border x:Name="AveragesCard"
+                    Padding="16"
                     Opacity="{Binding AveragesOpacity}"
                     BackgroundColor="{DynamicResource CardBackground}"
                     StrokeShape="RoundRectangle 12"
@@ -230,7 +233,8 @@
             </Border>
 
             <!-- Vitals Analysis + Charts Card -->
-            <Border Padding="16"
+            <Border x:Name="AnalysisCard"
+                    Padding="16"
                     Opacity="{Binding AnalysisOpacity}"
                     BackgroundColor="{DynamicResource CardBackground}"
                     StrokeShape="RoundRectangle 12"

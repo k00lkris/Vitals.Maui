@@ -8,11 +8,10 @@
              BackgroundColor="{DynamicResource PageBackground}">
 
     <ScrollView>
-        <Grid Padding="24" RowDefinitions="Auto,Auto,Auto,*,Auto" RowSpacing="24">
+        <VerticalStackLayout Padding="24" Spacing="20">
 
             <!-- Back -->
-            <Button Grid.Row="0"
-                    Text="←"
+            <Button Text="←"
                     Command="{Binding BackToLoginCommand}"
                     BackgroundColor="Transparent"
                     TextColor="{DynamicResource TextSecondary}"
@@ -23,114 +22,168 @@
                     Padding="0" />
 
             <!-- Logo + heading -->
-            <VerticalStackLayout Grid.Row="1" Spacing="8" HorizontalOptions="Center">
+            <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
                 <Image Source="vitals_logo.png" HeightRequest="56" HorizontalOptions="Center" />
                 <Label Text="Create your account"
+                       IsVisible="{Binding IsVerificationSent, Converter={StaticResource InvertedBoolConverter}}"
+                       FontSize="24"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource TextPrimary}"
+                       HorizontalOptions="Center" />
+                <Label Text="Almost there"
+                       IsVisible="{Binding IsVerificationSent}"
                        FontSize="24"
                        FontAttributes="Bold"
                        TextColor="{DynamicResource TextPrimary}"
                        HorizontalOptions="Center" />
             </VerticalStackLayout>
 
-            <!-- Email / password (disabled placeholder — no backend yet) -->
-            <Border Grid.Row="2"
-                    Padding="16"
-                    BackgroundColor="{DynamicResource CardBackground}"
-                    StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+            <!-- ============================================= -->
+            <!-- Registration form — hidden once verification is sent -->
+            <!-- ============================================= -->
+            <VerticalStackLayout Spacing="20" IsVisible="{Binding IsVerificationSent, Converter={StaticResource InvertedBoolConverter}}">
+
+                <Border Padding="16"
+                        BackgroundColor="{DynamicResource CardBackground}"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{DynamicResource CardStroke}">
+                    <VerticalStackLayout Spacing="12">
+
+                        <Entry Placeholder="Full name"
+                               Text="{Binding DisplayName}"
+                               TextColor="{DynamicResource TextPrimary}"
+                               PlaceholderColor="{DynamicResource TextMuted}"
+                               BackgroundColor="Transparent" />
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+
+                        <Entry Placeholder="Email address"
+                               Text="{Binding Email}"
+                               Keyboard="Email"
+                               TextColor="{DynamicResource TextPrimary}"
+                               PlaceholderColor="{DynamicResource TextMuted}"
+                               BackgroundColor="Transparent" />
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+
+                        <Entry Placeholder="Password (8+ characters)"
+                               Text="{Binding Password}"
+                               IsPassword="True"
+                               TextColor="{DynamicResource TextPrimary}"
+                               PlaceholderColor="{DynamicResource TextMuted}"
+                               BackgroundColor="Transparent" />
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+
+                        <Entry Placeholder="Confirm password"
+                               Text="{Binding ConfirmPassword}"
+                               IsPassword="True"
+                               TextColor="{DynamicResource TextPrimary}"
+                               PlaceholderColor="{DynamicResource TextMuted}"
+                               BackgroundColor="Transparent" />
+
+                        <Button Text="Create Account"
+                                Command="{Binding CreateAccountCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
+                                BackgroundColor="{DynamicResource ButtonBackground}"
+                                TextColor="{DynamicResource TextPrimary}"
+                                FontSize="15"
+                                FontAttributes="Bold"
+                                HeightRequest="48"
+                                CornerRadius="10" />
+
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Social sign-up -->
                 <VerticalStackLayout Spacing="12">
 
-                    <Entry Placeholder="Email address"
-                           Text="{Binding Email}"
-                           IsEnabled="False"
-                           Keyboard="Email"
-                           TextColor="{DynamicResource TextPrimary}"
-                           PlaceholderColor="{DynamicResource TextMuted}"
-                           BackgroundColor="Transparent" />
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">
+                        <BoxView HeightRequest="1" WidthRequest="60" BackgroundColor="{DynamicResource DividerColor}" />
+                        <Label Text="or sign up with" FontSize="13" TextColor="{DynamicResource TextMuted}" />
+                        <BoxView HeightRequest="1" WidthRequest="60" BackgroundColor="{DynamicResource DividerColor}" />
+                    </HorizontalStackLayout>
 
-                    <Entry Placeholder="Password"
-                           Text="{Binding Password}"
-                           IsEnabled="False"
-                           IsPassword="True"
-                           TextColor="{DynamicResource TextPrimary}"
-                           PlaceholderColor="{DynamicResource TextMuted}"
-                           BackgroundColor="Transparent" />
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <!-- Google — functional -->
+                    <Button Text="Sign up with Google"
+                            Command="{Binding SignUpWithGoogleCommand}"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
+                            ImageSource="google_logo.png"
+                            BackgroundColor="White"
+                            TextColor="Black"
+                            FontSize="15"
+                            FontAttributes="Bold"
+                            HeightRequest="52"
+                            CornerRadius="10" />
 
-                    <Entry Placeholder="Confirm password"
-                           Text="{Binding ConfirmPassword}"
-                           IsEnabled="False"
-                           IsPassword="True"
-                           TextColor="{DynamicResource TextPrimary}"
-                           PlaceholderColor="{DynamicResource TextMuted}"
-                           BackgroundColor="Transparent" />
-
-                    <Button Text="Create Account"
+                    <!-- Apple ID — disabled placeholder until Apple Developer
+                         Program enrollment + Sign in with Apple implementation -->
+                    <Button Text="Sign up with Apple ID"
                             IsEnabled="False"
                             BackgroundColor="{DynamicResource ButtonSecondary}"
                             TextColor="{DynamicResource ButtonSecondaryText}"
                             FontSize="15"
                             FontAttributes="Bold"
-                            HeightRequest="48"
+                            HeightRequest="52"
                             CornerRadius="10" />
 
-                    <Label Text="Email sign-up is coming soon — use Google for now."
-                           FontSize="12"
-                           TextColor="{DynamicResource TextMuted}"
-                           HorizontalOptions="Center" />
-
                 </VerticalStackLayout>
-            </Border>
-
-            <!-- Spacer -->
-            <BoxView Grid.Row="3" Opacity="0" />
-
-            <!-- Social sign-up -->
-            <VerticalStackLayout Grid.Row="4" Spacing="12">
-
-                <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">
-                    <BoxView HeightRequest="1" WidthRequest="60" BackgroundColor="{DynamicResource DividerColor}" />
-                    <Label Text="or sign up with" FontSize="13" TextColor="{DynamicResource TextMuted}" />
-                    <BoxView HeightRequest="1" WidthRequest="60" BackgroundColor="{DynamicResource DividerColor}" />
-                </HorizontalStackLayout>
-
-                <!-- Google — functional -->
-                <Button Text="Sign up with Google"
-                        Command="{Binding SignUpWithGoogleCommand}"
-                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
-                        ImageSource="google_logo.png"
-                        BackgroundColor="White"
-                        TextColor="Black"
-                        FontSize="15"
-                        FontAttributes="Bold"
-                        HeightRequest="52"
-                        CornerRadius="10" />
-
-                <!-- Apple ID — disabled placeholder until Apple Developer
-                     Program enrollment + Sign in with Apple implementation -->
-                <Button Text="Sign up with Apple ID"
-                        IsEnabled="False"
-                        BackgroundColor="{DynamicResource ButtonSecondary}"
-                        TextColor="{DynamicResource ButtonSecondaryText}"
-                        FontSize="15"
-                        FontAttributes="Bold"
-                        HeightRequest="52"
-                        CornerRadius="10" />
-
-                <Label Text="{Binding StatusMessage}"
-                       IsVisible="{Binding StatusMessage, Converter={StaticResource StringToBoolConverter}}"
-                       TextColor="{DynamicResource TileCriticalBg}"
-                       HorizontalOptions="Center"
-                       FontSize="13" />
-
-                <ActivityIndicator IsRunning="{Binding IsBusy}"
-                                   IsVisible="{Binding IsBusy}"
-                                   Color="{DynamicResource PrimaryAccent}"
-                                   HorizontalOptions="Center" />
 
             </VerticalStackLayout>
 
-        </Grid>
+            <!-- ============================================= -->
+            <!-- Verification-sent confirmation — shown after successful -->
+            <!-- registration instead of navigating anywhere, since the -->
+            <!-- account isn't usable until the email link is clicked -->
+            <!-- ============================================= -->
+            <VerticalStackLayout Spacing="16" IsVisible="{Binding IsVerificationSent}">
+
+                <Border Padding="20"
+                        BackgroundColor="{DynamicResource CardBackground}"
+                        StrokeShape="RoundRectangle 12"
+                        Stroke="{DynamicResource CardStroke}">
+                    <VerticalStackLayout Spacing="12">
+                        <Label Text="📧" FontSize="36" HorizontalOptions="Center" />
+                        <Label Text="Check your email"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}"
+                               HorizontalOptions="Center" />
+                        <Label Text="{Binding Email, StringFormat='We sent a verification link to {0}. Click it, then come back and sign in.'}"
+                               FontSize="14"
+                               TextColor="{DynamicResource TextSecondary}"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Button Text="Resend email"
+                        Command="{Binding ResendVerificationCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
+                        BackgroundColor="{DynamicResource ButtonSecondary}"
+                        TextColor="{DynamicResource ButtonSecondaryText}"
+                        FontSize="14"
+                        HeightRequest="44"
+                        CornerRadius="10" />
+
+                <Button Text="Back to Sign In"
+                        Command="{Binding BackToLoginCommand}"
+                        BackgroundColor="Transparent"
+                        TextColor="{DynamicResource PrimaryAccent}"
+                        FontSize="14"
+                        HeightRequest="40" />
+
+            </VerticalStackLayout>
+
+            <Label Text="{Binding StatusMessage}"
+                   IsVisible="{Binding StatusMessage, Converter={StaticResource StringToBoolConverter}}"
+                   TextColor="#d32f2f"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center"
+                   FontSize="13" />
+
+            <ActivityIndicator IsRunning="{Binding IsBusy}"
+                               IsVisible="{Binding IsBusy}"
+                               Color="{DynamicResource PrimaryAccent}"
+                               HorizontalOptions="Center" />
+
+        </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

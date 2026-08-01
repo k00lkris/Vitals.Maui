@@ -62,6 +62,11 @@ public static class AppNavigation
         }
         else
         {
+            // Existing accounts never went through this onboarding flow at
+            // all — without this, they'd default to onboarding_complete =
+            // false and wrongly get the "Welcome back, finish setup?"
+            // prompt on their next launch for something they never started.
+            Preferences.Set("onboarding_complete", true);
             SetRootPage(new Vitals.Maui.AppShell(patientState));
         }
     }

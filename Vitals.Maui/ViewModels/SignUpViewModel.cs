@@ -10,16 +10,18 @@ public partial class SignUpViewModel : ObservableObject
     private readonly AuthService _auth;
     private readonly PatientStateService _patientState;
 
-    // Email/password fields exist for layout purposes but are disabled in
-    // the UI (IsEnabled="False") until backend /api/auth/register support
-    // exists. Left as bindable properties now so wiring up the real
-    // CreateAccountAsync flow later is a small diff, not a rewrite.
+    [ObservableProperty] private string _displayName = string.Empty;
     [ObservableProperty] private string _email = string.Empty;
     [ObservableProperty] private string _password = string.Empty;
     [ObservableProperty] private string _confirmPassword = string.Empty;
 
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
+
+    // Set true once registration succeeds — the account exists but isn't
+    // usable yet (email unverified), so the page switches to a "check your
+    // email" state instead of navigating anywhere.
+    [ObservableProperty] private bool _isVerificationSent;
 
     // Incremented every time a Google sign-in attempt starts, and captured
     // locally by that attempt. WebAuthenticator.AuthenticateAsync() has no
@@ -35,6 +37,73 @@ public partial class SignUpViewModel : ObservableObject
     {
         _auth = auth;
         _patientState = patientState;
+    }
+
+    /// <summary>
+    /// Registers a new email/password account. On success, the account is
+    /// NOT signed in — it switches to a "check your email" state, since
+    /// /api/auth/register deliberately doesn't return a session until the
+    /// email is verified (see AuthService.RegisterAsync).
+    /// </summary>
+    [RelayCommand]
+    public async Task CreateAccountAsync()
+    {
+        if (string.IsNullOrWhiteSpace(DisplayName))
+        {
+            StatusMessage = "Enter your name.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(Email))
+        {
+            StatusMessage = "Enter your email address.";
+            return;
+        }
+        if (Password.Length < 8)
+        {
+            StatusMessage = "Password must be at least 8 characters.";
+            return;
+        }
+        if (Password != ConfirmPassword)
+        {
+            StatusMessage = "Passwords don't match.";
+            return;
+        }
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+
+        try
+        {
+            var result = await _auth.RegisterAsync(Email.Trim(), Password, DisplayName.Trim());
+
+            if (result.Success)
+            {
+                IsVerificationSent = true;
+            }
+            else
+            {
+                StatusMessage = result.ErrorMessage ?? "Something went wrong. Please try again.";
+            }
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task ResendVerificationAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            await _auth.ResendVerificationAsync(Email.Trim());
+            StatusMessage = "If that email has a pending verification, a new link has been sent.";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     /// <summary>
