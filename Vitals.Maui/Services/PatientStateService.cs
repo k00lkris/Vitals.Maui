@@ -53,11 +53,23 @@ public partial class PatientStateService : ObservableObject
     /// cached from before, even though AuthService correctly switched
     /// identity. Call this on sign-out and right after any successful
     /// sign-in, so a session boundary always means a clean slate.
+    ///
+    /// Also clears the persisted "last_patient_id" Preference — this is
+    /// device-level storage, not in-memory state, so it survives logout
+    /// and login on its own. That was harmless before household sharing
+    /// existed (a stale ID would just fail to match and fall through to a
+    /// default), but now that two different accounts can share the same
+    /// patient list, a stale ID left over from a PREVIOUS account can
+    /// validly match a patient in a NEW account's shared list — showing
+    /// the wrong "active" patient after switching accounts on the same
+    /// device. Clearing it here means each fresh session always starts
+    /// with no carried-over selection, regardless of who logged in before.
     /// </summary>
     public void Reset()
     {
         Patients = new List<Patient>();
         SelectedPatient = null;
+        Preferences.Remove("last_patient_id");
     }
 
     partial void OnSelectedPatientChanged(Patient? value)

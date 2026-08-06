@@ -81,6 +81,7 @@ public partial class OnboardingPatientSetupViewModel : ObservableObject
                 last_name = LastName.Trim(),
                 dob = Dob.ToString("yyyy-MM-dd"),
                 gender = string.IsNullOrWhiteSpace(Gender) ? null : Gender,
+                relationship = IsSelf ? "self" : "caregiver",
             };
 
             var created = await _api.AddPatientAsync(payload);

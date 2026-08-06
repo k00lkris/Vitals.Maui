@@ -80,6 +80,8 @@ public partial class VitalsEntryViewModel : ObservableObject
         {
             if (e.PropertyName == nameof(PatientStateService.SelectedPatient))
                 OnPropertyChanged(nameof(SelectedPatient));
+            else if (e.PropertyName == nameof(PatientStateService.Patients))
+                OnPropertyChanged(nameof(Patients));
         };
 
         LoadDisplayPreferences();
@@ -106,6 +108,8 @@ public partial class VitalsEntryViewModel : ObservableObject
     {
         LoadDisplayPreferences();
         await _patientState.InitializeAsync();
+        OnPropertyChanged(nameof(Patients));
+        OnPropertyChanged(nameof(SelectedPatient));
     }
 
     [RelayCommand]

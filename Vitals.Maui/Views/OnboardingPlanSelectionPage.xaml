@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             x:Class="Vitals.Maui.Views.OnboardingPlanSelectionPage"
+             x:DataType="vm:OnboardingPlanSelectionViewModel"
+             NavigationPage.HasNavigationBar="False"
+             BackgroundColor="{DynamicResource PageBackground}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="14">
+
+            <!-- Back -->
+            <Button Text="←"
+                    Command="{Binding BackCommand}"
+                    BackgroundColor="Transparent"
+                    TextColor="{DynamicResource TextSecondary}"
+                    FontSize="22"
+                    HorizontalOptions="Start"
+                    WidthRequest="44"
+                    HeightRequest="44"
+                    Padding="0" />
+
+            <Label Text="Choose your plan"
+                   FontSize="26"
+                   FontAttributes="Bold"
+                   TextColor="{DynamicResource TextPrimary}"
+                   HorizontalOptions="Center" />
+
+            <Label Text="Every plan includes a free 30-day trial (up to 2 patients). No payment happens today. Tap a plan to select it, then Continue."
+                   FontSize="13"
+                   TextColor="{DynamicResource TextMuted}"
+                   HorizontalOptions="Center"
+                   HorizontalTextAlignment="Center"
+                   Margin="16,0,16,8" />
+
+            <!-- Individual -->
+            <Border Padding="18"
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{Binding IndividualCardColor}"
+                    StrokeThickness="2">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding SelectIndividualCommand}" />
+                </Border.GestureRecognizers>
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="Individual" FontSize="18" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                    <Label Text="$10/mo or $89/yr — track up to 2 people" FontSize="14" TextColor="{DynamicResource TextSecondary}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Family -->
+            <Border Padding="18"
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{Binding FamilyCardColor}"
+                    StrokeThickness="2">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding SelectFamilyCommand}" />
+                </Border.GestureRecognizers>
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="Family" FontSize="18" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                    <Label Text="$20/mo or $189/yr — track up to 5 people" FontSize="14" TextColor="{DynamicResource TextSecondary}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Free -->
+            <Border Padding="18"
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    StrokeShape="RoundRectangle 12"
+                    Stroke="{Binding FreeCardColor}"
+                    StrokeThickness="2">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding SelectFreeCommand}" />
+                </Border.GestureRecognizers>
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="Free" FontSize="18" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                    <Label Text="No card required — 2 patients for 30 days, then a limited free version" FontSize="14" TextColor="{DynamicResource TextSecondary}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Label Text="{Binding StatusMessage}"
+                   IsVisible="{Binding StatusMessage, Converter={StaticResource StringToBoolConverter}}"
+                   FontSize="13"
+                   TextColor="#d32f2f"
+                   HorizontalOptions="Center" />
+
+            <Button Text="Continue"
+                    Command="{Binding ContinueCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
+                    BackgroundColor="{DynamicResource ButtonBackground}"
+                    TextColor="{DynamicResource TextPrimary}"
+                    FontSize="16"
+                    FontAttributes="Bold"
+                    HeightRequest="56"
+                    CornerRadius="12"
+                    Margin="0,4,0,0" />
+
+            <ActivityIndicator IsRunning="{Binding IsBusy}"
+                               IsVisible="{Binding IsBusy}"
+                               Color="{DynamicResource PrimaryAccent}"
+                               HorizontalOptions="Center" />
+
+            <!-- Join existing household -->
+            <HorizontalStackLayout HorizontalOptions="Center" Spacing="8" Margin="0,12,0,0">
+                <BoxView HeightRequest="1" WidthRequest="60" BackgroundColor="{DynamicResource DividerColor}" />
+                <Label Text="or" FontSize="13" TextColor="{DynamicResource TextMuted}" />
+                <BoxView HeightRequest="1" WidthRequest="60" BackgroundColor="{DynamicResource DividerColor}" />
+            </HorizontalStackLayout>
+
+            <Button Text="I have an invite code — join a household"
+                    Command="{Binding JoinExistingHouseholdCommand}"
+                    BackgroundColor="Transparent"
+                    TextColor="{DynamicResource PrimaryAccent}"
+                    FontSize="14"
+                    FontAttributes="Bold"
+                    HeightRequest="44" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

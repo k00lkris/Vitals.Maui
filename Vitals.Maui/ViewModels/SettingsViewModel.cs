@@ -34,6 +34,22 @@ public partial class SettingsViewModel : ObservableObject
         LoadPreferences();
     }
 
+    /// <summary>
+    /// DisplayName/Email are computed pass-throughs to AuthService — the
+    /// underlying value is always correct, but since this ViewModel is a
+    /// Singleton (see MauiProgram.cs) and these aren't [ObservableProperty]
+    /// fields, XAML bindings have no way to know they should re-read the
+    /// value after an account switch. Nothing raises PropertyChanged for
+    /// them on its own. Called explicitly from AppNavigation right after
+    /// sign-in, alongside the same reload DashboardViewModel needs for the
+    /// same underlying reason.
+    /// </summary>
+    public void RefreshAccountInfo()
+    {
+        OnPropertyChanged(nameof(DisplayName));
+        OnPropertyChanged(nameof(Email));
+    }
+
     private void LoadPreferences()
     {
         CurrentTheme = Preferences.Get("theme", "vitals_blue");
@@ -55,6 +71,21 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(ThemeVitalsBlueColor));
         OnPropertyChanged(nameof(ThemeSystemColor));
         await SavePreferencesAsync();
+    }
+
+    /// <summary>
+    /// Uses Shell.Current.Navigation.PushAsync rather than a named Shell
+    /// route (Shell.Current.GoToAsync("//SomeRoute")) — this doesn't
+    /// require registering a route in AppShell.xaml first, which I don't
+    /// have visibility into here. If a named route for this screen gets
+    /// added later, this can switch to GoToAsync to match convention.
+    /// </summary>
+    [RelayCommand]
+    async Task OpenHouseholdInviteAsync()
+    {
+        var inviteVm = Application.Current!.Handler.MauiContext!
+            .Services.GetService<HouseholdInviteViewModel>()!;
+        await Shell.Current.Navigation.PushAsync(new HouseholdInvitePage(inviteVm));
     }
 
     [RelayCommand]

@@ -1,12 +1,53 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\views\\onboardingpersonalizationpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:views\\onboardingpersonalizationpage.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|d:\\github\\vitals.maui\\vitals.maui\\views\\onboardingpurposepage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{7E082BBA-7770-40B8-A521-1EE61462E3DE}|Vitals.Maui.csproj|solutionrelative:views\\onboardingpurposepage.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 1,
       "VerticalTabListWidth": 256,
       "DocumentGroups": [
+        {
+          "DockedHeight": 204,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "OnboardingPurposePage.xaml.cs",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\OnboardingPurposePage.xaml.cs",
+              "RelativeDocumentMoniker": "Views\\OnboardingPurposePage.xaml.cs",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\OnboardingPurposePage.xaml.cs",
+              "RelativeToolTip": "Views\\OnboardingPurposePage.xaml.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-08-02T23:05:51.363Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "OnboardingPersonalizationPage.xaml",
+              "DocumentMoniker": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\OnboardingPersonalizationPage.xaml",
+              "RelativeDocumentMoniker": "Views\\OnboardingPersonalizationPage.xaml",
+              "ToolTip": "D:\\GitHub\\Vitals.Maui\\Vitals.Maui\\Views\\OnboardingPersonalizationPage.xaml",
+              "RelativeToolTip": "Views\\OnboardingPersonalizationPage.xaml",
+              "ViewState": "AgIAAGYAAAAAAAAAAAAAAH0AAAApAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2026-08-02T23:02:06.52Z",
+              "EditorCaption": ""
+            }
+          ]
+        },
         {
           "DockedHeight": 204,
           "SelectedChildIndex": -1,

@@ -16,6 +16,12 @@ public partial class LoginViewModel : ObservableObject
     [ObservableProperty] private string _email = string.Empty;
     [ObservableProperty] private string _password = string.Empty;
 
+    // Shown only when a login attempt fails specifically because the
+    // account isn't verified yet — at this point in the flow the user is
+    // on Login, not Sign Up, so there's otherwise no way back to a resend
+    // option without abandoning what they typed and starting over.
+    [ObservableProperty] private bool _showResendVerification;
+
     public LoginViewModel(AuthService auth, PatientStateService patientState)
     {
         _auth = auth;
@@ -71,6 +77,7 @@ public partial class LoginViewModel : ObservableObject
 
         IsBusy = true;
         StatusMessage = string.Empty;
+        ShowResendVerification = false;
 
         try
         {
@@ -83,7 +90,24 @@ public partial class LoginViewModel : ObservableObject
             else
             {
                 StatusMessage = result.ErrorMessage ?? "Sign in failed. Please try again.";
+                ShowResendVerification = result.IsUnverifiedEmail;
             }
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task ResendVerificationAsync()
+    {
+        IsBusy = true;
+        try
+        {
+            await _auth.ResendVerificationAsync(Email.Trim());
+            StatusMessage = "If that email has a pending verification, a new link has been sent.";
+            ShowResendVerification = false;
         }
         finally
         {

@@ -13,6 +13,44 @@
             Returns null on failure.
             </summary>
         </member>
+        <member name="M:Vitals.Maui.Services.ApiService.SelectTierAsync(System.String)">
+            <summary>
+            Creates a household with the selected tier (individual/family/free)
+            and attaches the caller to it. Returns the new token + household_id
+            on success — caller is responsible for handing that to
+            AuthService.UpdateSessionAsync(). Returns null on failure.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.Services.ApiService.JoinHouseholdAsync(System.String)">
+            <summary>
+            Redeems an invite code, attaching the caller to the inviting
+            household. Always succeeds for a valid code regardless of patient
+            count — CanCreateNewPatient tells the caller whether to offer
+            "create a new patient" on the next screen, or only "attach to an
+            existing one." Returns null on an invalid/expired/used code.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.Services.ApiService.CreateHouseholdInviteAsync(System.String)">
+            <summary>
+            Sends a household invite to the given email. Returns a friendly
+            error (e.g. "no available slots") on failure via the shared
+            ExtractErrorDetail parser.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.Services.ApiService.GetHouseholdStatusAsync">
+            <summary>
+            Lets the Settings invite screen proactively disable "Invite" using
+            the same slot math the server enforces, rather than only finding
+            out after tapping it and getting a 403.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.Services.ApiService.ExtractErrorDetail(System.String)">
+            <summary>
+            Same "{detail: ...}" parsing AuthService uses for its own errors —
+            duplicated here (not shared) since ApiService and AuthService use
+            separate HttpClients and neither currently depends on the other.
+            </summary>
+        </member>
         <member name="T:Vitals.Maui.Services.AppNavigation">
              <summary>
              Swaps the visible root page by setting the current Window's Page
@@ -55,6 +93,18 @@
             Sets in-memory session fields and persists them to SecureStorage.
             Shared by Google sign-in and email/password login, since both end
             with the same shape of response from the backend.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.Services.AuthService.UpdateSessionAsync(System.String,System.String)">
+            <summary>
+            Updates just the token and household_id — used after
+            /api/household/select-tier or /api/household/join, both of which
+            issue a fresh JWT reflecting a household_id that didn't exist (or
+            was different) when the user first signed in. Everything else about
+            the session (user_id, email, display_name) is unchanged, so there's
+            no need for the full AuthResult shape those calls go through
+            ApiService, not AuthService, since they require an already-valid
+            session — this just persists what they return.
             </summary>
         </member>
         <member name="M:Vitals.Maui.Services.AuthService.RegisterAsync(System.String,System.String,System.String)">
@@ -117,17 +167,28 @@
             <inheritdoc/>
         </member>
         <member name="M:Vitals.Maui.Services.PatientStateService.Reset">
-            <summary>
-            Clears cached patient data. This service is registered as a Singleton
-            (see MauiProgram.cs), so it otherwise lives for the entire app process
-            — InitializeAsync's "if (Patients.Any()) return" guard means once
-            populated, it never reloads on its own. Without an explicit reset,
-            signing in as a different account within the same process (no app
-            restart) would keep showing whichever household's patients were
-            cached from before, even though AuthService correctly switched
-            identity. Call this on sign-out and right after any successful
-            sign-in, so a session boundary always means a clean slate.
-            </summary>
+             <summary>
+             Clears cached patient data. This service is registered as a Singleton
+             (see MauiProgram.cs), so it otherwise lives for the entire app process
+             — InitializeAsync's "if (Patients.Any()) return" guard means once
+             populated, it never reloads on its own. Without an explicit reset,
+             signing in as a different account within the same process (no app
+             restart) would keep showing whichever household's patients were
+             cached from before, even though AuthService correctly switched
+             identity. Call this on sign-out and right after any successful
+             sign-in, so a session boundary always means a clean slate.
+            
+             Also clears the persisted "last_patient_id" Preference — this is
+             device-level storage, not in-memory state, so it survives logout
+             and login on its own. That was harmless before household sharing
+             existed (a stale ID would just fail to match and fall through to a
+             default), but now that two different accounts can share the same
+             patient list, a stale ID left over from a PREVIOUS account can
+             validly match a patient in a NEW account's shared list — showing
+             the wrong "active" patient after switching accounts on the same
+             device. Clearing it here means each fresh session always starts
+             with no carried-over selection, regardless of who logged in before.
+             </summary>
         </member>
         <member name="P:Vitals.Maui.Services.PatientStateService.Patients">
             <inheritdoc cref="F:Vitals.Maui.Services.PatientStateService._patients"/>
@@ -713,6 +774,48 @@
         <member name="P:Vitals.Maui.ViewModels.GeneratePdfViewModel.DeleteReportCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand`1"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.GeneratePdfViewModel.DeleteReport(Vitals.Maui.Models.PdfReport)"/>.</summary>
         </member>
+        <member name="T:Vitals.Maui.ViewModels.HouseholdInviteViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.InviteeEmail">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.HouseholdInviteViewModel._inviteeEmail"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.CanInvite">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.HouseholdInviteViewModel._canInvite"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.AvailableSlots">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.HouseholdInviteViewModel._availableSlots"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.StatusMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.HouseholdInviteViewModel._statusMessage"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.IsBusy">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.HouseholdInviteViewModel._isBusy"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.PendingInvites">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.HouseholdInviteViewModel._pendingInvites"/>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.HouseholdInviteViewModel.loadCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.LoadCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.LoadCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.HouseholdInviteViewModel.LoadAsync"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.HouseholdInviteViewModel.sendInviteCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.SendInviteCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.SendInviteCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.HouseholdInviteViewModel.SendInviteAsync"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.HouseholdInviteViewModel.cancelInviteCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.CancelInviteCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.HouseholdInviteViewModel.CancelInviteCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand`1"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.HouseholdInviteViewModel.CancelInviteAsync(Vitals.Maui.Services.PendingInvite)"/>.</summary>
+        </member>
         <member name="T:Vitals.Maui.ViewModels.IncidentDetailViewModel">
             <inheritdoc/>
             <inheritdoc/>
@@ -871,6 +974,7 @@
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
+            <inheritdoc/>
         </member>
         <member name="M:Vitals.Maui.ViewModels.LoginViewModel.SignInWithEmailAsync">
             <summary>
@@ -902,6 +1006,9 @@
         <member name="P:Vitals.Maui.ViewModels.LoginViewModel.Password">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.LoginViewModel._password"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.LoginViewModel.ShowResendVerification">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.LoginViewModel._showResendVerification"/>
+        </member>
         <member name="F:Vitals.Maui.ViewModels.LoginViewModel.signInWithGoogleCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.LoginViewModel.SignInWithGoogleCommand"/>.</summary>
         </member>
@@ -913,6 +1020,12 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.LoginViewModel.SignInWithEmailCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.LoginViewModel.SignInWithEmailAsync"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.LoginViewModel.resendVerificationCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.LoginViewModel.ResendVerificationCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.LoginViewModel.ResendVerificationCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.LoginViewModel.ResendVerificationAsync"/>.</summary>
         </member>
         <member name="F:Vitals.Maui.ViewModels.LoginViewModel.navigateToSignUpCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.LoginViewModel.NavigateToSignUpCommand"/>.</summary>
@@ -1484,6 +1597,87 @@
         <member name="P:Vitals.Maui.ViewModels.OnboardingFirstVitalReadingViewModel.BackCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingFirstVitalReadingViewModel.Back"/>.</summary>
         </member>
+        <member name="T:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.InviteCode">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel._inviteCode"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.IsBusy">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel._isBusy"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.StatusMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel._statusMessage"/>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.joinCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.JoinCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.JoinCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.JoinAsync"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.backCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.BackCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.BackCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingJoinHouseholdViewModel.Back"/>.</summary>
+        </member>
+        <member name="T:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.LoadAsync(System.Boolean)">
+            <summary>
+            Loads the household's existing patients — this is who the joining
+            user can choose to attach to as their default view. canCreateNewPatient
+            comes straight from /api/household/join's response (see
+            AuthService/ApiService), computed server-side against the
+            household's actual patient_limit vs current count.
+            </summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.Patients">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel._patients"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.SelectedPatient">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel._selectedPatient"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.CanCreateNewPatient">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel._canCreateNewPatient"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.IsBusy">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel._isBusy"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.StatusMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel._statusMessage"/>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.selectPatientCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.SelectPatientCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.SelectPatientCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand`1"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.SelectPatient(Vitals.Maui.Models.Patient)"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.continueCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.ContinueCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.ContinueCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.Continue"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.createNewPatientCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.CreateNewPatientCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.CreateNewPatientCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.CreateNewPatient"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.backCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.BackCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.BackCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.Back"/>.</summary>
+        </member>
         <member name="T:Vitals.Maui.ViewModels.OnboardingPatientSetupViewModel">
             <inheritdoc/>
             <inheritdoc/>
@@ -1590,6 +1784,83 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.BackCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPersonalizationViewModel.Back"/>.</summary>
+        </member>
+        <member name="T:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.ContinueAsync">
+            <summary>
+            Confirms the highlighted card — this is what actually creates the
+            household (intent only, no billing yet, that's Phase 7) and routes
+            accordingly. Family skips Personalization entirely, since choosing
+            it already answers "who are you tracking for" (more than one
+            person) — Individual and Free still need that question asked.
+            </summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectedTier">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel._selectedTier"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.IndividualCardColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel._individualCardColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.FamilyCardColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel._familyCardColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.FreeCardColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel._freeCardColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.IsBusy">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel._isBusy"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.StatusMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel._statusMessage"/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.OnSelectedTierChanged(System.String)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectedTier"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectedTier"/> is changed.</remarks>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.selectIndividualCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectIndividualCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectIndividualCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectIndividual"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.selectFamilyCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectFamilyCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectFamilyCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectFamily"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.selectFreeCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectFreeCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectFreeCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.SelectFree"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.continueCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.ContinueCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.ContinueCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.ContinueAsync"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.joinExistingHouseholdCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.JoinExistingHouseholdCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.JoinExistingHouseholdCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.JoinExistingHousehold"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.backCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.BackCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.BackCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingPlanSelectionViewModel.Back"/>.</summary>
         </member>
         <member name="T:Vitals.Maui.ViewModels.OnboardingPurposeViewModel">
             <inheritdoc/>
@@ -1768,6 +2039,28 @@
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.SettingsViewModel.RefreshAccountInfo">
+            <summary>
+            DisplayName/Email are computed pass-throughs to AuthService — the
+            underlying value is always correct, but since this ViewModel is a
+            Singleton (see MauiProgram.cs) and these aren't [ObservableProperty]
+            fields, XAML bindings have no way to know they should re-read the
+            value after an account switch. Nothing raises PropertyChanged for
+            them on its own. Called explicitly from AppNavigation right after
+            sign-in, alongside the same reload DashboardViewModel needs for the
+            same underlying reason.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.SettingsViewModel.OpenHouseholdInviteAsync">
+            <summary>
+            Uses Shell.Current.Navigation.PushAsync rather than a named Shell
+            route (Shell.Current.GoToAsync("//SomeRoute")) — this doesn't
+            require registering a route in AppShell.xaml first, which I don't
+            have visibility into here. If a named route for this screen gets
+            added later, this can switch to GoToAsync to match convention.
+            </summary>
         </member>
         <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.CurrentTheme">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._currentTheme"/>
@@ -1817,6 +2110,12 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.SetThemeCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand`1"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.SettingsViewModel.SetTheme(System.String)"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.SettingsViewModel.openHouseholdInviteCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.OpenHouseholdInviteCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.OpenHouseholdInviteCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.SettingsViewModel.OpenHouseholdInviteAsync"/>.</summary>
         </member>
         <member name="F:Vitals.Maui.ViewModels.SettingsViewModel.signOutCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.SignOutCommand"/>.</summary>
@@ -2582,6 +2881,18 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.CustomDaysLabel">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "CustomDaysLabel" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.InviteeEmail">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "InviteeEmail" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.CanInvite">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "CanInvite" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.AvailableSlots">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "AvailableSlots" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.PendingInvites">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "PendingInvites" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IncidentDate">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IncidentDate" generated properties.</summary>
         </member>
@@ -2623,6 +2934,9 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Password">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Password" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowResendVerification">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowResendVerification" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Dosage">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Dosage" generated properties.</summary>
@@ -2786,6 +3100,12 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Weight">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Weight" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.InviteCode">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "InviteCode" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.CanCreateNewPatient">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "CanCreateNewPatient" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Subtitle">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Subtitle" generated properties.</summary>
         </member>
@@ -2812,6 +3132,15 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BothCardColor">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BothCardColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.SelectedTier">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "SelectedTier" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IndividualCardColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IndividualCardColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.FreeCardColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "FreeCardColor" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.CurrentStep">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "CurrentStep" generated properties.</summary>
@@ -3173,6 +3502,18 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.CustomDaysLabel">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "CustomDaysLabel" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.InviteeEmail">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "InviteeEmail" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.CanInvite">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "CanInvite" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.AvailableSlots">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "AvailableSlots" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.PendingInvites">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "PendingInvites" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IncidentDate">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IncidentDate" generated properties.</summary>
         </member>
@@ -3214,6 +3555,9 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Password">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Password" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowResendVerification">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowResendVerification" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Dosage">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Dosage" generated properties.</summary>
@@ -3377,6 +3721,12 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Weight">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Weight" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.InviteCode">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "InviteCode" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.CanCreateNewPatient">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "CanCreateNewPatient" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Subtitle">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Subtitle" generated properties.</summary>
         </member>
@@ -3403,6 +3753,15 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BothCardColor">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BothCardColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.SelectedTier">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "SelectedTier" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IndividualCardColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IndividualCardColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.FreeCardColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "FreeCardColor" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.CurrentStep">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "CurrentStep" generated properties.</summary>

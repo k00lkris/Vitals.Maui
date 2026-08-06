@@ -179,6 +179,24 @@ public class AuthService
         await SecureStorage.SetAsync("auth_display_name", _displayName ?? "");
     }
 
+    /// <summary>
+    /// Updates just the token and household_id — used after
+    /// /api/household/select-tier or /api/household/join, both of which
+    /// issue a fresh JWT reflecting a household_id that didn't exist (or
+    /// was different) when the user first signed in. Everything else about
+    /// the session (user_id, email, display_name) is unchanged, so there's
+    /// no need for the full AuthResult shape those calls go through
+    /// ApiService, not AuthService, since they require an already-valid
+    /// session — this just persists what they return.
+    /// </summary>
+    public async Task UpdateSessionAsync(string newToken, string newHouseholdId)
+    {
+        _jwt = newToken;
+        _householdId = newHouseholdId;
+        await SecureStorage.SetAsync("auth_jwt", _jwt);
+        await SecureStorage.SetAsync("auth_household_id", _householdId);
+    }
+
     // -------------------------------------------------------
     // Email/password auth
     // -------------------------------------------------------
@@ -237,7 +255,8 @@ public class AuthService
 
             if (!response.IsSuccessStatusCode)
             {
-                return EmailAuthResult.Failed(ExtractErrorDetail(raw));
+                var isUnverified = response.StatusCode == System.Net.HttpStatusCode.Forbidden;
+                return EmailAuthResult.Failed(ExtractErrorDetail(raw), isUnverifiedEmail: isUnverified);
             }
 
             var authResult = JsonSerializer.Deserialize<AuthResult>(raw, _jsonOptions);
@@ -396,8 +415,14 @@ public class AuthService
     {
         public bool Success { get; private set; }
         public string? ErrorMessage { get; private set; }
+        // True specifically when login failed because the account exists
+        // but hasn't verified its email (HTTP 403) — distinct from wrong
+        // password, wrong provider, etc. (401). Lets the UI offer a
+        // "resend verification" action only when it's actually relevant.
+        public bool IsUnverifiedEmail { get; private set; }
 
         public static EmailAuthResult Ok() => new() { Success = true };
-        public static EmailAuthResult Failed(string message) => new() { Success = false, ErrorMessage = message };
+        public static EmailAuthResult Failed(string message, bool isUnverifiedEmail = false) =>
+            new() { Success = false, ErrorMessage = message, IsUnverifiedEmail = isUnverifiedEmail };
     }
 }

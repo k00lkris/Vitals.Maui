@@ -67,6 +67,32 @@ public static class AppNavigation
             // false and wrongly get the "Welcome back, finish setup?"
             // prompt on their next launch for something they never started.
             Preferences.Set("onboarding_complete", true);
+
+            // DashboardPage/DashboardViewModel (like every main app page)
+            // are registered as Singletons — sensible for normal tab
+            // navigation within one session, but it means the "new"
+            // AppShell being constructed here still wraps the SAME
+            // long-lived Dashboard instance that was already showing the
+            // previous account's data. patientState.Reset() above clears
+            // the shared state correctly, but nothing then asks Dashboard
+            // to re-read it — OnAppearing isn't guaranteed to refire for a
+            // Singleton page being re-parented into a brand-new Shell.
+            // Force the reload explicitly here instead of depending on
+            // that page-lifecycle timing.
+            var dashboardVm = Application.Current!.Handler.MauiContext!
+                .Services.GetService<Vitals.Maui.ViewModels.DashboardViewModel>()!;
+            _ = dashboardVm.LoadAsync();
+
+            // Same underlying issue as Dashboard — SettingsViewModel is
+            // also a Singleton, and its DisplayName/Email are computed
+            // pass-throughs to AuthService with no automatic change
+            // notification. Without this, Settings would keep showing
+            // whichever account first used this device, indefinitely,
+            // regardless of who's actually signed in now.
+            var settingsVm = Application.Current!.Handler.MauiContext!
+                .Services.GetService<Vitals.Maui.ViewModels.SettingsViewModel>()!;
+            settingsVm.RefreshAccountInfo();
+
             SetRootPage(new Vitals.Maui.AppShell(patientState));
         }
     }

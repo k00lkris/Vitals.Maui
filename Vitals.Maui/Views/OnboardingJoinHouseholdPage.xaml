@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             x:Class="Vitals.Maui.Views.OnboardingJoinHouseholdPage"
+             x:DataType="vm:OnboardingJoinHouseholdViewModel"
+             NavigationPage.HasNavigationBar="False"
+             BackgroundColor="{DynamicResource PageBackground}">
+
+    <VerticalStackLayout Padding="24" Spacing="16" VerticalOptions="Center">
+
+        <Button Text="←"
+                Command="{Binding BackCommand}"
+                BackgroundColor="Transparent"
+                TextColor="{DynamicResource TextSecondary}"
+                FontSize="22"
+                HorizontalOptions="Start"
+                WidthRequest="44"
+                HeightRequest="44"
+                Padding="0" />
+
+        <Label Text="Join a household"
+               FontSize="26"
+               FontAttributes="Bold"
+               TextColor="{DynamicResource TextPrimary}"
+               HorizontalOptions="Center" />
+
+        <Label Text="Enter the code from the invite email you received."
+               FontSize="14"
+               TextColor="{DynamicResource TextSecondary}"
+               HorizontalOptions="Center"
+               HorizontalTextAlignment="Center"
+               Margin="16,0,16,8" />
+
+        <Border Padding="16"
+                BackgroundColor="{DynamicResource CardBackground}"
+                StrokeShape="RoundRectangle 12"
+                Stroke="{DynamicResource CardStroke}">
+            <Entry Placeholder="A7K9-2XPQ"
+                   Text="{Binding InviteCode}"
+                   TextColor="{DynamicResource TextPrimary}"
+                   PlaceholderColor="{DynamicResource TextMuted}"
+                   BackgroundColor="Transparent"
+                   HorizontalTextAlignment="Center"
+                   FontSize="20"
+                   FontAttributes="Bold" />
+        </Border>
+
+        <Label Text="{Binding StatusMessage}"
+               IsVisible="{Binding StatusMessage, Converter={StaticResource StringToBoolConverter}}"
+               FontSize="13"
+               TextColor="#d32f2f"
+               HorizontalOptions="Center"
+               HorizontalTextAlignment="Center" />
+
+        <Button Text="Join"
+                Command="{Binding JoinCommand}"
+                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
+                BackgroundColor="{DynamicResource ButtonBackground}"
+                TextColor="{DynamicResource TextPrimary}"
+                FontSize="16"
+                FontAttributes="Bold"
+                HeightRequest="56"
+                CornerRadius="12" />
+
+        <ActivityIndicator IsRunning="{Binding IsBusy}"
+                           IsVisible="{Binding IsBusy}"
+                           Color="{DynamicResource PrimaryAccent}"
+                           HorizontalOptions="Center" />
+
+    </VerticalStackLayout>
+</ContentPage>

@@ -93,6 +93,22 @@
                FontSize="13"
                HorizontalOptions="Center" />
 
+        <!-- Resend verification — only shown when a login attempt failed
+             specifically because the account isn't verified yet. This is
+             the only way back to a resend option from here, since the
+             user is on Login, not Sign Up, at this point. -->
+        <Button Text="Resend verification email"
+                Command="{Binding ResendVerificationCommand}"
+                IsVisible="{Binding ShowResendVerification}"
+                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
+                BackgroundColor="Transparent"
+                TextColor="{DynamicResource PrimaryAccent}"
+                FontSize="14"
+                FontAttributes="Bold"
+                Padding="0"
+                BorderWidth="0"
+                HorizontalOptions="Center" />
+
         <!-- Busy -->
         <ActivityIndicator IsRunning="{Binding IsBusy}"
                            IsVisible="{Binding IsBusy}"

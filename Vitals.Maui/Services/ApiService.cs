@@ -21,11 +21,12 @@ public class ApiService
         };
     }
 
-    public async Task<List<Patient>> GetPatientsAsync()
+    public async Task<List<Patient>> GetPatientsAsync(bool excludeSelfClaimed = false)
     {
         try
         {
-            var response = await _http.GetAsync("/api/patients");
+            var url = excludeSelfClaimed ? "/api/patients?exclude_self_claimed=true" : "/api/patients";
+            var response = await _http.GetAsync(url);
             var raw = await response.Content.ReadAsStringAsync();
             System.Diagnostics.Debug.WriteLine($"=== PATIENTS STATUS: {response.StatusCode}");
             System.Diagnostics.Debug.WriteLine($"=== PATIENTS BODY: {raw}");
@@ -69,6 +70,34 @@ public class ApiService
         {
             System.Diagnostics.Debug.WriteLine($"=== ADD PATIENT ERROR: {ex.Message}");
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Links the caller to an existing patient as 'self' — called after
+    /// the user confirms (via a DOB/gender verification prompt) that an
+    /// existing patient in the Join flow's "attach to existing" list
+    /// really is them. Returns a friendly error (e.g. already claimed by
+    /// someone else) via the shared ExtractErrorDetail parser on failure.
+    /// </summary>
+    public async Task<InviteActionResult> ClaimPatientAsync(string patientId)
+    {
+        try
+        {
+            var response = await _http.PostAsync($"/api/patients/{patientId}/claim", null);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine($"=== CLAIM PATIENT STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return InviteActionResult.Failed(ExtractErrorDetail(raw));
+            }
+            return InviteActionResult.Ok();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== CLAIM PATIENT ERROR: {ex.Message}");
+            return InviteActionResult.Failed("Couldn't reach the server. Check your connection and try again.");
         }
     }
 
@@ -568,6 +597,174 @@ public class ApiService
     // =====================================================
     // USER PREFERENCES
     // =====================================================
+    // =====================================================
+    // HOUSEHOLD — TIER SELECTION / JOIN / INVITES
+    // =====================================================
+
+    /// <summary>
+    /// Creates a household with the selected tier (individual/family/free)
+    /// and attaches the caller to it. Returns the new token + household_id
+    /// on success — caller is responsible for handing that to
+    /// AuthService.UpdateSessionAsync(). Returns null on failure.
+    /// </summary>
+    public async Task<HouseholdSessionResult?> SelectTierAsync(string tier)
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(new { tier }, _jsonOptions);
+            var content = new StringContent(payload, Encoding.UTF8, "application/json");
+            var response = await _http.PostAsync("/api/household/select-tier", content);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine($"=== SELECT TIER STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode) return null;
+            return JsonSerializer.Deserialize<HouseholdSessionResult>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== SELECT TIER ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Redeems an invite code, attaching the caller to the inviting
+    /// household. Always succeeds for a valid code regardless of patient
+    /// count — CanCreateNewPatient tells the caller whether to offer
+    /// "create a new patient" on the next screen, or only "attach to an
+    /// existing one." Returns null on an invalid/expired/used code.
+    /// </summary>
+    public async Task<JoinHouseholdResult?> JoinHouseholdAsync(string inviteCode)
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(new { invite_code = inviteCode }, _jsonOptions);
+            var content = new StringContent(payload, Encoding.UTF8, "application/json");
+            var response = await _http.PostAsync("/api/household/join", content);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine($"=== JOIN HOUSEHOLD STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new JoinHouseholdResult { Success = false, ErrorMessage = ExtractErrorDetail(raw) };
+            }
+
+            var result = JsonSerializer.Deserialize<JoinHouseholdResult>(raw, _jsonOptions);
+            if (result is not null) result.Success = true;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== JOIN HOUSEHOLD ERROR: {ex.Message}");
+            return new JoinHouseholdResult { Success = false, ErrorMessage = "Couldn't reach the server. Check your connection and try again." };
+        }
+    }
+
+    /// <summary>
+    /// Sends a household invite to the given email. Returns a friendly
+    /// error (e.g. "no available slots") on failure via the shared
+    /// ExtractErrorDetail parser.
+    /// </summary>
+    public async Task<InviteActionResult> CreateHouseholdInviteAsync(string invitieeEmail)
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(new { invitee_email = invitieeEmail }, _jsonOptions);
+            var content = new StringContent(payload, Encoding.UTF8, "application/json");
+            var response = await _http.PostAsync("/api/household/invite", content);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine($"=== CREATE INVITE STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return InviteActionResult.Failed(ExtractErrorDetail(raw));
+            }
+            return InviteActionResult.Ok();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== CREATE INVITE ERROR: {ex.Message}");
+            return InviteActionResult.Failed("Couldn't reach the server. Check your connection and try again.");
+        }
+    }
+
+    public async Task<List<PendingInvite>> GetPendingInvitesAsync()
+    {
+        try
+        {
+            var response = await _http.GetAsync("/api/household/invites");
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine($"=== PENDING INVITES STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode) return new List<PendingInvite>();
+
+            var wrapper = JsonSerializer.Deserialize<PendingInvitesResponse>(raw, _jsonOptions);
+            return wrapper?.Invites ?? new List<PendingInvite>();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== PENDING INVITES ERROR: {ex.Message}");
+            return new List<PendingInvite>();
+        }
+    }
+
+    public async Task<bool> CancelInviteAsync(string inviteId)
+    {
+        try
+        {
+            var response = await _http.DeleteAsync($"/api/household/invite/{inviteId}");
+            System.Diagnostics.Debug.WriteLine($"=== CANCEL INVITE STATUS: {response.StatusCode}");
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== CANCEL INVITE ERROR: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Lets the Settings invite screen proactively disable "Invite" using
+    /// the same slot math the server enforces, rather than only finding
+    /// out after tapping it and getting a 403.
+    /// </summary>
+    public async Task<HouseholdStatus?> GetHouseholdStatusAsync()
+    {
+        try
+        {
+            var response = await _http.GetAsync("/api/household/status");
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine($"=== HOUSEHOLD STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode) return null;
+            return JsonSerializer.Deserialize<HouseholdStatus>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== HOUSEHOLD STATUS ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Same "{detail: ...}" parsing AuthService uses for its own errors —
+    /// duplicated here (not shared) since ApiService and AuthService use
+    /// separate HttpClients and neither currently depends on the other.
+    /// </summary>
+    private static string ExtractErrorDetail(string rawResponseBody)
+    {
+        try
+        {
+            var json = JsonSerializer.Deserialize<JsonElement>(rawResponseBody);
+            if (json.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
+            {
+                return detail.GetString() ?? "Something went wrong. Please try again.";
+            }
+        }
+        catch { /* fall through */ }
+        return "Something went wrong. Please try again.";
+    }
+
     public async Task<bool> UpdateUserPreferencesAsync(string userId, object payload)
     {
         try
@@ -585,4 +782,65 @@ public class ApiService
             return false;
         }
     }
+}
+
+public class HouseholdSessionResult
+{
+    public string Token { get; set; } = string.Empty;
+    [JsonPropertyName("household_id")]
+    public string HouseholdId { get; set; } = string.Empty;
+    public string Tier { get; set; } = string.Empty;
+}
+
+public class JoinHouseholdResult
+{
+    [JsonIgnore]
+    public bool Success { get; set; }
+    [JsonIgnore]
+    public string? ErrorMessage { get; set; }
+
+    public string Token { get; set; } = string.Empty;
+    [JsonPropertyName("household_id")]
+    public string HouseholdId { get; set; } = string.Empty;
+    [JsonPropertyName("can_create_new_patient")]
+    public bool CanCreateNewPatient { get; set; }
+}
+
+public class InviteActionResult
+{
+    public bool Success { get; private set; }
+    public string? ErrorMessage { get; private set; }
+    public static InviteActionResult Ok() => new() { Success = true };
+    public static InviteActionResult Failed(string message) => new() { Success = false, ErrorMessage = message };
+}
+
+public class PendingInvite
+{
+    [JsonPropertyName("invite_id")]
+    public string InviteId { get; set; } = string.Empty;
+    [JsonPropertyName("invited_email")]
+    public string InvitedEmail { get; set; } = string.Empty;
+    [JsonPropertyName("created_at")]
+    public string CreatedAt { get; set; } = string.Empty;
+    [JsonPropertyName("expires_at")]
+    public string ExpiresAt { get; set; } = string.Empty;
+}
+
+public class PendingInvitesResponse
+{
+    public List<PendingInvite> Invites { get; set; } = new();
+}
+
+public class HouseholdStatus
+{
+    [JsonPropertyName("patient_limit")]
+    public int PatientLimit { get; set; }
+    [JsonPropertyName("patient_count")]
+    public int PatientCount { get; set; }
+    [JsonPropertyName("pending_invite_count")]
+    public int PendingInviteCount { get; set; }
+    [JsonPropertyName("available_slots")]
+    public int AvailableSlots { get; set; }
+    [JsonPropertyName("can_invite")]
+    public bool CanInvite { get; set; }
 }

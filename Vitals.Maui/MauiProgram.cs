@@ -80,6 +80,10 @@ public static class MauiProgram
         builder.Services.AddTransient<OnboardingVitalPreferencesViewModel>();
         builder.Services.AddTransient<OnboardingFirstVitalReadingViewModel>();
         builder.Services.AddTransient<OnboardingResumePromptViewModel>();
+        builder.Services.AddTransient<OnboardingPlanSelectionViewModel>();
+        builder.Services.AddTransient<OnboardingJoinHouseholdViewModel>();
+        builder.Services.AddTransient<OnboardingJoinPatientSelectionViewModel>();
+        builder.Services.AddTransient<HouseholdInviteViewModel>();
 
 
         // Views
@@ -111,6 +115,10 @@ public static class MauiProgram
         builder.Services.AddTransient<OnboardingVitalPreferencesPage>();
         builder.Services.AddTransient<OnboardingFirstVitalReadingPage>();
         builder.Services.AddTransient<OnboardingResumePromptPage>();
+        builder.Services.AddTransient<OnboardingPlanSelectionPage>();
+        builder.Services.AddTransient<OnboardingJoinHouseholdPage>();
+        builder.Services.AddTransient<OnboardingJoinPatientSelectionPage>();
+        builder.Services.AddTransient<HouseholdInvitePage>();
 
 #if DEBUG
         builder.Logging.AddDebug();
