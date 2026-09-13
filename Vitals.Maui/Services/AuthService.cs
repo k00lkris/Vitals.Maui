@@ -16,6 +16,7 @@ public class AuthService
     private string? _householdId;
     private string? _email;
     private string? _displayName;
+    private string? _authProvider;
     private bool _isNewUser;
 
     public bool IsAuthenticated => !string.IsNullOrEmpty(_jwt);
@@ -23,6 +24,10 @@ public class AuthService
     public string? HouseholdId => _householdId;
     public string? Email => _email;
     public string? DisplayName => _displayName;
+    // Raw value from the backend: "password", "google.com", or (once built)
+    // "apple.com" — SettingsViewModel maps this to a friendly label rather
+    // than displaying the raw string directly.
+    public string? AuthProvider => _authProvider;
 
     // Only meaningful immediately after a successful SignInWithGoogleAsync()
     // call — reflects what /api/auth/google's is_new_user said about THIS
@@ -170,6 +175,7 @@ public class AuthService
         _householdId = authResult.HouseholdId;
         _email = authResult.Email;
         _displayName = authResult.DisplayName;
+        _authProvider = authResult.AuthProvider;
         _isNewUser = authResult.IsNewUser;
 
         await SecureStorage.SetAsync("auth_jwt", _jwt);
@@ -177,6 +183,7 @@ public class AuthService
         await SecureStorage.SetAsync("auth_household_id", _householdId);
         await SecureStorage.SetAsync("auth_email", _email ?? "");
         await SecureStorage.SetAsync("auth_display_name", _displayName ?? "");
+        await SecureStorage.SetAsync("auth_provider", _authProvider ?? "");
     }
 
     /// <summary>
@@ -330,6 +337,7 @@ public class AuthService
             _householdId = await SecureStorage.GetAsync("auth_household_id");
             _email = await SecureStorage.GetAsync("auth_email");
             _displayName = await SecureStorage.GetAsync("auth_display_name");
+            _authProvider = await SecureStorage.GetAsync("auth_provider");
 
             if (!IsAuthenticated) return false;
 
@@ -388,12 +396,13 @@ public class AuthService
     // -------------------------------------------------------
     public void SignOut()
     {
-        _jwt = _userId = _householdId = _email = _displayName = null;
+        _jwt = _userId = _householdId = _email = _displayName = _authProvider = null;
         SecureStorage.Remove("auth_jwt");
         SecureStorage.Remove("auth_user_id");
         SecureStorage.Remove("auth_household_id");
         SecureStorage.Remove("auth_email");
         SecureStorage.Remove("auth_display_name");
+        SecureStorage.Remove("auth_provider");
     }
 
     public string? GetAuthHeader() =>
@@ -406,6 +415,9 @@ public class AuthService
         public string HouseholdId { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
+
+        [JsonPropertyName("auth_provider")]
+        public string? AuthProvider { get; set; }
 
         [JsonPropertyName("is_new_user")]
         public bool IsNewUser { get; set; }

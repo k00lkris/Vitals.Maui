@@ -307,7 +307,7 @@
                                TextColor="{DynamicResource TextSecondary}" />
                         </VerticalStackLayout>
                         <Label Grid.Column="1"
-                           Text="Google"
+                           Text="{Binding AuthProviderDisplay}"
                            FontSize="11"
                            TextColor="{DynamicResource TextMuted}"
                            VerticalOptions="Center" />

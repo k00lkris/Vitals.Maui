@@ -13,6 +13,15 @@
             Returns null on failure.
             </summary>
         </member>
+        <member name="M:Vitals.Maui.Services.ApiService.ClaimPatientAsync(System.String)">
+            <summary>
+            Links the caller to an existing patient as 'self' — called after
+            the user confirms (via a DOB/gender verification prompt) that an
+            existing patient in the Join flow's "attach to existing" list
+            really is them. Returns a friendly error (e.g. already claimed by
+            someone else) via the shared ExtractErrorDetail parser on failure.
+            </summary>
+        </member>
         <member name="M:Vitals.Maui.Services.ApiService.SelectTierAsync(System.String)">
             <summary>
             Creates a household with the selected tier (individual/family/free)
@@ -1633,10 +1642,23 @@
         <member name="M:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.LoadAsync(System.Boolean)">
             <summary>
             Loads the household's existing patients — this is who the joining
-            user can choose to attach to as their default view. canCreateNewPatient
-            comes straight from /api/household/join's response (see
+            user can choose to attach to as their default view. Excludes any
+            patient already claimed with relationship='self' by someone else,
+            so an already-claimed identity (e.g. the account holder's own
+            record) can never appear as an option for a second person to
+            mistakenly confirm as themselves. canCreateNewPatient comes
+            straight from /api/household/join's response (see
             AuthService/ApiService), computed server-side against the
             household's actual patient_limit vs current count.
+            </summary>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.ContinueAsync">
+            <summary>
+            Shows a DOB/gender confirmation before actually claiming the
+            patient — a plain name match is easy to mis-tap, especially with
+            duplicate-sounding names (exactly what prompted this: two patients
+            both literally named "Spartan"). Only calls ClaimPatientAsync
+            (the real, server-side "self" link) after explicit confirmation.
             </summary>
         </member>
         <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.Patients">
@@ -1664,7 +1686,7 @@
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.ContinueCommand"/>.</summary>
         </member>
         <member name="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.ContinueCommand">
-            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.Continue"/>.</summary>
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.ContinueAsync"/>.</summary>
         </member>
         <member name="F:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.createNewPatientCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingJoinPatientSelectionViewModel.CreateNewPatientCommand"/>.</summary>

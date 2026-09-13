@@ -21,6 +21,18 @@ public partial class SettingsViewModel : ObservableObject
     public string DisplayName => _auth.DisplayName ?? "Unknown";
     public string Email => _auth.Email ?? "";
 
+    // Maps the raw backend value ("password", "google.com", "apple.com")
+    // to what's actually shown on screen — same computed pass-through
+    // pattern as DisplayName/Email above, same reason it needs
+    // RefreshAccountInfo() to update after an account switch.
+    public string AuthProviderDisplay => _auth.AuthProvider switch
+    {
+        "password" => "Email",
+        "google.com" => "Google",
+        "apple.com" => "Apple",
+        _ => "Unknown",
+    };
+
     public string ThemeDarkColor => CurrentTheme == "dark" ? "#0f3460" : "Transparent";
     public string ThemeLightColor => CurrentTheme == "light" ? "#0f3460" : "Transparent";
     public string ThemeVitalsBlueColor => CurrentTheme == "vitals_blue" ? "#0f3460" : "Transparent";
@@ -48,6 +60,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(DisplayName));
         OnPropertyChanged(nameof(Email));
+        OnPropertyChanged(nameof(AuthProviderDisplay));
     }
 
     private void LoadPreferences()
