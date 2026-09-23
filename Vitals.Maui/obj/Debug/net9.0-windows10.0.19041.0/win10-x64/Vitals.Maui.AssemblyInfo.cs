@@ -18,7 +18,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Vitals.Maui")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0+8c968ee57cc93cb023d388d41bb586cf57077423")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0+361a90e51fd2adb08a3ff7c3893c6180edf01a35")]
 [assembly: System.Reflection.AssemblyProductAttribute("Vitals.Maui")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Vitals.Maui")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

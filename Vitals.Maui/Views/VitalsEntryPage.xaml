@@ -116,6 +116,63 @@
                                    Placeholder="—"
                                    WidthRequest="80" />
                         </Grid>
+
+                        <!-- Activity Context & Posture (optional) — the two fields
+                             that gate "eligible resting" heart-rate analysis. Tap
+                             to select; tapping the same option again clears it back
+                             to unknown, since neither is required to submit. -->
+                        <Grid Padding="28,0,4,10" ColumnDefinitions="*" RowDefinitions="Auto,Auto,Auto,Auto">
+                            <Label Grid.Row="0"
+                                   Text="What were they doing? (optional)"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   Margin="0,0,0,6" />
+                            <HorizontalStackLayout Grid.Row="1" Spacing="6">
+                                <Border Padding="10,6" StrokeShape="RoundRectangle 8" Stroke="{Binding RestingColor}" StrokeThickness="1.5">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectRestingCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Resting" FontSize="13" TextColor="{DynamicResource TextPrimary}" />
+                                </Border>
+                                <Border Padding="10,6" StrokeShape="RoundRectangle 8" Stroke="{Binding PostActivityColor}" StrokeThickness="1.5">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectPostActivityCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Just after activity" FontSize="13" TextColor="{DynamicResource TextPrimary}" />
+                                </Border>
+                                <Border Padding="10,6" StrokeShape="RoundRectangle 8" Stroke="{Binding DuringActivityColor}" StrokeThickness="1.5">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectDuringActivityCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="During activity" FontSize="13" TextColor="{DynamicResource TextPrimary}" />
+                                </Border>
+                            </HorizontalStackLayout>
+                            <Label Grid.Row="2"
+                                   Text="Position (optional)"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   Margin="0,12,0,6" />
+                            <HorizontalStackLayout Grid.Row="3" Spacing="6">
+                                <Border Padding="10,6" StrokeShape="RoundRectangle 8" Stroke="{Binding SeatedColor}" StrokeThickness="1.5">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectSeatedCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Seated" FontSize="13" TextColor="{DynamicResource TextPrimary}" />
+                                </Border>
+                                <Border Padding="10,6" StrokeShape="RoundRectangle 8" Stroke="{Binding SupineColor}" StrokeThickness="1.5">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectSupineCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Lying down" FontSize="13" TextColor="{DynamicResource TextPrimary}" />
+                                </Border>
+                                <Border Padding="10,6" StrokeShape="RoundRectangle 8" Stroke="{Binding StandingColor}" StrokeThickness="1.5">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectStandingCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Standing" FontSize="13" TextColor="{DynamicResource TextPrimary}" />
+                                </Border>
+                            </HorizontalStackLayout>
+                        </Grid>
                     </VerticalStackLayout>
 
                     <!-- SpO2 — toggled by ShowSpo2 -->

@@ -2430,6 +2430,12 @@
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
         </member>
         <member name="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.LoadDisplayPreferences">
             <summary>
@@ -2487,6 +2493,66 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.ShowGlucose">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._showGlucose"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.HrActivityContext">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._hrActivityContext"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.RestingColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._restingColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.PostActivityColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._postActivityColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.DuringActivityColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._duringActivityColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.HrPosture">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._hrPosture"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SeatedColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._seatedColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SupineColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._supineColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.StandingColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._standingColor"/>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectRestingCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectRestingCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectRestingCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectResting"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectPostActivityCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectPostActivityCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectPostActivityCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectPostActivity"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectDuringActivityCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectDuringActivityCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectDuringActivityCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectDuringActivity"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectSeatedCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectSeatedCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectSeatedCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectSeated"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectSupineCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectSupineCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectSupineCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectSupine"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectStandingCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectStandingCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectStandingCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectStanding"/>.</summary>
         </member>
         <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.loadCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.LoadCommand"/>.</summary>
@@ -3287,6 +3353,30 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.DiastolicWarningText">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "DiastolicWarningText" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HrActivityContext">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HrActivityContext" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.RestingColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "RestingColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.PostActivityColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "PostActivityColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.DuringActivityColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "DuringActivityColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HrPosture">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HrPosture" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.SeatedColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "SeatedColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.SupineColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "SupineColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.StandingColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "StandingColor" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Rows">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Rows" generated properties.</summary>
         </member>
@@ -3907,6 +3997,30 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.DiastolicWarningText">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "DiastolicWarningText" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HrActivityContext">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HrActivityContext" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.RestingColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "RestingColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.PostActivityColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "PostActivityColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.DuringActivityColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "DuringActivityColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HrPosture">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HrPosture" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.SeatedColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "SeatedColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.SupineColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "SupineColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.StandingColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "StandingColor" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Rows">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Rows" generated properties.</summary>
