@@ -36,7 +36,7 @@ public class VitalsAnalysis
     public HeartRateAnalysis? HeartRate { get; set; }
 
     [JsonPropertyName("spo2")]
-    public SecondaryAnalysis? Spo2 { get; set; }
+    public SpO2Analysis? Spo2 { get; set; }
 
     [JsonPropertyName("temperature")]
     public SecondaryAnalysis? Temperature { get; set; }

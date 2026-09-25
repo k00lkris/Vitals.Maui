@@ -93,6 +93,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     [ObservableProperty] private string _hrSummary = string.Empty;
     [ObservableProperty] private string _hrPcpLine = string.Empty;
     [ObservableProperty] private string _spo2Summary = string.Empty;
+    [ObservableProperty] private string _spo2PcpLine = string.Empty;
     [ObservableProperty] private string _tempSummary = string.Empty;
 
     [ObservableProperty] private bool _showDiastolicWarning = false;
@@ -759,48 +760,198 @@ public partial class VitalsAnalysisViewModel : ObservableObject
 
     private void BuildSpo2Summary(VitalsAnalysis a)
     {
-        if (a.Spo2 is null) { Spo2Summary = string.Empty; return; }
+        if (a.Spo2 is null)
+        {
+            Spo2Summary = string.Empty;
+            Spo2PcpLine = string.Empty;
+            return;
+        }
+
         var spo2 = a.Spo2;
         var parts = new List<string>();
 
-        parts.Add(spo2.Classification switch
+        // -----------------------------------------------------
+        // 1. Central tendency (all logged readings, not resting-
+        //    filtered — there's no spo2_context table yet)
+        // -----------------------------------------------------
+        if (spo2.SpotSummary is not null)
         {
-            "mild_hypoxemia" =>
-                $"Average oxygen saturation of {spo2.Avg:F1}% is mildly below normal. " +
-                "Values between 92–94% may warrant supplemental oxygen evaluation.",
-            "moderate_hypoxemia" =>
-                $"Average oxygen saturation of {spo2.Avg:F1}% is moderately low. " +
-                "This range is associated with significant breathing difficulty and should be evaluated promptly.",
-            "severe_hypoxemia" =>
-                $"Average oxygen saturation of {spo2.Avg:F1}% is critically low. " +
-                "Readings below 88% require immediate medical attention.",
-            _ =>
-                $"Average oxygen saturation of {spo2.Avg:F1}% is within the normal range (≥95%)."
-        });
-
-        parts.Add(spo2.Trend switch
+            var ss = spo2.SpotSummary;
+            parts.Add(
+                $"Across {ss.N} logged readings on {ss.DistinctDays} days, oxygen " +
+                $"saturation averaged {ss.Mean:F1}%, with a typical value near " +
+                $"{ss.Median:F1}% and a recorded range of {ss.Min}\u2013{ss.Max}%.");
+        }
+        else if (spo2.Spo2 is not null)
         {
-            "rising_significant" => "Oxygenation has been improving significantly — a positive sign.",
-            "rising" => "Oxygenation has been gradually improving.",
-            "falling_significant" => "Oxygenation has been declining significantly. This warrants medical attention.",
-            "falling" => "Oxygenation has been gradually declining.",
-            _ => "Oxygenation has been stable over this period."
-        });
-
-        var burden = spo2.Spo2Burden;
-        if (burden is not null)
-        {
-            if (burden.SevereHypoxemiaPct >= 5)
-                parts.Add($"About {burden.SevereHypoxemiaPct:F0}% of readings were critically low (below 88%) — this requires clinical review.");
-            else if (burden.ModerateHypoxemiaPct >= 10)
-                parts.Add($"About {burden.ModerateHypoxemiaPct:F0}% of readings were in the moderate hypoxemia range (88–91%).");
-            else if (burden.MildHypoxemiaPct >= 15)
-                parts.Add($"About {burden.MildHypoxemiaPct:F0}% of readings were mildly low (92–94%).");
-            else if (burden.NormalPct >= 80)
-                parts.Add($"{burden.NormalPct:F0}% of readings were in the normal range (≥95%).");
+            parts.Add(
+                $"The latest oxygen saturation reading was {spo2.Spo2}%. " +
+                "More logged readings are needed before Vitals can describe a reliable pattern.");
         }
 
-        Spo2Summary = string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+        // -----------------------------------------------------
+        // 2. Trend
+        // -----------------------------------------------------
+        if (spo2.Trend is not null)
+        {
+            var trend = spo2.Trend;
+
+            parts.Add(trend.TrendLabel switch
+            {
+                "rising_significant" =>
+                    $"Oxygen saturation has been rising over this period. The modeled rate " +
+                    $"of change is {trend.SlopeDisplay}, and the trend is statistically significant.",
+                "rising" =>
+                    $"Oxygen saturation has shown a gradual upward pattern ({trend.SlopeDisplay}), " +
+                    "but the available readings do not yet show a statistically significant trend.",
+                "falling_significant" =>
+                    $"Oxygen saturation has been falling over this period. The modeled rate " +
+                    $"of change is {trend.SlopeDisplay}, and the trend is statistically significant.",
+                "falling" =>
+                    $"Oxygen saturation has shown a gradual downward pattern ({trend.SlopeDisplay}), " +
+                    "but the available readings do not yet show a statistically significant trend.",
+                _ =>
+                    "Oxygen saturation has remained generally stable over this period."
+            });
+
+            parts.Add(trend.Consistency switch
+            {
+                "high" => "The readings follow this overall pattern fairly consistently.",
+                "moderate" => "There is some day-to-day variation around the overall trend.",
+                "low" =>
+                    "The readings vary considerably around the trend line, so the overall " +
+                    "direction should be interpreted cautiously.",
+                _ => string.Empty
+            });
+        }
+
+        // -----------------------------------------------------
+        // 3. Personal-baseline comparison
+        // -----------------------------------------------------
+        if (spo2.BaselineDeviation is not null)
+        {
+            var bd = spo2.BaselineDeviation;
+
+            if (Math.Abs(bd.DeltaPctPoints) >= 1)
+            {
+                var direction = bd.DeltaPctPoints > 0 ? "higher" : "lower";
+                parts.Add(
+                    $"More recently, the typical reading has been {bd.RecentMedian:F1}%, " +
+                    $"which is about {Math.Abs(bd.DeltaPctPoints):F1} points {direction} than " +
+                    $"the earlier personal baseline of {bd.BaselineMedian:F1}%.");
+            }
+            else
+            {
+                parts.Add(
+                    $"The recent readings are close to the established personal baseline " +
+                    $"({bd.RecentMedian:F1}% versus {bd.BaselineMedian:F1}%).");
+            }
+        }
+
+        // -----------------------------------------------------
+        // 4. Low observations, confirmed episodes, marked-low
+        // -----------------------------------------------------
+        if (spo2.LowObservations is not null && spo2.LowObservations.Count > 0)
+        {
+            var low = spo2.LowObservations;
+            var pctNote = low.HasPct ? $" ({low.PctOfLoggedReadings:F0}% of logged readings)" : string.Empty;
+
+            parts.Add(
+                $"{low.Count} logged reading{(low.Count == 1 ? " was" : "s were")} below " +
+                $"{low.Threshold}%{pctNote}. These are recorded observations, not a diagnosis " +
+                "of a breathing or oxygenation condition.");
+
+            if (spo2.HasConfirmedEpisodes)
+            {
+                var ep = spo2.ConfirmedLowObservations!;
+                parts.Add(
+                    $"{ep.EpisodeCount} of these {(ep.EpisodeCount == 1 ? "was a repeat-confirmed episode" : "were repeat-confirmed episodes")} " +
+                    $"\u2014 at least two below-target readings within {ep.ConfirmationRuleMinutes} minutes of each other. " +
+                    "Confirmation improves confidence but does not establish a diagnosis on its own.");
+            }
+
+            if (spo2.HasMarkedLow)
+            {
+                var marked = spo2.MarkedLowObservations!;
+                parts.Add(
+                    $"{marked.Count} reading{(marked.Count == 1 ? " was" : "s were")} below " +
+                    $"{marked.Threshold}%. Symptoms occurring near these readings are important " +
+                    "context for the care team.");
+            }
+        }
+
+        // -----------------------------------------------------
+        // 5. Time-of-day pattern
+        // -----------------------------------------------------
+        if (spo2.HasTimeOfDayPattern)
+        {
+            var pattern = spo2.TimeOfDay!.PatternSummary!;
+            parts.Add(
+                $"A time-of-day pattern is also visible: readings have tended to be highest " +
+                $"during {FormatSpo2Period(pattern.HighestPeriod)} and lowest during " +
+                $"{FormatSpo2Period(pattern.LowestPeriod)}, a difference of about " +
+                $"{pattern.MedianDelta:F1} points.");
+        }
+
+        Spo2Summary = string.Join(
+            " ",
+            parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+        BuildSpo2PcpLine(a);
+    }
+
+    private void BuildSpo2PcpLine(VitalsAnalysis a)
+    {
+        if (a.Spo2 is null || string.IsNullOrWhiteSpace(a.PcpName))
+        {
+            Spo2PcpLine = string.Empty;
+            return;
+        }
+
+        var spo2 = a.Spo2;
+
+        bool hasLowObservations = (spo2.LowObservations?.Count ?? 0) > 0;
+        bool hasConfirmedEpisodes = spo2.HasConfirmedEpisodes;
+        bool hasMarkedLow = spo2.HasMarkedLow;
+
+        bool hasSignificantTrend =
+            spo2.Trend?.TrendLabel is "rising_significant" or "falling_significant";
+
+        bool hasBaselineChange =
+            spo2.BaselineDeviation is not null &&
+            Math.Abs(spo2.BaselineDeviation.DeltaPctPoints) >= 2;
+
+        var somethingToDiscuss =
+            hasLowObservations ||
+            hasConfirmedEpisodes ||
+            hasMarkedLow ||
+            hasSignificantTrend ||
+            hasBaselineChange;
+
+        if (!somethingToDiscuss)
+        {
+            Spo2PcpLine = !string.IsNullOrWhiteSpace(a.NextFollowup)
+                ? $"Consider sharing this oxygen-saturation summary with {a.PcpName} at the appointment on {a.NextFollowup}."
+                : $"Consider sharing this oxygen-saturation summary with {a.PcpName} at the next visit.";
+
+            return;
+        }
+
+        Spo2PcpLine = !string.IsNullOrWhiteSpace(a.NextFollowup)
+            ? $"Consider discussing the oxygen-saturation patterns highlighted above with {a.PcpName} at the appointment on {a.NextFollowup}."
+            : $"Consider discussing the oxygen-saturation patterns highlighted above with {a.PcpName} at the next visit.";
+    }
+
+    private static string FormatSpo2Period(string period)
+    {
+        return period switch
+        {
+            "morning" => "the morning",
+            "afternoon" => "the afternoon",
+            "evening" => "the evening",
+            "overnight" => "overnight",
+            _ => period.Replace("_", " ")
+        };
     }
 
     private void BuildTempSummary(VitalsAnalysis a)

@@ -980,106 +980,291 @@
                     <!-- ==================== SPO2 TAB ==================== -->
                     <VerticalStackLayout Spacing="12" IsVisible="{Binding ShowSpo2}">
 
+                        <!-- Latest reading + context -->
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
                             <VerticalStackLayout Spacing="4">
-                                <Label Text="SpO₂ Classification" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
-                                <Label Text="{Binding Analysis.Spo2.Spo2ClassificationDisplay}" FontSize="18" FontAttributes="Bold">
-                                    <Label.TextColor>
-                                        <Binding Path="Analysis.Spo2.Spo2ClassificationColor" />
-                                    </Label.TextColor>
-                                </Label>
-                                <Label Text="{Binding Analysis.Spo2.Avg, StringFormat='Avg {0:F1}%'}"
-                                       FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                                <Label Text="Latest Reading" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Spo2.Spo2, StringFormat='{0}%'}"
+                                       FontSize="24" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Spo2.RecordedAt, StringFormat='{0:MMM d, yyyy \\a\\t h:mm tt}'}"
+                                       FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                                <Label Text="{Binding Analysis.Spo2.TargetProfile.SourceDisplay}"
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}" Margin="0,4,0,0" />
                             </VerticalStackLayout>
                         </Border>
 
+                        <!-- Plain-English summary -->
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
-                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
-                            <VerticalStackLayout Spacing="10">
-                                <Label Text="OXYGEN SATURATION TREND" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource PrimaryAccent}" />
-                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="10">
-                                    <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="2">
-                                        <Label Text="Direction" FontSize="11" TextColor="{DynamicResource TextMuted}" />
-                                        <Label FontSize="14" FontAttributes="Bold">
-                                            <Label.FormattedText>
-                                                <FormattedString>
-                                                    <Span Text="{Binding Analysis.Spo2.TrendArrow, Mode=OneWay}" FontSize="16" />
-                                                    <Span Text="  " />
-                                                    <Span Text="{Binding Analysis.Spo2.TrendLabel, Mode=OneWay}" />
-                                                </FormattedString>
-                                            </Label.FormattedText>
-                                            <Label.TextColor>
-                                                <Binding Path="Analysis.Spo2.TrendColor" />
-                                            </Label.TextColor>
-                                        </Label>
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Spo2Summary, Converter={StaticResource StringToBoolConverter}}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="In Plain English" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Spo2Summary}" FontSize="13" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Central tendency (all logged readings — no resting filter yet) -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Spo2.HasSpotSummary}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Average" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Spo2.SpotSummary.Mean, StringFormat='{0:F1}% mean  ·  {1:F1}% median'}"
+                                       FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,0">
+                                    <VerticalStackLayout Grid.Column="0">
+                                        <Label Text="{Binding Analysis.Spo2.SpotSummary.N}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" HorizontalOptions="Center" />
+                                        <Label Text="readings" FontSize="10" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
                                     </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="2">
-                                        <Label Text="Rate of Change" FontSize="11" TextColor="{DynamicResource TextMuted}" />
-                                        <Label Text="{Binding Analysis.Spo2.SlopeDisplay, StringFormat='{0} %/day'}"
-                                               FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                    <VerticalStackLayout Grid.Column="1">
+                                        <Label Text="{Binding Analysis.Spo2.SpotSummary.DistinctDays}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" HorizontalOptions="Center" />
+                                        <Label Text="days" FontSize="10" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
                                     </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Row="1" Grid.Column="0" Spacing="2">
-                                        <Label Text="Significance" FontSize="11" TextColor="{DynamicResource TextMuted}" />
-                                        <Label Text="{Binding Analysis.Spo2.PValueDisplay}"
-                                               FontSize="13" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Row="1" Grid.Column="1" Spacing="2">
-                                        <Label Text="Consistency" FontSize="11" TextColor="{DynamicResource TextMuted}" />
-                                        <Label Text="{Binding Analysis.Spo2.ConsistencyLabel}"
-                                               FontSize="13" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
+                                    <VerticalStackLayout Grid.Column="2">
+                                        <Label Text="{Binding Analysis.Spo2.SpotSummary.Range, StringFormat='{0} pts'}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" HorizontalOptions="Center" />
+                                        <Label Text="range" FontSize="10" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
                                     </VerticalStackLayout>
                                 </Grid>
                             </VerticalStackLayout>
                         </Border>
 
+                        <!-- Dispersion -->
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
-                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Spo2.HasDispersion}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Reading-to-Reading Variability" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Spo2.Dispersion.Sd, StringFormat='SD {0:F1} pts'}"
+                                       FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Spo2.Dispersion.Iqr, StringFormat='IQR {0:F1} pts'}"
+                                       FontSize="13" TextColor="{DynamicResource TextSecondary}" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Trend -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Spo2.HasTrend}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Trend" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label FontSize="16" FontAttributes="Bold" Text="{Binding Analysis.Spo2.Trend.TrendArrow}">
+                                    <Label.TextColor>
+                                        <Binding Path="Analysis.Spo2.Trend.TrendColor" />
+                                    </Label.TextColor>
+                                </Label>
+                                <Label Text="{Binding Analysis.Spo2.Trend.TrendLabelDisplay}" FontSize="14" TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Spo2.Trend.SlopeDisplay}" FontSize="13" TextColor="{DynamicResource TextSecondary}" />
+                                <Label Text="{Binding Analysis.Spo2.Trend.PValueDisplay}" FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                                <Label Text="{Binding Analysis.Spo2.Trend.ConsistencyDisplay}" FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                                <Label Text="A smoothed trend line is available for the chart view."
+                                       FontSize="12" TextColor="{DynamicResource TextMuted}" FontAttributes="Italic"
+                                       Margin="0,4,0,0"
+                                       IsVisible="{Binding Analysis.Spo2.HasLoess}" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Personal baseline deviation -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Spo2.HasBaselineDeviation}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="This Week vs. Your Typical Baseline" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Grid ColumnDefinitions="*,*">
+                                    <VerticalStackLayout Grid.Column="0">
+                                        <Label Text="{Binding Analysis.Spo2.BaselineDeviation.BaselineMedian, StringFormat='{0:F1}%'}"
+                                               FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                        <Label Text="Prior 30 days (baseline)" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1">
+                                        <Label Text="{Binding Analysis.Spo2.BaselineDeviation.RecentMedian, StringFormat='{0:F1}%'}"
+                                               FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                        <Label Text="Last 7 days (recent)" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                                <Label Text="{Binding Analysis.Spo2.BaselineDeviation.DeltaDisplay, StringFormat='Change: {0}'}"
+                                       FontSize="13" TextColor="{DynamicResource TextSecondary}" Margin="0,4,0,0" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Low observations -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Spo2.LowObservations.HasReadings}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Readings Below Target" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Spo2.LowObservations.Count, StringFormat='{0} logged reading(s)'}"
+                                       FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Spo2.LowObservations.Threshold, StringFormat='below {0}%'}"
+                                       FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                                <Label FontSize="12" TextColor="{DynamicResource TextSecondary}"
+                                       IsVisible="{Binding Analysis.Spo2.LowObservations.HasPct}">
+                                    <Label.Text>
+                                        <Binding Path="Analysis.Spo2.LowObservations.PctOfLoggedReadings" StringFormat="{}{0:F0}% of logged readings" />
+                                    </Label.Text>
+                                </Label>
+                                <Label Text="These are counts of logged readings, not a measure of continuous time below target."
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}" FontAttributes="Italic" Margin="0,6,0,0" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Confirmed low-observation episodes -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Spo2.HasConfirmedEpisodes}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Repeat-Confirmed Low Episodes" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Spo2.ConfirmedLowObservations.ConfirmationRuleMinutes, StringFormat='Two or more below-target readings within {0} minutes of each other'}"
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                <CollectionView ItemsSource="{Binding Analysis.Spo2.ConfirmedLowObservations.Episodes}">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate>
+                                            <!-- Single plain Label bound to SummaryDisplay (a computed
+                                                 property on the model) — not FormattedString/Span. -->
+                                            <Label Text="{Binding SummaryDisplay}" FontSize="12"
+                                                   TextColor="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Marked-low readings -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Spo2.HasMarkedLow}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Markedly Low Readings" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Spo2.MarkedLowObservations.Count, StringFormat='{0} reading(s)'}"
+                                       FontSize="16" FontAttributes="Bold" TextColor="#d32f2f" />
+                                <Label Text="{Binding Analysis.Spo2.MarkedLowObservations.Threshold, StringFormat='below {0}% — symptoms near these readings are important context for the care team'}"
+                                       FontSize="12" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Reference bands — descriptive counts of logged readings only,
+                             deliberately NOT framed as "time in range" (spec's own safety
+                             rule: never imply continuous coverage from spot readings). -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Spo2.HasReferenceBands}">
                             <VerticalStackLayout Spacing="10">
-                                <Label Text="SPO₂ BURDEN" FontSize="11" FontAttributes="Bold" TextColor="{DynamicResource PrimaryAccent}" />
-                                <Label Text="Percentage of time spent in each range:" FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                                <Label Text="Reference Bands (Logged Readings)" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
                                 <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
                                     <Border Grid.Column="0" Padding="8,6" BackgroundColor="{DynamicResource TileNormalBg}" StrokeShape="RoundRectangle 6">
                                         <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                            <Label Text="{Binding Analysis.Spo2.Spo2Burden.NormalDisplay}" FontSize="16" FontAttributes="Bold" TextColor="#388e3c" HorizontalOptions="Center" />
+                                            <Label Text="{Binding Analysis.Spo2.ReferenceBands.AtOrAbove95.Count}" FontSize="16" FontAttributes="Bold" TextColor="#388e3c" HorizontalOptions="Center" />
                                             <Label Text="Normal" FontSize="10" TextColor="#388e3c" HorizontalOptions="Center" />
                                             <Label Text="≥95%" FontSize="9" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
                                         </VerticalStackLayout>
                                     </Border>
                                     <Border Grid.Column="1" Padding="8,6" BackgroundColor="{DynamicResource TileLowBg}" StrokeShape="RoundRectangle 6">
                                         <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                            <Label Text="{Binding Analysis.Spo2.Spo2Burden.MildHypoxemiaDisplay}" FontSize="16" FontAttributes="Bold" TextColor="#f57c00" HorizontalOptions="Center" />
+                                            <Label Text="{Binding Analysis.Spo2.ReferenceBands.Band92To94.Count}" FontSize="16" FontAttributes="Bold" TextColor="#f57c00" HorizontalOptions="Center" />
                                             <Label Text="Mild" FontSize="10" TextColor="#f57c00" HorizontalOptions="Center" />
                                             <Label Text="92-94%" FontSize="9" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
                                         </VerticalStackLayout>
                                     </Border>
                                     <Border Grid.Column="2" Padding="8,6" BackgroundColor="{DynamicResource TileSevereBg}" StrokeShape="RoundRectangle 6">
                                         <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                            <Label Text="{Binding Analysis.Spo2.Spo2Burden.ModerateHypoxemiaDisplay}" FontSize="16" FontAttributes="Bold" TextColor="#d32f2f" HorizontalOptions="Center" />
+                                            <Label Text="{Binding Analysis.Spo2.ReferenceBands.Band88To91.Count}" FontSize="16" FontAttributes="Bold" TextColor="#d32f2f" HorizontalOptions="Center" />
                                             <Label Text="Moderate" FontSize="10" TextColor="#d32f2f" HorizontalOptions="Center" />
                                             <Label Text="88-91%" FontSize="9" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
                                         </VerticalStackLayout>
                                     </Border>
                                     <Border Grid.Column="3" Padding="8,6" BackgroundColor="{DynamicResource TileCriticalBg}" StrokeShape="RoundRectangle 6">
                                         <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                            <Label Text="{Binding Analysis.Spo2.Spo2Burden.SevereHypoxemiaDisplay}" FontSize="16" FontAttributes="Bold" TextColor="#7b1fa2" HorizontalOptions="Center" />
+                                            <Label Text="{Binding Analysis.Spo2.ReferenceBands.Below88.Count}" FontSize="16" FontAttributes="Bold" TextColor="#7b1fa2" HorizontalOptions="Center" />
                                             <Label Text="Severe" FontSize="10" TextColor="#7b1fa2" HorizontalOptions="Center" />
                                             <Label Text="&lt;88%" FontSize="9" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
                                         </VerticalStackLayout>
                                     </Border>
                                 </Grid>
+                                <Label Text="Counts of logged readings only — not a measure of time spent in each range."
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}" FontAttributes="Italic" />
                             </VerticalStackLayout>
                         </Border>
 
+                        <!-- Time-of-day pattern -->
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
-                                IsVisible="{Binding Spo2Summary, Converter={StaticResource StringToBoolConverter}}">
-                            <VerticalStackLayout Spacing="10">
-                                <Label Text="💬  In Plain English" FontSize="13" FontAttributes="Bold" TextColor="{DynamicResource PrimaryAccent}" />
-                                <Label Text="{Binding Spo2Summary}" FontSize="13" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
-                                <Label Text="{Binding PcpLine}" FontSize="13" TextColor="{DynamicResource PrimaryAccent}"
+                                IsVisible="{Binding Analysis.Spo2.TimeOfDay.Buckets.HasAny}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Time-of-Day Pattern" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="8" ColumnSpacing="8">
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="0" IsVisible="{Binding Analysis.Spo2.TimeOfDay.Buckets.HasMorning}">
+                                        <Label Text="Morning" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                        <Label Text="{Binding Analysis.Spo2.TimeOfDay.Buckets.Morning.Median, StringFormat='{0:F1}%'}" FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="1" IsVisible="{Binding Analysis.Spo2.TimeOfDay.Buckets.HasAfternoon}">
+                                        <Label Text="Afternoon" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                        <Label Text="{Binding Analysis.Spo2.TimeOfDay.Buckets.Afternoon.Median, StringFormat='{0:F1}%'}" FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="0" IsVisible="{Binding Analysis.Spo2.TimeOfDay.Buckets.HasEvening}">
+                                        <Label Text="Evening" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                        <Label Text="{Binding Analysis.Spo2.TimeOfDay.Buckets.Evening.Median, StringFormat='{0:F1}%'}" FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="1" IsVisible="{Binding Analysis.Spo2.TimeOfDay.Buckets.HasOvernight}">
+                                        <Label Text="Overnight" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                        <Label Text="{Binding Analysis.Spo2.TimeOfDay.Buckets.Overnight.Median, StringFormat='{0:F1}%'}" FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                                <Label FontSize="12" TextColor="{DynamicResource TextSecondary}" Margin="0,4,0,0"
+                                       IsVisible="{Binding Analysis.Spo2.HasTimeOfDayPattern}">
+                                    <Label.Text>
+                                        <MultiBinding StringFormat="Highest: {0}  ·  Lowest: {1}">
+                                            <Binding Path="Analysis.Spo2.TimeOfDay.PatternSummary.HighestPeriod" />
+                                            <Binding Path="Analysis.Spo2.TimeOfDay.PatternSummary.LowestPeriod" />
+                                        </MultiBinding>
+                                    </Label.Text>
+                                </Label>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Cross-vital context for low observations -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Spo2.HasCrossVitalCorrelations}">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="Correlation with Other Vitals" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="Physician reference only — correlation does not establish cause."
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}" FontAttributes="Italic" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Data support -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Data Confidence" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Spo2.DataSupport.SupportStateDisplay}"
+                                       FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                <Label FontSize="12" TextColor="{DynamicResource TextSecondary}"
+                                       IsVisible="{Binding Analysis.Spo2.DataSupport.HasCoverage}">
+                                    <Label.Text>
+                                        <Binding Path="Analysis.Spo2.DataSupport.DistinctDayCoveragePct" StringFormat="Logged on {0:F0}% of days in this window" />
+                                    </Label.Text>
+                                </Label>
+                                <CollectionView ItemsSource="{Binding Analysis.Spo2.DataSupport.UnavailableAnalyses}"
+                                                IsVisible="{Binding Analysis.Spo2.HasUnavailableAnalyses}"
+                                                Margin="0,6,0,0">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Label Text="{Binding DisplayText}" FontSize="11"
+                                                   TextColor="{DynamicResource TextMuted}" Margin="0,0,0,2" />
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Care team -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="{Binding Spo2PcpLine}" FontSize="13" TextColor="{DynamicResource PrimaryAccent}"
                                        FontAttributes="Italic" LineBreakMode="WordWrap"
-                                       IsVisible="{Binding PcpLine, Converter={StaticResource StringToBoolConverter}}" />
+                                       IsVisible="{Binding Spo2PcpLine, Converter={StaticResource StringToBoolConverter}}" />
                             </VerticalStackLayout>
                         </Border>
 
