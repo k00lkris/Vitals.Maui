@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Header, HTTPException, Request, Response, Query, Body, Depends
+from fastapi import FastAPI, Header, HTTPException, Request, Response, Query, Body, Depends, BackgroundTasks
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Literal
 from datetime import datetime, date, timedelta
@@ -30,6 +30,8 @@ import re
 import bcrypt
 import secrets
 import requests
+from zoneinfo import ZoneInfo
+import statistics
 
 
 load_dotenv()
@@ -225,6 +227,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 class VitalCreate(BaseModel):
     patient_id: str
     recorded_at: Optional[datetime] = None
+    # The device's UTC offset (in minutes) at the moment this reading was
+    # taken — e.g. -300 for Central Daylight Time. Lives on vitals, not
+    # any per-vital context table, since it's a property of the reading
+    # itself (when/where it was taken), not specific to heart rate —
+    # every future vital's analysis benefits from real per-reading local
+    # time without needing its own copy of this field. Optional: readings
+    # from before this field existed, or from a source that doesn't send
+    # it, fall back to a hardcoded America/Chicago approximation at
+    # analysis time (see _hr_local_datetime) rather than being excluded.
+    local_offset_minutes: Optional[int] = None
     systolic: Optional[int] = Field(None, ge=50, le=250)
     diastolic: Optional[int] = Field(None, ge=30, le=150)
     oxygen_saturation: Optional[int] = Field(None, ge=50, le=100)
@@ -235,11 +247,28 @@ class VitalCreate(BaseModel):
     source: Optional[str] = "home_assistant"
     notes: Optional[str] = ""
 
+    # Heart-rate context (Heart Rate Analysis Spec §4) — all optional since
+    # no client sends these yet (the Entry-form UI to collect them hasn't
+    # been built). Accepted now so the backend is ready the moment it is,
+    # with no further model changes needed then. Ignored entirely unless
+    # heart_rate is also present on this submission.
+    hr_activity_context: Optional[str] = None   # 'resting' | 'post_activity' | 'during_activity' | 'unknown'
+    hr_posture: Optional[str] = None             # 'seated' | 'supine' | 'standing' | 'unknown'
+    hr_symptom_tags: Optional[list[str]] = None  # e.g. dizziness, palpitations, syncope, dyspnea, fatigue, chest_discomfort, other
+    hr_source_type: Optional[str] = None         # 'manual' | 'BP_monitor' | 'pulse_oximeter' | 'wearable' | 'imported'
+    hr_device_irregular_pulse_flag: Optional[bool] = None
+
 class PatientCreate(BaseModel):
     first_name: str
     last_name: str
     dob: Optional[date] = None
     gender: Optional[str]
+    # How the creating user relates to this patient (e.g. "self",
+    # "caregiver") — recorded in patient_users, not used for access control.
+    # Household-wide access is still the current model; this is metadata
+    # for future features (primary caregiver, notification routing, etc.)
+    # so that ground doesn't need backfilling later.
+    relationship: Optional[str] = "caregiver"
     # household_id intentionally NOT a client-supplied field — it's derived
     # server-side from the authenticated caller via get_household_id(), never
     # trusted from the request body. (It used to be listed here but was never
@@ -270,6 +299,10 @@ class MedicationCreate(BaseModel):
     is_active: bool = True
     rxotc: Optional[Literal["rx", "otc"]] = "rx"
     purpose: Optional[str] = None
+    # Editable, defaults to today in the UI — not auto-derived from
+    # created_at, since a caregiver logging a medication weeks after
+    # actually starting it is the normal case, not an edge case.
+    start_date: Optional[date] = None
 
 class MedicationUpdate(BaseModel):
     name: Optional[str] = None
@@ -279,10 +312,24 @@ class MedicationUpdate(BaseModel):
     qty: Optional[int] = None
     days_supply: Optional[int] = None
     fill_date: Optional[date] = None
-    discontinued: Optional[bool] = None
     is_active: Optional[bool] = None
     rxotc: Optional[Literal["rx", "otc"]] = None
     purpose: Optional[str] = None
+    # Editable after creation too — same reasoning as discontinued_date:
+    # if the original start_date turns out to be wrong, there's no
+    # reason it should be permanently locked in.
+    start_date: Optional[date] = None
+    # discontinued (the boolean) is retired — is_active is the single
+    # source of truth now. Confirmed unused by both the current mobile
+    # app and Home Assistant (medications moved fully to the app; HA is
+    # vitals-only now), so nothing depends on it.
+    discontinued_date: Optional[date] = None
+    # Shared effective date for a dosage and/or time_of_day change in
+    # THIS save — editable, defaults to today in the UI. Same rationale
+    # as start_date: relying on prompt logging is unreliable, so the
+    # date has to be something the user can correct, not something the
+    # app silently assumes from when the edit happened to be saved.
+    change_effective_date: Optional[date] = None
 
 class DoctorCreate(BaseModel):
     patient_id: UUID
@@ -403,6 +450,15 @@ class LoginRequest(BaseModel):
 
 class ResendVerificationRequest(BaseModel):
     email: str
+
+class HouseholdInviteRequest(BaseModel):
+    invitee_email: str
+
+class HouseholdJoinRequest(BaseModel):
+    invite_code: str
+
+class HouseholdTierRequest(BaseModel):
+    tier: str  # "individual" | "family" | "free"
 
 # --------------------
 # Utility functions
@@ -807,14 +863,991 @@ def run_bp_analysis(rows: list) -> dict | None:
         "reading_count":  len(rows),
     }
 
+def _hr_local_datetime(row: dict) -> datetime:
+    """
+    Converts a row's UTC recorded_at to its LOCAL datetime, using the
+    reading's own stored local_offset_minutes when available (real,
+    per-reading accuracy — captured by the client at entry time, see
+    VitalCreate.local_offset_minutes / VitalEntry.LocalOffsetMinutes).
+    Falls back to a hardcoded America/Chicago conversion for readings
+    recorded before this field existed, rather than erroring or
+    excluding them — same graceful-degradation pattern already used for
+    activity_context/posture being null on pre-migration rows.
+    """
+    if row["local_offset_minutes"] is not None:
+        return row["recorded_at"] + timedelta(minutes=row["local_offset_minutes"])
+    return row["recorded_at"].astimezone(ZoneInfo("America/Chicago"))
+
+def run_hr_analysis(rows: list, baseline_rows: list | None = None, medication_changes: list | None = None, prior_period_rows: list | None = None) -> dict | None:
+    """
+    Heart Rate Analysis Spec — merges every implemented analysis set into
+    one result, the same pattern run_bp_analysis already uses: one row
+    fetch, multiple calculations, one combined dict. New sections get
+    added here as they're implemented, not as separate registry entries.
+
+    rows come from VITAL_ANALYSIS_REGISTRY['heart_rate'], already ordered
+    ASC by recorded_at. Converted to named dicts immediately below (see
+    _row_dict) rather than accessed by tuple position throughout this
+    function — adding a new column later means adding one field here,
+    not re-indexing every list comprehension in this file.
+
+    A LEFT JOIN means context fields can be SQL NULL for a reading that
+    predates heart_rate_context existing — displayed as "unknown" per
+    the spec's own language ("unknown-context readings may be shown as
+    raw history"), not treated as missing/invalid data. Same graceful
+    fallback for local_offset_minutes — see _hr_local_datetime.
+
+    §6.1 — "Latest rate + context". No resting-context gate: activation
+    is just "one valid observation" (argmax by recorded_at).
+
+    §6.2 — "Resting Central Tendency and Range". Filtered to
+    activity_context == 'resting' from this SAME row set (no second
+    query). Gate: n >= 3 eligible resting readings across >= 3 distinct
+    LOCAL calendar dates. Below the gate, §6.1's snapshot still returns
+    — resting_summary is just null, not the whole result.
+
+    Distinct-day/local-time calculations (§6.2, §6.6, §6.8) use each
+    reading's own stored local_offset_minutes when available, falling
+    back to a hardcoded America/Chicago conversion only for readings
+    that predate this field — see _hr_local_datetime.
+    """
+    if not rows:
+        return None  # activation gate: at least one valid observation
+
+    def _row_dict(r):
+        return {
+            "recorded_at":          r[0],
+            "local_offset_minutes": r[1],
+            "bpm":                  r[2],
+            "activity_context":     r[3],
+            "posture":              r[4],
+            "symptom_tags":         r[5],
+            "source_type":          r[6],
+            "irregular_pulse_flag": r[7],
+            "systolic":             r[8],
+            "diastolic":            r[9],
+            "oxygen_saturation":    r[10],
+            "temperature":          r[11],
+            "weight":               r[12],
+            "blood_glucose":        r[13],
+        }
+
+    rows_d = [_row_dict(r) for r in rows]
+    latest = rows_d[-1]  # ASC order — last row is the most recent
+
+    # Linked measurement event: whichever OTHER vitals were captured in
+    # this same row (§4.2 — vital_id itself IS the event, no separate
+    # linkage column needed for the common case). Only non-null values
+    # are included, so a heart-rate-only entry reports an empty context
+    # rather than a block of misleading nulls.
+    linked_context = {}
+    if latest["systolic"] is not None and latest["diastolic"] is not None:
+        linked_context["blood_pressure"] = {"systolic": latest["systolic"], "diastolic": latest["diastolic"]}
+    if latest["oxygen_saturation"] is not None:
+        linked_context["oxygen_saturation"] = latest["oxygen_saturation"]
+    if latest["temperature"] is not None:
+        linked_context["temperature"] = float(latest["temperature"])
+    if latest["weight"] is not None:
+        linked_context["weight"] = float(latest["weight"])
+    if latest["blood_glucose"] is not None:
+        linked_context["blood_glucose"] = latest["blood_glucose"]
+
+    result = {
+        "bpm":                  latest["bpm"],
+        "recorded_at":          latest["recorded_at"].isoformat(),
+        "activity_context":     latest["activity_context"] or "unknown",
+        "posture":              latest["posture"] or "unknown",
+        "symptom_tags":         latest["symptom_tags"] or [],
+        "source_type":          latest["source_type"] or "unknown",
+        "irregular_pulse_flag": latest["irregular_pulse_flag"],  # preserved as-is; None means "not reported", not "false"
+        "linked_context":       linked_context,
+        "reading_count":        len(rows_d),
+    }
+
+    resting_rows = [r for r in rows_d if r["activity_context"] == "resting"]
+    resting_bpms = [r["bpm"] for r in resting_rows]
+    distinct_days = len({_hr_local_datetime(r).date() for r in resting_rows})
+
+    if len(resting_bpms) >= 3 and distinct_days >= 3:
+        result["resting_summary"] = {
+            "n":             len(resting_bpms),
+            "distinct_days": distinct_days,
+            "mean":          round(statistics.mean(resting_bpms), 1),
+            "median":        round(statistics.median(resting_bpms), 1),
+            "min":           min(resting_bpms),
+            "max":           max(resting_bpms),
+            "range":         max(resting_bpms) - min(resting_bpms),
+        }
+    else:
+        # Explicit null, not an omitted key — the client can check
+        # `resting_summary is None` rather than handle a missing field.
+        result["resting_summary"] = None
+
+    # §6.3 — Between-Reading Dispersion. Reuses resting_bpms from §6.2
+    # above (same eligible set, no separate query). Gate is independent
+    # of §6.2's — n >= 5 here, with no distinct-day requirement — so it's
+    # checked on its own rather than assumed from resting_summary's gate.
+    #
+    # IQR uses linear-interpolation percentiles (numpy's default method),
+    # matching the spec's own formula exactly — deliberately not
+    # hand-rolled, since a subtle off-by-one here would be easy to miss.
+    #
+    # cv_spot is retained per the spec but must NEVER be labeled or
+    # displayed as HRV — spot-reading dispersion between separate
+    # measurements is not beat-to-beat heart rate variability, which
+    # requires RR/NN interval data this app doesn't collect (§2, §9).
+    #
+    # "Comparison with the prior equal-length period" (§6.3's own
+    # suggested output) is implemented below as dispersion_trend — a
+    # fixed current-30-vs-prior-30 comparison, not tied to whichever
+    # window is requested here. See that block for why it's separate.
+    if len(resting_bpms) >= 5:
+        q1 = float(np.percentile(resting_bpms, 25))
+        q3 = float(np.percentile(resting_bpms, 75))
+        mean_bpm = statistics.mean(resting_bpms)
+        result["dispersion"] = {
+            "n":       len(resting_bpms),
+            "sd":      round(statistics.stdev(resting_bpms), 1),
+            "iqr":     round(q3 - q1, 1),
+            "q1":      round(q1, 1),
+            "q3":      round(q3, 1),
+            "cv_spot": round(100 * statistics.stdev(resting_bpms) / mean_bpm, 1) if mean_bpm else None,
+        }
+    else:
+        result["dispersion"] = None
+
+    # §6.3 dispersion trend — "most recent 30 days vs the 30 days before
+    # that," fixed regardless of whichever window (15/30/45/60) is
+    # currently being viewed — genuinely separate from the dispersion
+    # block above, which reflects the REQUESTED window. Uses
+    # prior_period_rows, a separate 60-day fetch (see
+    # VITAL_ANALYSIS_REGISTRY['heart_rate']['prior_period_lookback_days']).
+    #
+    # Rolling, not anchored to a calendar date: "current" = last 30 days
+    # from right now, "prior" = the 30 days before that — recomputed
+    # fresh on every call, same as every other window in this app.
+    # Two independently-gated failure states, not one: not enough data
+    # for the current period at all vs. current is fine but there's no
+    # full prior period yet to compare against.
+    def _dispersion_block(bpms):
+        if len(bpms) < 5:
+            return None
+        blk_q1 = float(np.percentile(bpms, 25))
+        blk_q3 = float(np.percentile(bpms, 75))
+        return {"n": len(bpms), "sd": round(statistics.stdev(bpms), 1), "iqr": round(blk_q3 - blk_q1, 1)}
+
+    result["dispersion_trend"] = None
+    if prior_period_rows:
+        now_utc = datetime.now(timezone.utc)
+        prior_resting = [r for r in [_row_dict(pr) for pr in prior_period_rows] if r["activity_context"] == "resting"]
+
+        current_30_bpms = [r["bpm"] for r in prior_resting
+                            if now_utc - timedelta(days=30) <= r["recorded_at"] <= now_utc]
+        prior_30_bpms = [r["bpm"] for r in prior_resting
+                          if now_utc - timedelta(days=60) <= r["recorded_at"] < now_utc - timedelta(days=30)]
+
+        current_block = _dispersion_block(current_30_bpms)
+        prior_block = _dispersion_block(prior_30_bpms)
+
+        if current_block is None:
+            result["dispersion_trend"] = {
+                "status": "insufficient_current",
+                "message": "Not enough data for this calculation.",
+                "current": None, "prior": None, "sd_delta": None,
+            }
+        elif prior_block is None:
+            result["dispersion_trend"] = {
+                "status": "insufficient_prior",
+                "message": "Not enough data for a comparison yet.",
+                "current": current_block, "prior": None, "sd_delta": None,
+            }
+        else:
+            result["dispersion_trend"] = {
+                "status": "ok",
+                "message": None,
+                "current": current_block,
+                "prior": prior_block,
+                "sd_delta": round(current_block["sd"] - prior_block["sd"], 1),
+            }
+
+    # §6.4 — Resting Trend: Ordinary Least Squares. Same resting_rows as
+    # §6.2/§6.3, no new query. Reuses scipy.stats.linregress (already
+    # proven for Blood Pressure) rather than hand-deriving slope/R²/p.
+    #
+    # Two-tier gate, per spec: the slope/trend itself needs n>=5 across
+    # >=5 distinct days and a >=7 day span. The p-value specifically
+    # needs a STRICTER n>=8 and >=14 day span; below that, slope and
+    # modeled change still show, p_value is just omitted.
+    #
+    # t/v/origin/span_days are computed once here, independent of §6.4's
+    # own gate below, so §6.5 (a genuinely looser gate) can use the same
+    # arrays without recomputing them.
+    span_days = None
+    t = v = None
+    if resting_rows:
+        span_days = (resting_rows[-1]["recorded_at"] - resting_rows[0]["recorded_at"]).total_seconds() / 86400
+        origin = resting_rows[0]["recorded_at"]
+        t = np.array([(r["recorded_at"] - origin).total_seconds() / 86400 for r in resting_rows])
+        v = np.array([float(r["bpm"]) for r in resting_rows])
+
+    if len(resting_bpms) >= 5 and distinct_days >= 5 and span_days is not None and span_days >= 7:
+        if np.std(v) == 0:
+            # Perfectly flat — no variance means no meaningful trend to
+            # test, and SST=0 would make R² undefined (spec's own note).
+            result["trend"] = {
+                "slope_bpm_per_day": 0.0,
+                "modeled_change":    0.0,
+                "span_days":         round(span_days, 1),
+                "r2":                None,
+                "p_value":           None,
+                "trend_label":       "stable",
+                "consistency":       None,
+            }
+        else:
+            slope, intercept, r_val, p_val, std_err = stats.linregress(t, v)
+            r2 = float(r_val ** 2)
+            show_p = len(resting_bpms) >= 8 and span_days >= 14
+            sig = bool(show_p and p_val < 0.05)
+
+            result["trend"] = {
+                "slope_bpm_per_day": round(float(slope), 2),
+                "modeled_change":    round(float(slope) * (t.max() - t.min()), 1),
+                "span_days":         round(span_days, 1),
+                "r2":                round(r2, 2),
+                "p_value":           round(float(p_val), 3) if show_p else None,
+                "trend_label":       _trend_label(float(slope), sig),
+                "consistency":       _consistency_label(r2),
+            }
+    else:
+        result["trend"] = None
+
+    # §6.5 — LOESS Smoothed Trend. "Visualization only" per the spec —
+    # this is chart-overlay support, not a statistical claim like §6.4's
+    # trend. Reuses loess_smooth() already built and proven for Blood
+    # Pressure, called with frac=0.6 to match the spec's span q=0.60.
+    #
+    # Gate: n>=7 and span>=7 days — looser than §6.4's, no distinct-day
+    # requirement. "If d=0 or geometry is singular, omit smoothing at
+    # that point" is handled inside loess_smooth itself.
+    if len(resting_bpms) >= 7 and span_days is not None and span_days >= 7:
+        smoothed = loess_smooth(t, v, frac=0.6)
+        result["loess"] = [
+            {"recorded_at": r["recorded_at"].isoformat(), "smoothed_bpm": round(float(s), 1)}
+            for r, s in zip(resting_rows, smoothed)
+        ]
+    else:
+        result["loess"] = None
+
+    # §6.6 — Personal Baseline Deviation. Uses baseline_rows — a
+    # SEPARATE, fixed 37-day lookback from right now (see
+    # VITAL_ANALYSIS_REGISTRY['heart_rate']['baseline_lookback_days']),
+    # not resting_rows/rows above, which are bounded by whatever window
+    # the caller requested. Recent = last 7 days; Baseline = the 30 days
+    # before that (days -37 through -8) — a deliberate 1-day gap between
+    # them, not touching, matching the spec's exact boundaries.
+    result["baseline_deviation"] = None
+    if baseline_rows:
+        baseline_rows_d = [_row_dict(r) for r in baseline_rows]
+        now_utc = datetime.now(timezone.utc)
+        baseline_resting = [r for r in baseline_rows_d if r["activity_context"] == "resting"]
+
+        recent_set   = [r for r in baseline_resting if now_utc - timedelta(days=7)  <= r["recorded_at"] <= now_utc]
+        baseline_set = [r for r in baseline_resting if now_utc - timedelta(days=37) <= r["recorded_at"] <= now_utc - timedelta(days=8)]
+
+        baseline_bpms = [r["bpm"] for r in baseline_set]
+        recent_bpms   = [r["bpm"] for r in recent_set]
+        baseline_days = len({_hr_local_datetime(r).date() for r in baseline_set})
+        recent_days   = len({_hr_local_datetime(r).date() for r in recent_set})
+
+        # Per spec: "if insufficient, suppress baseline claim" — a
+        # distinct, stricter gate from §6.2's, checked independently.
+        if len(baseline_bpms) >= 7 and baseline_days >= 7 and len(recent_bpms) >= 3 and recent_days >= 3:
+            m_baseline = statistics.median(baseline_bpms)
+            m_recent   = statistics.median(recent_bpms)
+            delta_bpm  = m_recent - m_baseline
+            delta_pct  = round(100 * delta_bpm / m_baseline, 1) if m_baseline != 0 else None
+
+            z_score = None
+            if len(baseline_bpms) >= 7:
+                s_baseline = statistics.stdev(baseline_bpms)
+                if s_baseline > 0:
+                    z_score = round((m_recent - statistics.mean(baseline_bpms)) / s_baseline, 2)
+
+            result["baseline_deviation"] = {
+                "baseline_median": round(m_baseline, 1),
+                "recent_median":   round(m_recent, 1),
+                "baseline_n":      len(baseline_bpms),
+                "recent_n":        len(recent_bpms),
+                "delta_bpm":       round(delta_bpm, 1),
+                "delta_pct":       delta_pct,
+                "z_score":         z_score,  # internal/clinician use — not for consumer "abnormal" framing (spec §6.6 engineering note)
+            }
+
+    # §6.7 — High/Low Resting-Rate Event Analysis. Same resting_rows as
+    # §6.2 onward, no new query. Default descriptive thresholds only —
+    # no clinician/patient custom-threshold config UI exists yet.
+    #
+    # Counts and percentages deliberately — never duration (same
+    # principle already applied when the PDF's HR burden table was
+    # removed).
+    #
+    # Gate: shown whenever there's at least one resting reading in the
+    # window (n_resting >= 1) — counts that come back zero are still a
+    # real, useful result, not a missing one. Percentages specifically
+    # need the stricter n_resting >= 5, checked independently.
+    HIGH_THRESHOLD = 100
+    LOW_THRESHOLD = 60
+    MARKED_LOW_THRESHOLD = 50
+
+    def cluster_episodes(readings):
+        """
+        Sort by time; group same-direction readings <=15 minutes apart
+        into one episode — three readings taken minutes apart during one
+        stressful event should count as one episode, not three.
+        """
+        if not readings:
+            return 0
+        ordered = sorted(readings, key=lambda r: r["recorded_at"])
+        episodes = 1
+        for i in range(1, len(ordered)):
+            gap_minutes = (ordered[i]["recorded_at"] - ordered[i - 1]["recorded_at"]).total_seconds() / 60
+            if gap_minutes > 15:
+                episodes += 1
+        return episodes
+
+    n_resting = len(resting_bpms)
+    if n_resting >= 1:
+        show_pct = n_resting >= 5
+        high_readings = [r for r in resting_rows if r["bpm"] > HIGH_THRESHOLD]
+        low_readings  = [r for r in resting_rows if r["bpm"] < LOW_THRESHOLD]
+        marked_low_readings = [r for r in resting_rows if r["bpm"] < MARKED_LOW_THRESHOLD]
+
+        def reading_detail(r):
+            return {"recorded_at": r["recorded_at"].isoformat(), "bpm": r["bpm"], "symptom_tags": r["symptom_tags"] or []}
+
+        result["rate_events"] = {
+            "n_resting_in_window": n_resting,
+            "thresholds": {"high": HIGH_THRESHOLD, "low": LOW_THRESHOLD, "marked_low": MARKED_LOW_THRESHOLD},
+            "high": {
+                "count":         len(high_readings),
+                "pct":           round(100 * len(high_readings) / n_resting, 1) if show_pct else None,
+                "episode_count": cluster_episodes(high_readings),
+                "readings":      [reading_detail(r) for r in high_readings],
+            },
+            "low": {
+                "count":         len(low_readings),
+                "pct":           round(100 * len(low_readings) / n_resting, 1) if show_pct else None,
+                "episode_count": cluster_episodes(low_readings),
+                "readings":      [reading_detail(r) for r in low_readings],
+            },
+            "marked_low_count": len(marked_low_readings),
+        }
+    else:
+        result["rate_events"] = None
+
+    # §6.8 — Time-of-Day Pattern Analysis. Same resting_rows as elsewhere
+    # in this function, no new query. Bucket boundaries are local-time,
+    # via _hr_local_datetime (per-reading offset when available).
+    #
+    # Each bucket is gated independently (>=3 readings across >=3
+    # distinct days) — a caregiver who only ever logs in the morning
+    # should see morning's numbers even if evening never qualifies. The
+    # overall pattern summary additionally needs at least 2 qualified
+    # buckets to mean anything as a comparison.
+    BUCKETS = [
+        ("morning",   lambda h: 5 <= h <= 11),
+        ("afternoon", lambda h: 12 <= h <= 16),
+        ("evening",   lambda h: 17 <= h <= 21),
+        ("overnight", lambda h: h >= 22 or h <= 4),
+    ]
+
+    median_all = statistics.median(resting_bpms) if resting_bpms else None
+    buckets_out = {}
+    qualified = []
+
+    for name, in_bucket in BUCKETS:
+        bucket_rows = [r for r in resting_rows if in_bucket(_hr_local_datetime(r).hour)]
+        bucket_bpms = [r["bpm"] for r in bucket_rows]
+        bucket_days = len({_hr_local_datetime(r).date() for r in bucket_rows})
+        n = len(bucket_bpms)
+
+        if n >= 3 and bucket_days >= 3:
+            mean_b = statistics.mean(bucket_bpms)
+            median_b = statistics.median(bucket_bpms)
+            buckets_out[name] = {
+                "n":             n,
+                "distinct_days": bucket_days,
+                "mean":          round(mean_b, 1),
+                "median":        round(median_b, 1),
+                "min":           min(bucket_bpms),
+                "max":           max(bucket_bpms),
+                "delta_from_overall_median": round(median_b - median_all, 1),
+            }
+            qualified.append((name, mean_b))
+        else:
+            # Explicit null for an unqualified bucket, not an omitted
+            # key — the client can tell "not enough data yet" apart from
+            # "this bucket doesn't exist."
+            buckets_out[name] = None
+
+    pattern_summary = None
+    if len(qualified) >= 2:
+        highest = max(qualified, key=lambda q: q[1])
+        lowest  = min(qualified, key=lambda q: q[1])
+        pattern_summary = {"highest_period": highest[0], "lowest_period": lowest[0]}
+
+    result["time_of_day"] = {
+        "buckets":         buckets_out,
+        "pattern_summary": pattern_summary,
+    }
+
+    # §6.9 — Symptom Association. Direct association only: a reading's
+    # own symptom_tags (stored on heart_rate_context — the SAME
+    # measurement event) is currently the only mechanism in the app for
+    # logging a symptom at all. The spec's other case — a standalone
+    # symptom timestamp matched to the nearest HR reading within ±15
+    # minutes — needs a separate symptom-event log that doesn't exist;
+    # nothing to decouple from yet, so that fallback isn't implemented.
+    #
+    # Verified against synthetic data only (same approach already used
+    # for §6.7's episode clustering) — no client UI exists yet to
+    # actually collect hr_symptom_tags (VitalsEntryPage only has
+    # Activity Context/Posture pickers so far), so no real accumulated
+    # data exists to check this against. Backend-ready now; the UI to
+    # populate it is a separate, later task.
+    #
+    # Reuses HIGH_THRESHOLD/LOW_THRESHOLD from §6.7 above (same
+    # function scope, defined unconditionally there).
+    symptom_events_by_tag: dict = {}
+    for r in resting_rows:
+        for tag in (r["symptom_tags"] or []):
+            status = "high" if r["bpm"] > HIGH_THRESHOLD else "low" if r["bpm"] < LOW_THRESHOLD else "normal"
+            symptom_events_by_tag.setdefault(tag, []).append({
+                "recorded_at":         r["recorded_at"].isoformat(),
+                "bpm":                 r["bpm"],
+                "time_diff_minutes":   0,  # direct association — same measurement event, never estimated
+                "posture":             r["posture"] or "unknown",
+                "activity_context":    r["activity_context"] or "unknown",
+                "status":              status,
+            })
+
+    if symptom_events_by_tag:
+        aggregates = {}
+        for tag, events in symptom_events_by_tag.items():
+            a_k = len(events)
+            low_count  = sum(1 for e in events if e["status"] == "low")
+            high_count = sum(1 for e in events if e["status"] == "high")
+            aggregates[tag] = {
+                "associated_count": a_k,  # individual associations may display with just 1 event
+                "events":           events,
+                # Aggregate proportion only meaningful with >=2 events of
+                # this specific symptom category (spec's own gate) — a
+                # single dizziness episode doesn't support a "% of the
+                # time" statement.
+                "pct_low":  round(100 * low_count / a_k, 1) if a_k >= 2 else None,
+                "pct_high": round(100 * high_count / a_k, 1) if a_k >= 2 else None,
+            }
+        result["symptom_association"] = aggregates
+    else:
+        result["symptom_association"] = None
+
+    # §6.11 — Cross-Vital Same-Event Context. Reuses the EXISTING,
+    # already-proven classify_bp/classify_spo2/classify_temp functions
+    # to determine each OTHER vital's own exception state — per the
+    # spec's explicit architectural principle: never hardcode another
+    # vital's clinical thresholds inside heart-rate's own code, defer to
+    # that vital's own classification strategy. HR's own exception
+    # predicate reuses HIGH_THRESHOLD/LOW_THRESHOLD from §6.7 above.
+    #
+    # Genuinely different from §6.1's linked_context, which only shows
+    # the single LATEST reading's same-event data — this aggregates
+    # co-occurrence across EVERY resting reading in the window (e.g.
+    # "3 of 8 high-HR readings also had an elevated temperature").
+    def hr_exception(bpm):
+        if bpm > HIGH_THRESHOLD:
+            return "high"
+        if bpm < LOW_THRESHOLD:
+            return "low"
+        return None
+
+    def cooccurrence_block(paired_rows, classify_fn):
+        """
+        paired_rows: resting_rows already filtered to ones where the
+        OTHER vital is present. classify_fn(r) -> category string for
+        that single reading, "normal" meaning no exception.
+        """
+        n_h = 0
+        co_occurrence = {"high": 0, "low": 0}
+        for r in paired_rows:
+            hr_state = hr_exception(r["bpm"])
+            if hr_state is None:
+                continue
+            n_h += 1
+            if classify_fn(r) != "normal":
+                co_occurrence[hr_state] += 1
+
+        if n_h < 1:
+            return None
+        show_pct = n_h >= 5
+        return {
+            "n_hr_condition_events_with_pair": n_h,
+            "co_occurrence_high": co_occurrence["high"],
+            "co_occurrence_low":  co_occurrence["low"],
+            "pct_high": round(100 * co_occurrence["high"] / n_h, 1) if show_pct else None,
+            "pct_low":  round(100 * co_occurrence["low"]  / n_h, 1) if show_pct else None,
+        }
+
+    bp_pairs   = [r for r in resting_rows if r["systolic"] is not None and r["diastolic"] is not None]
+    spo2_pairs = [r for r in resting_rows if r["oxygen_saturation"] is not None]
+    temp_pairs = [r for r in resting_rows if r["temperature"] is not None]
+
+    result["cross_vital_context"] = {
+        "blood_pressure":    cooccurrence_block(bp_pairs,   lambda r: classify_bp(r["systolic"], r["diastolic"])),
+        "oxygen_saturation": cooccurrence_block(spo2_pairs, lambda r: classify_spo2(r["oxygen_saturation"])),
+        "temperature":       cooccurrence_block(temp_pairs, lambda r: classify_temp(float(r["temperature"]))),
+    }
+
+    # Optional Pearson correlation, physician-only — continuous paired
+    # values, not the binary exception states above. Gate: n>=10 paired
+    # events across >=7 days, hidden if either variable has zero
+    # variance (spec's own note — a flat line correlates trivially with
+    # anything and means nothing).
+    correlations = {}
+    for name, pairs, value_fn in [
+        ("temperature",       temp_pairs, lambda r: float(r["temperature"])),
+        ("oxygen_saturation", spo2_pairs, lambda r: float(r["oxygen_saturation"])),
+        ("systolic",          bp_pairs,   lambda r: float(r["systolic"])),
+        ("diastolic",         bp_pairs,   lambda r: float(r["diastolic"])),
+    ]:
+        if len(pairs) < 10:
+            continue
+        span = (pairs[-1]["recorded_at"] - pairs[0]["recorded_at"]).total_seconds() / 86400
+        if span < 7:
+            continue
+        hr_vals = np.array([r["bpm"] for r in pairs])
+        other_vals = np.array([value_fn(r) for r in pairs])
+        if np.std(hr_vals) == 0 or np.std(other_vals) == 0:
+            continue
+        correlations[name] = round(float(np.corrcoef(hr_vals, other_vals)[0, 1]), 2)
+
+    result["cross_vital_correlations"] = correlations if correlations else None
+
+    # §6.12 — Data Support and Density. A meta-summary of confidence for
+    # the CURRENT window — reuses n (len(resting_bpms)), distinct_days,
+    # and span_days already computed above rather than re-deriving them.
+    # support_state is the HIGHEST gate actually cleared, kept exactly
+    # consistent with the real thresholds §6.2/§6.4/§6.5 already enforce
+    # above — not an independently redefined ladder.
+    #
+    # Distinct-day coverage approximates the denominator using the
+    # OBSERVED span rather than the originally-requested window length
+    # (15/30/45/60 days) — this function only receives rows, not that
+    # requested value. A patient with readings clustered in just the last
+    # 10 days of a 30-day window would show ~100% coverage of their own
+    # observed span here, not ~33% of the full requested window the spec
+    # actually describes. Flagged as a real approximation, not built to
+    # look more precise than it is — a proper fix means threading the
+    # requested `days` value through the cache/registry call chain.
+    n = len(resting_bpms)
+
+    if n == 0:
+        support_state = "none"
+    elif n >= 8 and span_days is not None and span_days >= 14:
+        support_state = "significance"
+    elif n >= 7 and span_days is not None and span_days >= 7:
+        support_state = "loess"
+    elif n >= 5 and distinct_days >= 5 and span_days is not None and span_days >= 7:
+        support_state = "trend"
+    elif n >= 3 and distinct_days >= 3:
+        support_state = "descriptive"
+    else:
+        support_state = "snapshot"
+
+    calendar_days_approx = max(int(span_days) + 1, 1) if span_days is not None else None
+    coverage_pct = round(100 * distinct_days / calendar_days_approx, 1) if calendar_days_approx else None
+
+    unavailable = []
+    if result["resting_summary"] is None:
+        unavailable.append({"analysis": "resting_summary",
+                             "reason": f"needs >=3 readings across >=3 distinct days (have n={n}, days={distinct_days})"})
+    if result["dispersion"] is None:
+        unavailable.append({"analysis": "dispersion",
+                             "reason": f"needs >=5 readings (have n={n})"})
+    if result["trend"] is None:
+        unavailable.append({"analysis": "trend",
+                             "reason": f"needs >=5 readings across >=5 distinct days and >=7 day span "
+                                       f"(have n={n}, days={distinct_days}, span={round(span_days, 1) if span_days else 0})"})
+    elif result["trend"].get("p_value") is None:
+        unavailable.append({"analysis": "trend.p_value",
+                             "reason": f"needs >=8 readings and >=14 day span "
+                                       f"(have n={n}, span={round(span_days, 1) if span_days else 0})"})
+    if result["loess"] is None:
+        unavailable.append({"analysis": "loess",
+                             "reason": f"needs >=7 readings and >=7 day span "
+                                       f"(have n={n}, span={round(span_days, 1) if span_days else 0})"})
+    if result["baseline_deviation"] is None:
+        unavailable.append({"analysis": "baseline_deviation",
+                             "reason": "needs its own separate baseline (>=7 readings/>=7 days, 8-37 days ago) "
+                                       "and recent (>=3 readings/>=3 days, last 7 days) data — independent of this window"})
+
+    result["data_support"] = {
+        "support_state":             support_state,
+        "n":                         n,
+        "distinct_days":             distinct_days,
+        "span_days":                 round(span_days, 1) if span_days is not None else None,
+        "distinct_day_coverage_pct": coverage_pct,
+        "unavailable_analyses":      unavailable,
+    }
+
+    # §6.10 — Medication-Change Association. Uses medication_changes — a
+    # completely separate table, fetched once by the caller (see
+    # VITAL_ANALYSIS_REGISTRY['heart_rate']['needs_medication_changes']),
+    # same "caller fetches, function receives" pattern as baseline_rows.
+    #
+    # PRE/POST are 14-day windows straddling each change's effective_date,
+    # with the change date itself excluded from BOTH — spec's own exact
+    # boundary: PRE = [change-14d, change), POST = (change, change+14d].
+    # Uses resting_rows (already computed above, same eligible set as
+    # every other section) rather than a new query — a medication's
+    # effect on heart rate is only meaningful against resting readings,
+    # same reasoning as everywhere else in this function.
+    #
+    # "Confounded" checks the FULL patient medication history, not just
+    # this one medication — a heart-rate shift 10 days after a dose
+    # change could just as easily be explained by a completely different
+    # drug starting the same week. Narrowing the confounded check to only
+    # the medication being analyzed would miss exactly that case.
+    associations = []
+    if medication_changes and resting_rows:
+        for med_id, med_name, change_type, effective_date in medication_changes:
+            pre_start = effective_date - timedelta(days=14)
+            post_end = effective_date + timedelta(days=14)
+
+            pre_rows  = [r for r in resting_rows if pre_start <= _hr_local_datetime(r).date() < effective_date]
+            post_rows = [r for r in resting_rows if effective_date < _hr_local_datetime(r).date() <= post_end]
+
+            pre_bpms  = [r["bpm"] for r in pre_rows]
+            post_bpms = [r["bpm"] for r in post_rows]
+            pre_days  = len({_hr_local_datetime(r).date() for r in pre_rows})
+            post_days = len({_hr_local_datetime(r).date() for r in post_rows})
+
+            if len(pre_bpms) >= 3 and pre_days >= 3 and len(post_bpms) >= 3 and post_days >= 3:
+                confounded = any(
+                    other_date != effective_date and pre_start <= other_date <= post_end
+                    for _, _, _, other_date in medication_changes
+                )
+
+                m_pre = statistics.median(pre_bpms)
+                m_post = statistics.median(post_bpms)
+                delta = m_post - m_pre
+
+                associations.append({
+                    "medication_id":   str(med_id),
+                    "medication_name": med_name,
+                    "change_type":     change_type,
+                    "effective_date":  effective_date.isoformat(),
+                    "pre_n":           len(pre_bpms),
+                    "post_n":          len(post_bpms),
+                    "pre_median":      round(m_pre, 1),
+                    "post_median":     round(m_post, 1),
+                    "delta_bpm":       round(delta, 1),
+                    "delta_pct":       round(100 * delta / m_pre, 1) if m_pre != 0 else None,
+                    "confounded":      confounded,
+                })
+
+    result["medication_associations"] = associations if associations else None
+
+    return result
+# --------------------
+# Vitals analysis cache — eager, per-vital-type
+# --------------------
+# Standard windows are computed and cached the moment a relevant vital is
+# recorded (see the BackgroundTasks hook in record_vitals), so every
+# dashboard read against 15/30/45/60 days is a cache hit — compute cost
+# scales with how often people log readings, not how often they open the
+# app. Anything outside these four (a custom range) is never cached and
+# always computed fresh — see get_vitals_analysis.
+ANALYSIS_WINDOWS = [15, 30, 45, 60]
+
+# Registry mapping each vital type to how to fetch its rows and analyze
+# them. "from_clause" defaults to just "vitals" (blood_pressure needs
+# nothing else), but a vital with its own context table — like Heart
+# Rate — points this at a LEFT JOIN instead. LEFT, not INNER: a reading
+# recorded before heart_rate_context existed has no context row at all,
+# and should still show up (with context fields simply unknown) rather
+# than silently vanishing from analysis entirely. Deliberately a plain
+# dict, not a class hierarchy — nothing here needs polymorphism, just a
+# lookup.
+VITAL_ANALYSIS_REGISTRY = {
+    "blood_pressure": {
+        "from_clause": "vitals",
+        "columns": "recorded_at, systolic, diastolic, heart_rate, oxygen_saturation, temperature",
+        "where_clause": "systolic IS NOT NULL AND diastolic IS NOT NULL",
+        "analysis_fn": run_bp_analysis,
+    },
+    "heart_rate": {
+        "from_clause": "vitals LEFT JOIN heart_rate_context ON heart_rate_context.vital_id = vitals.vital_id",
+        # Includes the other same-row vitals (systolic/diastolic/spo2/temperature/
+        # weight/blood_glucose) — §6.1 ("Latest rate + context") explicitly wants
+        # the linked measurement event, not just the BPM value in isolation.
+        "columns": (
+            "vitals.recorded_at, vitals.local_offset_minutes, vitals.heart_rate, "
+            "heart_rate_context.activity_context, heart_rate_context.posture, "
+            "heart_rate_context.symptom_tags, heart_rate_context.source_type, "
+            "heart_rate_context.device_irregular_pulse_flag, "
+            "vitals.systolic, vitals.diastolic, vitals.oxygen_saturation, "
+            "vitals.temperature, vitals.weight, vitals.blood_glucose"
+        ),
+        # A NULL is_invalidated (no context row at all, e.g. a pre-migration
+        # reading) is treated the same as "not invalidated" — never excluded
+        # just for lacking context, only when explicitly flagged bad.
+        "where_clause": (
+            "vitals.heart_rate IS NOT NULL "
+            "AND (heart_rate_context.is_invalidated IS NULL OR heart_rate_context.is_invalidated = false)"
+        ),
+        "analysis_fn": run_hr_analysis,
+        # §6.6 needs a FIXED 37-day lookback from right now (Recent =
+        # last 7 days, Baseline = the 30 days before that) — genuinely
+        # independent of whichever standard window (15/30/45/60) is
+        # being computed. Optional key: only present when an analysis
+        # set actually needs it. When set, recompute_vital_cache and
+        # get_cached_or_compute_analysis fetch this ONCE (not once per
+        # window — it's the same 37-day data regardless of which
+        # window's cache entry is being built) and pass it to
+        # analysis_fn as a second argument.
+        "baseline_lookback_days": 37,
+        # §6.10 needs the patient's full medication_changes history — a
+        # completely different table from anything else this function
+        # touches, fetched ONCE by the caller (not per-window, same
+        # reasoning as baseline_rows) and passed as a third argument.
+        "needs_medication_changes": True,
+        # §6.3's dispersion trend — fixed "most recent 30 days vs the 30
+        # days before that," independent of whichever standard window
+        # (15/30/45/60) is currently being viewed. Rolling, not anchored
+        # to a calendar date — recomputed relative to now() every time,
+        # same as every other window in this app already is.
+        "prior_period_lookback_days": 60,
+    },
+    # "spo2":    {...},   # TODO once the SpO2 spec is implemented
+    # "weight":  {...},   # TODO once the Weight spec is implemented
+    # "glucose": {...},   # TODO once the Glucose spec is implemented
+}
+
+def recompute_vital_cache(patient_id: str, household_id: str, vital_type: str):
+    """
+    Runs in the background (see BackgroundTasks in record_vitals) — never
+    blocks the "vitals recorded" response the user is waiting on. Computes
+    all four standard windows for ONE vital type and upserts each into
+    vitals_analysis_cache. Scoped to a single vital_type deliberately: a
+    new temperature reading has no reason to trigger a Weight or Glucose
+    recompute, so record_vitals only schedules this for the vital types
+    actually present in that specific submission.
+    """
+    entry = VITAL_ANALYSIS_REGISTRY.get(vital_type)
+    if entry is None:
+        return  # not implemented yet for this vital type — nothing to do
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # Fetched ONCE, outside the per-window loop — a fixed lookback
+        # from right now, not tied to any of the four standard windows.
+        # None when the vital type has no such requirement (e.g. blood_pressure).
+        baseline_rows = None
+        lookback = entry.get("baseline_lookback_days")
+        if lookback:
+            cur.execute(f"""
+                SELECT {entry['columns']}
+                FROM {entry['from_clause']}
+                WHERE vitals.patient_id = %s
+                  AND vitals.household_id = %s
+                  AND {entry['where_clause']}
+                  AND vitals.recorded_at >= now() - interval '%s days'
+                ORDER BY vitals.recorded_at ASC;
+            """, (patient_id, household_id, lookback))
+            baseline_rows = cur.fetchall()
+
+        # Full medication-change history for this patient — a different
+        # table entirely, fetched once, same reasoning as baseline_rows.
+        medication_changes = None
+        if entry.get("needs_medication_changes"):
+            cur.execute("""
+                SELECT mc.medication_id, m.name, mc.change_type, mc.effective_date
+                FROM medication_changes mc
+                JOIN medications m ON m.medication_id = mc.medication_id
+                WHERE mc.patient_id = %s
+                ORDER BY mc.effective_date ASC;
+            """, (patient_id,))
+            medication_changes = cur.fetchall()
+
+        # Fixed 60-day lookback for §6.3's dispersion trend — split into
+        # current-30/prior-30 inside run_hr_analysis itself, not here;
+        # this just fetches the raw 60 days once, same reusable pattern.
+        prior_period_rows = None
+        prior_lookback = entry.get("prior_period_lookback_days")
+        if prior_lookback:
+            cur.execute(f"""
+                SELECT {entry['columns']}
+                FROM {entry['from_clause']}
+                WHERE vitals.patient_id = %s
+                  AND vitals.household_id = %s
+                  AND {entry['where_clause']}
+                  AND vitals.recorded_at >= now() - interval '%s days'
+                ORDER BY vitals.recorded_at ASC;
+            """, (patient_id, household_id, prior_lookback))
+            prior_period_rows = cur.fetchall()
+
+        # Built generically so any combination of optional extra datasets
+        # works without a combinatorial chain of if/else branches — a
+        # future vital needing two or three of these just adds its own
+        # registry flag, no changes needed here.
+        extra_kwargs = {}
+        if lookback:
+            extra_kwargs["baseline_rows"] = baseline_rows
+        if entry.get("needs_medication_changes"):
+            extra_kwargs["medication_changes"] = medication_changes
+        if prior_lookback:
+            extra_kwargs["prior_period_rows"] = prior_period_rows
+
+        for days in ANALYSIS_WINDOWS:
+            cur.execute(f"""
+                SELECT {entry['columns']}
+                FROM {entry['from_clause']}
+                WHERE vitals.patient_id = %s
+                  AND vitals.household_id = %s
+                  AND {entry['where_clause']}
+                  AND vitals.recorded_at >= now() - interval '%s days'
+                ORDER BY vitals.recorded_at ASC;
+            """, (patient_id, household_id, days))
+            rows = cur.fetchall()
+
+            result = entry["analysis_fn"](rows, **extra_kwargs)
+
+            cur.execute("""
+                INSERT INTO vitals_analysis_cache (patient_id, vital_type, window_days, result, computed_at)
+                VALUES (%s, %s, %s, %s, now())
+                ON CONFLICT (patient_id, vital_type, window_days)
+                DO UPDATE SET result = EXCLUDED.result, computed_at = now();
+            """, (patient_id, vital_type, days, json.dumps(result)))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"=== ANALYSIS CACHE RECOMPUTE ERROR ({vital_type}, patient {patient_id}): {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_type: str, days: int) -> dict | None:
+    """
+    Read path used by get_vitals_analysis. Standard windows (15/30/45/60)
+    are served from cache — expected to already be there from the eager
+    background recompute, but falls back to computing inline on a miss
+    (e.g. the very first reading ever recorded for a patient, before any
+    background job has run, or right after this cache table's own
+    migration) rather than erroring. A custom range always computes fresh
+    and is never written to the cache table.
+    """
+    entry = VITAL_ANALYSIS_REGISTRY.get(vital_type)
+    if entry is None:
+        return None
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        if days in ANALYSIS_WINDOWS:
+            cur.execute("""
+                SELECT result FROM vitals_analysis_cache
+                WHERE patient_id = %s AND vital_type = %s AND window_days = %s;
+            """, (patient_id, vital_type, days))
+            row = cur.fetchone()
+            if row is not None:
+                return row[0]  # cache hit
+
+        # Cache miss on a standard window, or a custom range — compute now.
+        baseline_rows = None
+        lookback = entry.get("baseline_lookback_days")
+        if lookback:
+            cur.execute(f"""
+                SELECT {entry['columns']}
+                FROM {entry['from_clause']}
+                WHERE vitals.patient_id = %s
+                  AND vitals.household_id = %s
+                  AND {entry['where_clause']}
+                  AND vitals.recorded_at >= now() - interval '%s days'
+                ORDER BY vitals.recorded_at ASC;
+            """, (patient_id, household_id, lookback))
+            baseline_rows = cur.fetchall()
+
+        medication_changes = None
+        if entry.get("needs_medication_changes"):
+            cur.execute("""
+                SELECT mc.medication_id, m.name, mc.change_type, mc.effective_date
+                FROM medication_changes mc
+                JOIN medications m ON m.medication_id = mc.medication_id
+                WHERE mc.patient_id = %s
+                ORDER BY mc.effective_date ASC;
+            """, (patient_id,))
+            medication_changes = cur.fetchall()
+
+        prior_period_rows = None
+        prior_lookback = entry.get("prior_period_lookback_days")
+        if prior_lookback:
+            cur.execute(f"""
+                SELECT {entry['columns']}
+                FROM {entry['from_clause']}
+                WHERE vitals.patient_id = %s
+                  AND vitals.household_id = %s
+                  AND {entry['where_clause']}
+                  AND vitals.recorded_at >= now() - interval '%s days'
+                ORDER BY vitals.recorded_at ASC;
+            """, (patient_id, household_id, prior_lookback))
+            prior_period_rows = cur.fetchall()
+
+        extra_kwargs = {}
+        if lookback:
+            extra_kwargs["baseline_rows"] = baseline_rows
+        if entry.get("needs_medication_changes"):
+            extra_kwargs["medication_changes"] = medication_changes
+        if prior_lookback:
+            extra_kwargs["prior_period_rows"] = prior_period_rows
+
+        cur.execute(f"""
+            SELECT {entry['columns']}
+            FROM {entry['from_clause']}
+            WHERE vitals.patient_id = %s
+              AND vitals.household_id = %s
+              AND {entry['where_clause']}
+              AND vitals.recorded_at >= now() - interval '%s days'
+            ORDER BY vitals.recorded_at ASC;
+        """, (patient_id, household_id, days))
+        rows = cur.fetchall()
+        result = entry["analysis_fn"](rows, **extra_kwargs)
+
+        # Backfill the cache on a standard-window miss, so the NEXT read
+        # is fast too — but never for a custom range, which by definition
+        # isn't one of the four windows this cache is keyed on.
+        if days in ANALYSIS_WINDOWS and result is not None:
+            cur.execute("""
+                INSERT INTO vitals_analysis_cache (patient_id, vital_type, window_days, result, computed_at)
+                VALUES (%s, %s, %s, %s, now())
+                ON CONFLICT (patient_id, vital_type, window_days)
+                DO UPDATE SET result = EXCLUDED.result, computed_at = now();
+            """, (patient_id, vital_type, days, json.dumps(result)))
+            conn.commit()
+
+        return result
+    finally:
+        cur.close()
+        conn.close()
+
 # --------------------
 # JWT helper
 # --------------------
-def create_jwt(user_id: str, household_id: str, email: str) -> str:
+def create_jwt(user_id: str, household_id: Optional[str], email: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE_HOURS)
     payload = {
         "sub":          user_id,
-        "household_id": household_id,
+        "household_id": household_id,  # None until tier selection / join completes
         "email":        email,
         "exp":          expire,
     }
@@ -828,6 +1861,76 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+
+# --------------------
+# Household invites
+# --------------------
+def generate_invite_code() -> str:
+    """
+    Short, human-typeable code (e.g. A7K9-2XPQ) rather than a long opaque
+    token — this gets read off an email and typed into the Personalization
+    screen, not clicked as a link, so it needs to be short enough to
+    reasonably type by hand without errors.
+    """
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I — easy to misread
+    part1 = "".join(secrets.choice(alphabet) for _ in range(4))
+    part2 = "".join(secrets.choice(alphabet) for _ in range(4))
+    return f"{part1}-{part2}"
+
+def resolve_invite_household(cur, invite_code: str):
+    """
+    Validates an invite code (exists, unexpired, unused) and returns
+    (household_id, invite_id). Raises HTTPException on any failure.
+    """
+    cur.execute("""
+        SELECT invite_id, household_id, expires_at, used_at
+        FROM household_invites
+        WHERE code = %s
+    """, (invite_code.strip().upper(),))
+    row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=400, detail="That invite code isn't valid. Double-check it and try again.")
+
+    invite_id, household_id, expires_at, used_at = row
+
+    if used_at is not None:
+        raise HTTPException(status_code=400, detail="This invite has already been used.")
+
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="This invite code has expired. Ask for a new one.")
+
+    return str(household_id), str(invite_id)
+
+def mark_invite_used(cur, invite_id: str):
+    cur.execute("UPDATE household_invites SET used_at = now() WHERE invite_id = %s", (invite_id,))
+
+def count_reserved_slots(cur, household_id: str) -> tuple[int, int, int]:
+    """
+    Returns (patient_limit, actual_patient_count, active_pending_invite_count).
+    Every unused, unexpired invite reserves one slot against the household's
+    patient_limit — worst case, every invitee chooses "create a new
+    patient" rather than attaching to an existing one, so the primary
+    account holder can never issue more invites than the household could
+    actually accommodate if all of them were redeemed that way. An invite
+    stops reserving a slot the moment it's used, cancelled (both set
+    used_at), or naturally expires (excluded here by the expires_at check,
+    no cleanup job needed for correctness).
+    """
+    cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
+    row = cur.fetchone()
+    patient_limit = row[0] if row and row[0] is not None else 2
+
+    cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
+    patient_count = cur.fetchone()[0]
+
+    cur.execute("""
+        SELECT COUNT(*) FROM household_invites
+        WHERE household_id = %s AND used_at IS NULL AND expires_at > now()
+    """, (household_id,))
+    pending_invite_count = cur.fetchone()[0]
+
+    return patient_limit, patient_count, pending_invite_count
 
 # --------------------
 # Verification email (Resend)
@@ -909,6 +2012,70 @@ def send_verification_email(to_email: str, token: str):
         print(f"=== RESEND ERROR: {e}")
 
 
+def send_household_invite_email(to_email: str, code: str, inviter_name: str):
+    """
+    Sends the invite code by email — the recipient reads/copies the code
+    and enters it manually on the Personalization screen during their own
+    normal sign-up (email/Google/Apple, whichever they choose). No deep
+    link, no dependency on domain-verified App Links/Universal Links.
+    """
+    try:
+        response = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": EMAIL_FROM,
+                "to": [to_email],
+                "subject": f"{inviter_name} invited you to Vitals",
+                "html": f"""
+                <body style="margin:0; padding:0; background:#F4F6F9; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F9; padding:40px 16px;">
+                    <tr>
+                      <td align="center">
+                        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px; width:100%; background:#FFFFFF; border:1px solid rgba(26,38,64,0.1); border-radius:16px; padding:40px 36px;">
+                          <tr>
+                            <td align="center" style="padding-bottom:28px;">
+                              <img src="https://vitals-wellness.com/logo.png" alt="Vitals" height="30" style="height:30px;">
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="font-family:Georgia,'Times New Roman',serif; font-size:24px; color:#1A2640; text-align:center; padding-bottom:16px;">
+                              {inviter_name} invited you to Vitals
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="font-size:15px; color:#5A6A82; line-height:1.7; text-align:center; padding-bottom:24px;">
+                              Download Vitals, create your account, and when you get to "Who are you tracking for?", choose "Join an existing household" and enter this code:
+                            </td>
+                          </tr>
+                          <tr>
+                            <td align="center" style="padding-bottom:24px;">
+                              <div style="display:inline-block; background:#F4F6F9; border:1px solid rgba(26,38,64,0.15); border-radius:10px; padding:16px 28px; font-family:Georgia,'Times New Roman',serif; font-size:26px; letter-spacing:0.08em; color:#1A2640; font-weight:bold;">
+                                {code}
+                              </div>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="font-size:13px; color:#5A6A82; line-height:1.6; text-align:center; border-top:1px solid rgba(26,38,64,0.1); padding-top:20px;">
+                              This code expires in 24 hours. If you weren't expecting this, you can ignore this email.
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                """,
+            },
+            timeout=10,
+        )
+        print(f"=== RESEND (INVITE) STATUS: {response.status_code} {response.text}")
+    except Exception as e:
+        print(f"=== RESEND (INVITE) ERROR: {e}")
+
 def verification_page(title: str, message: str, is_error: bool = False) -> str:
     """
     Shared styled HTML shell for every /api/auth/verify-email outcome
@@ -977,6 +2144,7 @@ def verification_page(title: str, message: str, is_error: bool = False) -> str:
 @app.post("/api/vitals")
 def record_vitals(
     vital: VitalCreate,
+    background_tasks: BackgroundTasks,
     x_api_key: str = Header(..., alias="X-API-KEY"),
     household_id: str = Depends(get_household_id)
 ):
@@ -986,23 +2154,63 @@ def record_vitals(
     verify_patient_household(cur, vital.patient_id, household_id)
     cur.execute("""
         INSERT INTO vitals (
-            household_id, patient_id, recorded_at,
+            household_id, patient_id, recorded_at, local_offset_minutes,
             systolic, diastolic, oxygen_saturation,
             heart_rate, temperature, blood_glucose,
             weight, source, notes
         )
-        VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING vital_id;
     """, (
-        household_id, vital.patient_id, vital.recorded_at,
+        household_id, vital.patient_id, vital.recorded_at, vital.local_offset_minutes,
         vital.systolic, vital.diastolic, vital.oxygen_saturation,
         vital.heart_rate, vital.temperature, vital.blood_glucose,
         vital.weight, vital.source, vital.notes
     ))
     vital_id = cur.fetchone()[0]
+
+    # A heart-rate reading always gets a context row, even when every
+    # field is unknown/null — this means a FUTURE reading (once the
+    # Entry-form UI collects real context) has something to update rather
+    # than insert, and it keeps every heart-rate-containing vitals row
+    # consistently joinable, instead of some having a context row and
+    # others silently not. Same transaction as the vitals insert above —
+    # both succeed together or neither does.
+    if vital.heart_rate is not None:
+        cur.execute("""
+            INSERT INTO heart_rate_context (
+                vital_id, activity_context, posture, symptom_tags,
+                source_type, device_irregular_pulse_flag, is_invalidated
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, false);
+        """, (
+            vital_id, vital.hr_activity_context, vital.hr_posture,
+            vital.hr_symptom_tags, vital.hr_source_type,
+            vital.hr_device_irregular_pulse_flag
+        ))
+
     conn.commit()
     cur.close()
     conn.close()
+
+    # Only recompute the vital types this specific submission actually
+    # touched — e.g. a temperature-only reading has no reason to trigger
+    # a Weight or Glucose recompute, since that data hasn't changed.
+    # Runs after the response would otherwise be sent, so "vitals
+    # recorded" comes back immediately regardless of how long the four
+    # window computations take.
+    if vital.systolic is not None or vital.diastolic is not None:
+        background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "blood_pressure")
+    if vital.heart_rate is not None:
+        background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "heart_rate")
+    # Uncomment each block below as its analysis function is implemented:
+    # if vital.oxygen_saturation is not None:
+    #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "spo2")
+    # if vital.weight is not None:
+    #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "weight")
+    # if vital.blood_glucose is not None:
+    #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "glucose")
+
     return {"status": "success", "vital_id": vital_id, "message": "Vitals recorded"}
 
 @app.get("/api/vitals/latest")
@@ -1141,22 +2349,58 @@ def get_vitals_analysis(
     except:
         return {"error": "invalid_patient"}
 
+    # Server-side floor, independent of whatever the client already
+    # enforced — same defense-in-depth pattern used elsewhere (patient
+    # limits, invite slots). Trend analysis below 15 days of data isn't
+    # something we can stand behind, so this is a hard reject, not a
+    # soft warning. The four standard windows (15/30/45/60) never hit
+    # this — it only matters for a manually-entered custom range.
+    if days < 15:
+        raise HTTPException(
+            status_code=400,
+            detail="Custom date ranges must cover at least 15 days — shorter windows aren't reliable enough for trend analysis."
+        )
+
     conn = get_conn()
     cur = conn.cursor()
     verify_patient_household(cur, patient_id, household_id)
 
+    # Each vital gets its own independent row fetch now — previously,
+    # heart_rate/oxygen_saturation/temperature were all derived from a
+    # single query filtered to "systolic IS NOT NULL AND diastolic IS NOT
+    # NULL", meaning a heart-rate-only reading (no BP alongside it) was
+    # invisible to this endpoint from the very first line, regardless of
+    # anything downstream. Each vital should only depend on its OWN data
+    # existing, not on BP happening to be recorded in the same entry.
     cur.execute("""
-        SELECT recorded_at, systolic, diastolic,
-               heart_rate, oxygen_saturation, temperature
+        SELECT recorded_at, systolic, diastolic
         FROM vitals
-        WHERE patient_id = %s
-          AND household_id = %s
-          AND systolic IS NOT NULL
-          AND diastolic IS NOT NULL
+        WHERE patient_id = %s AND household_id = %s
+          AND systolic IS NOT NULL AND diastolic IS NOT NULL
           AND recorded_at >= now() - interval '%s days'
         ORDER BY recorded_at ASC;
     """, (patient_id, household_id, days))
-    rows = cur.fetchall()
+    bp_row_count = len(cur.fetchall())
+
+    cur.execute("""
+        SELECT recorded_at, oxygen_saturation
+        FROM vitals
+        WHERE patient_id = %s AND household_id = %s
+          AND oxygen_saturation IS NOT NULL
+          AND recorded_at >= now() - interval '%s days'
+        ORDER BY recorded_at ASC;
+    """, (patient_id, household_id, days))
+    spo2_rows = cur.fetchall()
+
+    cur.execute("""
+        SELECT recorded_at, temperature
+        FROM vitals
+        WHERE patient_id = %s AND household_id = %s
+          AND temperature IS NOT NULL
+          AND recorded_at >= now() - interval '%s days'
+        ORDER BY recorded_at ASC;
+    """, (patient_id, household_id, days))
+    temp_rows = cur.fetchall()
 
     cur.execute("""
         SELECT d.name, v.follow_up_date
@@ -1183,31 +2427,40 @@ def get_vitals_analysis(
     cur.close()
     conn.close()
 
-    if len(rows) < 7:
-        return {
-            "status": "insufficient_data",
-            "reading_count": len(rows),
-            "readings_needed": 7,
-            "message": (
-                f"You have {len(rows)} BP reading{'s' if len(rows) != 1 else ''} in this period. "
-                "Keep recording daily — analysis unlocks after 7 readings. "
-                "The more consistent you are, the more accurate your trends become."
-            )
-        }
-
-    bp_rows = [(r[0], r[1], r[2]) for r in rows]
-    bp = run_bp_analysis(bp_rows)
-
-    hr_rows   = [(r[0], r[3]) for r in rows if r[3] is not None]
-    spo2_rows = [(r[0], r[4]) for r in rows if r[4] is not None]
-    temp_rows = [(r[0], r[5]) for r in rows if r[5] is not None]
-
-    hr_analysis   = analyze_vital_series(hr_rows,   vital_type="hr")
-    spo2_analysis = analyze_vital_series(spo2_rows, vital_type="spo2")
-    temp_analysis = analyze_vital_series(temp_rows, vital_type="temp")
+    # Heart Rate now goes through the real engine (run_hr_analysis via the
+    # cache) instead of the older analyze_vital_series — independently
+    # computed and gated on ITS OWN reading count, not BP's. SpO2 and
+    # Temperature still use analyze_vital_series for now (no dedicated
+    # spec/engine built for them yet), just with correctly independent
+    # row fetches rather than ones filtered through BP.
+    hr_analysis   = get_cached_or_compute_analysis(patient_id, household_id, "heart_rate", days)
+    spo2_analysis = analyze_vital_series(list(spo2_rows), vital_type="spo2")
+    temp_analysis = analyze_vital_series(list(temp_rows), vital_type="temp")
 
     pcp_name      = pcp[0] if pcp else None
     next_followup = pcp[1].strftime("%b %-d, %Y") if pcp and pcp[1] else None
+
+    # BP's own insufficient-data state no longer blocks the rest of the
+    # response — heart_rate/spo2/temperature/pcp info are included either
+    # way, computed above before this check even runs.
+    if bp_row_count < 7:
+        return {
+            "status": "insufficient_data",
+            "reading_count": bp_row_count,
+            "readings_needed": 7,
+            "message": (
+                f"You have {bp_row_count} BP reading{'s' if bp_row_count != 1 else ''} in this period. "
+                "Keep recording daily — analysis unlocks after 7 readings. "
+                "The more consistent you are, the more accurate your trends become."
+            ),
+            "heart_rate":    hr_analysis,
+            "spo2":          spo2_analysis,
+            "temperature":   temp_analysis,
+            "pcp_name":      pcp_name,
+            "next_followup": next_followup,
+        }
+
+    bp = get_cached_or_compute_analysis(patient_id, household_id, "blood_pressure", days)
 
     return {
         "status":         "ok",
@@ -1234,15 +2487,53 @@ def get_vitals_analysis(
 # PATIENTS ENDPOINTS
 # --------------------
 @app.get("/api/patients", response_model=list[PatientOut])
-def list_patients(household_id: str = Depends(get_household_id)):
+def list_patients(
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+    exclude_self_claimed: bool = False,
+):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT patient_id, first_name, last_name, dob, gender
-        FROM patients
-        WHERE household_id = %s
-        ORDER BY first_name
-    """, (household_id,))
+
+    caller_user_id = auth.get("sub") if auth.get("type") != "api_key" else None
+
+    if exclude_self_claimed:
+        # Used specifically by the Join flow's "attach to an existing
+        # patient" screen — a patient that ANY user has already claimed
+        # with relationship='self' should never appear as an option for
+        # someone else to attach to. Otherwise a second user could
+        # mistakenly confirm "this is me" on a patient that's already
+        # someone else's own identity.
+        cur.execute("""
+            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender
+            FROM patients p
+            WHERE p.household_id = %s
+              AND NOT EXISTS (
+                  SELECT 1 FROM patient_users pu
+                  WHERE pu.patient_id = p.patient_id AND pu.relationship = 'self'
+              )
+            ORDER BY p.first_name
+        """, (household_id,))
+    else:
+        # Two accounts sharing a household (via invite) both see the same
+        # patient list — plain alphabetical order has no idea which
+        # patient, if any, corresponds to the person actually asking.
+        # Prioritizing a patient_users 'self' match for the calling user
+        # means the client's existing "default to the first patient in
+        # the list" fallback (PatientStateService.InitializeAsync)
+        # naturally lands on the right patient for whoever's logged in,
+        # without any client-side change.
+        cur.execute("""
+            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender
+            FROM patients p
+            LEFT JOIN patient_users pu
+                ON pu.patient_id = p.patient_id
+                AND pu.user_id = %s
+                AND pu.relationship = 'self'
+            WHERE p.household_id = %s
+            ORDER BY (pu.patient_id IS NULL), p.first_name
+        """, (caller_user_id, household_id))
+
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -1252,19 +2543,117 @@ def list_patients(household_id: str = Depends(get_household_id)):
     ]
 
 @app.post("/api/patients", response_model=PatientOut)
-def create_patient(p: PatientCreate, household_id: str = Depends(get_household_id)):
+def create_patient(
+    p: PatientCreate,
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
     conn = get_conn()
     cur = conn.cursor()
+
+    cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
+    row = cur.fetchone()
+    # 2 is the safe fallback if a household somehow has no limit set at all
+    # (shouldn't happen post-migration — patient_limit is NOT NULL with a
+    # default — but better to fail safe than let an edge case go unlimited).
+    patient_limit = row[0] if row and row[0] is not None else 2
+
+    cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
+    current_count = cur.fetchone()[0]
+    if current_count >= patient_limit:
+        cur.close()
+        conn.close()
+        raise HTTPException(
+            status_code=403,
+            detail=f"You've reached your plan's limit of {patient_limit} patient{'s' if patient_limit != 1 else ''}. Upgrade to add more."
+        )
+
     cur.execute("""
         INSERT INTO patients (first_name, last_name, dob, gender, household_id)
         VALUES (%s, %s, %s, %s, %s)
         RETURNING patient_id, first_name, last_name, dob, gender
     """, (p.first_name, p.last_name, p.dob, p.gender, household_id))
     row = cur.fetchone()
+
+    # Record who created this patient and how they relate to them. Not an
+    # access-control mechanism — household-wide access is still the model —
+    # just relationship metadata (see PatientCreate.relationship) so a
+    # future feature (primary caregiver, per-patient notifications, a real
+    # visibility-restriction mode) has real data to work from instead of
+    # needing a backfill migration first. Only meaningful for real
+    # JWT-authenticated users; the legacy API-key path (Home Assistant) has
+    # no actual user_id to link, so it's skipped there.
+    if auth.get("type") != "api_key":
+        creating_user_id = auth.get("sub")
+        if creating_user_id:
+            cur.execute("""
+                INSERT INTO patient_users (patient_id, user_id, relationship, created_at)
+                VALUES (%s, %s, %s, now())
+            """, (row[0], creating_user_id, p.relationship or "caregiver"))
     conn.commit()
     cur.close()
     conn.close()
     return {"patient_id": row[0], "first_name": row[1], "last_name": row[2], "dob": row[3], "gender": row[4]}
+
+
+@app.post("/api/patients/{patient_id}/claim")
+def claim_patient(
+    patient_id: str,
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    """
+    Links the calling user to an existing patient as 'self' — this is what
+    "attach to an existing patient" during Join actually does now,
+    called only after the user has confirmed (via the DOB/gender
+    verification prompt) that the patient really is them. Re-checks
+    server-side that the patient isn't already self-claimed, rather than
+    trusting the client's earlier exclude_self_claimed list fetch — closes
+    the gap where two people could otherwise both attempt to claim the
+    same patient moments apart.
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="This requires a signed-in account")
+
+    user_id = auth.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="This requires a signed-in account")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT 1 FROM patients WHERE patient_id = %s AND household_id = %s",
+            (patient_id, household_id)
+        )
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Patient not found in your household")
+
+        cur.execute(
+            "SELECT 1 FROM patient_users WHERE patient_id = %s AND relationship = 'self'",
+            (patient_id,)
+        )
+        if cur.fetchone():
+            raise HTTPException(
+                status_code=409,
+                detail="This patient has already been claimed by someone else. Please choose another."
+            )
+
+        cur.execute("""
+            INSERT INTO patient_users (patient_id, user_id, relationship, created_at)
+            VALUES (%s, %s, 'self', now())
+        """, (patient_id, user_id))
+        conn.commit()
+        return {"status": "claimed"}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Claim error: {e}")
+    finally:
+        cur.close()
+        conn.close()
 
 @app.get("/api/patients_wrapped")
 def list_patients_wrapped(household_id: str = Depends(get_household_id)):
@@ -1294,7 +2683,8 @@ async def create_medication(
     request: Request,
     m: MedicationCreate,
     x_api_key: str = Header(...),
-    household_id: str = Depends(get_household_id)
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth)
 ):
     raw = await request.json()
     print("RAW PAYLOAD FROM HA:", raw)
@@ -1303,6 +2693,11 @@ async def create_medication(
     est_refill = None
     if m.fill_date and m.days_supply:
         est_refill = calculate_refill(m.fill_date, m.days_supply, m.time_of_day)
+
+    # Editable in the UI, defaults to today there — not silently derived
+    # from created_at, since logging a medication weeks after actually
+    # starting it is the normal case for a manually-tracked medication.
+    start_date = m.start_date or date.today()
 
     conn = get_conn()
     cur = conn.cursor()
@@ -1313,17 +2708,32 @@ async def create_medication(
         INSERT INTO medications (
             patient_id, name, dosage, time_of_day, qty, days_supply,
             fill_date, est_refill, prescribing_doctor_id, is_active,
-            household_id, rxotc, purpose
+            household_id, rxotc, purpose, start_date
         )
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING medication_id;
     """, (
         str(m.patient_id), m.name, m.dosage, time_of_day,
         m.qty, m.days_supply, m.fill_date, est_refill,
         str(m.prescribing_doctor_id) if m.prescribing_doctor_id else None,
-        m.is_active, household_id, m.rxotc or "rx", m.purpose
+        m.is_active, household_id, m.rxotc or "rx", m.purpose, start_date
     ))
     med_id = cur.fetchone()[0]
+
+    # No changed_by_user_id for the legacy API-key path (Home Assistant)
+    # — there's no real user_id to attribute it to, same pattern already
+    # used for patient_users. Home Assistant no longer touches
+    # medications at all in practice, but the endpoint still technically
+    # accepts the legacy auth path, so this stays defensive.
+    changed_by = auth.get("sub") if auth.get("type") != "api_key" else None
+    cur.execute("""
+        INSERT INTO medication_changes (
+            medication_id, patient_id, household_id, change_type,
+            new_value, effective_date, changed_by_user_id
+        )
+        VALUES (%s, %s, %s, 'started', %s, %s, %s);
+    """, (med_id, str(m.patient_id), household_id, m.name, start_date, changed_by))
+
     conn.commit()
     cur.close()
     conn.close()
@@ -1341,14 +2751,21 @@ def get_medications(
     conn = get_conn()
     cur = conn.cursor()
     verify_patient_household(cur, patient_id, household_id)
+    # No discontinued/is_active filter here anymore — the client's own
+    # "hide inactive" toggle (MedicationsViewModel.HideInactiveMedications)
+    # already exists and correctly filters on is_active, but could never
+    # actually show inactive medications before this: the old
+    # `discontinued = false` filter meant they never reached the client
+    # in the first place, regardless of the toggle's state.
     cur.execute("""
         SELECT m.medication_id, m.patient_id, m.name, m.dosage, m.time_of_day,
                m.qty, m.days_supply, m.est_refill, m.fill_date,
                m.prescribing_doctor_id, d.name AS prescribing_doctor,
-               m.discontinued, m.rxotc, m.created_at, m.purpose, m.is_active
+               m.rxotc, m.created_at, m.purpose, m.is_active,
+               m.start_date, m.discontinued_date
         FROM medications m
         LEFT JOIN doctors d ON m.prescribing_doctor_id = d.doctor_id
-        WHERE m.patient_id = %s AND m.household_id = %s AND m.discontinued = false
+        WHERE m.patient_id = %s AND m.household_id = %s
         ORDER BY m.name;
     """, (patient_id, household_id))
     rows = cur.fetchall()
@@ -1361,8 +2778,9 @@ def get_medications(
                 "dosage": r[3], "time_of_day": r[4] or [], "qty": r[5],
                 "days_supply": r[6], "est_refill": r[7], "fill_date": r[8],
                 "prescribing_doctor_id": r[9], "prescribing_doctor": r[10],
-                "discontinued": r[11], "rxotc": r[12], "created_at": r[13],
-                "purpose": r[14], "is_active": r[15]
+                "rxotc": r[11], "created_at": r[12],
+                "purpose": r[13], "is_active": r[14],
+                "start_date": r[15], "discontinued_date": r[16]
             }
             for r in rows
         ]
@@ -1373,16 +2791,36 @@ def update_medication(
     medication_id: UUID,
     m: MedicationUpdate,
     x_api_key: str = Header(...),
-    household_id: str = Depends(get_household_id)
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth)
 ):
     check_key(x_api_key)
     conn = get_conn()
     cur = conn.cursor()
     verify_child_record_household(cur, "medications", "medication_id", str(medication_id), household_id)
 
+    # Fetch BEFORE values first — change detection (is_active flipping,
+    # dosage/time_of_day actually differing) needs something to compare
+    # the incoming payload against, not just what's being set.
+    cur.execute("""
+        SELECT patient_id, is_active, dosage, time_of_day
+        FROM medications WHERE medication_id = %s;
+    """, (str(medication_id),))
+    before = cur.fetchone()
+    if not before:
+        cur.close()
+        conn.close()
+        return {"status": "not_found"}
+    before_patient_id, before_active, before_dosage, before_tod = before
+
+    payload = m.model_dump(exclude_unset=True)
+    # change_effective_date is metadata for medication_changes, not a
+    # medications column — must never reach the dynamic UPDATE below.
+    change_effective_date = payload.pop("change_effective_date", None) or date.today()
+    discontinued_date_sent = "discontinued_date" in payload
+
     updates = []
     values = []
-    payload = m.model_dump(exclude_unset=True)
     for field, value in payload.items():
         if field == "time_of_day" and isinstance(value, list):
             updates.append(f"{field} = %s")
@@ -1393,14 +2831,58 @@ def update_medication(
         else:
             updates.append(f"{field} = %s")
             values.append(value)
+
+    # is_active flipping false->true (a restart) clears any prior
+    # discontinued_date automatically — a medication resumed after being
+    # paused shouldn't keep showing a stale "stopped" date. Only applies
+    # when the client didn't already explicitly send its own
+    # discontinued_date in this same call.
+    if payload.get("is_active") is True and before_active is False and not discontinued_date_sent:
+        updates.append("discontinued_date = %s")
+        values.append(None)
+
     if not updates:
         cur.close()
         conn.close()
         return {"status": "no_changes"}
+
     values.append(str(medication_id))
     sql = f"UPDATE medications SET {', '.join(updates)} WHERE medication_id = %s RETURNING medication_id;"
     cur.execute(sql, tuple(values))
     result = cur.fetchone()
+
+    # No changed_by_user_id for the legacy API-key path — see the same
+    # note in create_medication.
+    changed_by = auth.get("sub") if auth.get("type") != "api_key" else None
+
+    def log_change(change_type, field_changed=None, old_value=None, new_value=None, effective_date=None):
+        cur.execute("""
+            INSERT INTO medication_changes (
+                medication_id, patient_id, household_id, change_type,
+                field_changed, old_value, new_value, effective_date, changed_by_user_id
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+        """, (str(medication_id), str(before_patient_id), household_id, change_type,
+              field_changed, old_value, new_value, effective_date, changed_by))
+
+    # Stopped
+    if payload.get("is_active") is False and before_active is not False:
+        log_change("stopped", effective_date=payload.get("discontinued_date") or date.today())
+    # Restarted
+    if payload.get("is_active") is True and before_active is False:
+        log_change("restarted", effective_date=change_effective_date)
+    # Dosage changed
+    if "dosage" in payload and payload["dosage"] != before_dosage:
+        log_change("dosage_changed", field_changed="dosage",
+                    old_value=before_dosage, new_value=payload["dosage"],
+                    effective_date=change_effective_date)
+    # Frequency (time_of_day) changed
+    if "time_of_day" in payload and payload["time_of_day"] != (before_tod or []):
+        log_change("frequency_changed", field_changed="time_of_day",
+                    old_value=", ".join(before_tod) if before_tod else None,
+                    new_value=", ".join(payload["time_of_day"]) if payload["time_of_day"] else None,
+                    effective_date=change_effective_date)
+
     conn.commit()
     cur.close()
     conn.close()
@@ -1503,23 +2985,16 @@ def export_medications_pdf(
     """, (str(patient_id), household_id, days))
     secondary_rows = cur.fetchall()
 
-    hr_rows_pdf   = [(r[0], r[1]) for r in secondary_rows if r[1] is not None]
     spo2_rows_pdf = [(r[0], r[2]) for r in secondary_rows if r[2] is not None]
     temp_rows_pdf = [(r[0], float(r[3])) for r in secondary_rows if r[3] is not None]
 
-    hr_data   = analyze_vital_series(hr_rows_pdf,   vital_type="hr")
+    # Heart Rate now uses the real engine (run_hr_analysis via the
+    # cache) — the same one powering the app's Analysis tab — instead
+    # of analyze_vital_series. SpO2/Temperature stay on the older
+    # function; no dedicated spec/engine built for them yet.
+    hr_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "heart_rate", days)
     spo2_data = analyze_vital_series(spo2_rows_pdf, vital_type="spo2")
     temp_data = analyze_vital_series(temp_rows_pdf, vital_type="temp")
-
-    hr_class = None
-    if hr_data:
-        c = hr_data["classification"]
-        hr_class = {
-            "bradycardia":      ("Bradycardia",     "#1976d2"),
-            "normal":           ("Normal",           "#388e3c"),
-            "mild_tachycardia": ("Mild Tachycardia", "#f57c00"),
-            "tachycardia":      ("Tachycardia",      "#d32f2f"),
-        }.get(c, ("Unknown", "#888888"))
 
     spo2_class = None
     if spo2_data:
@@ -1802,6 +3277,180 @@ def export_medications_pdf(
             paragraphs.append(
                 "Clinical impression: BP within acceptable range with no statistically "
                 "significant adverse trend. Continued monitoring recommended."
+            )
+
+        return paragraphs
+
+    def build_hr_clinical_summary(hr) -> list:
+        """
+        Mirrors build_clinical_summary(bp) in depth and style, but for
+        Heart Rate's actual data shape (run_hr_analysis via the cache —
+        the same engine powering the app's Analysis tab). Covers every
+        implemented section (§6.1-§6.12); each block is independently
+        gated exactly as the underlying analysis is, so a paragraph only
+        appears when there's real data behind it.
+
+        Deliberately NOT modeled on BP's AUC/duration-weighted burden
+        methodology for the rate-events block — spot heart-rate readings
+        don't support a continuous-coverage assumption, so that section
+        is framed explicitly as reading counts, not time-weighted burden.
+        """
+        if hr is None:
+            return []
+
+        paragraphs = []
+
+        rs = hr.get("resting_summary")
+        if rs:
+            paragraphs.append(
+                f"Resting heart rate averaged {rs['mean']:.0f} BPM (median {rs['median']:.0f}) "
+                f"across {rs['n']} eligible resting readings over {rs['distinct_days']} "
+                f"distinct days, ranging {rs['min']}\u2013{rs['max']} BPM."
+            )
+        else:
+            paragraphs.append(
+                f"Most recent heart rate: {hr.get('bpm', 'N/A')} BPM "
+                f"({hr.get('activity_context', 'unknown')} context). Insufficient "
+                f"resting-tagged readings for trend analysis at this time (requires "
+                f"at least 3 resting readings across 3 distinct days)."
+            )
+            return paragraphs  # nothing further to report without a resting baseline
+
+        disp = hr.get("dispersion")
+        if disp:
+            paragraphs.append(
+                f"Reading-to-reading variability: SD {disp['sd']:.1f} BPM, "
+                f"IQR {disp['iqr']:.1f} BPM (Q1 {disp['q1']:.1f}, Q3 {disp['q3']:.1f})."
+            )
+
+        dtrend = hr.get("dispersion_trend")
+        if dtrend and dtrend.get("status") == "ok":
+            direction = "narrowed" if dtrend["sd_delta"] < 0 else "widened"
+            paragraphs.append(
+                f"Variability has {direction} compared to the prior 30-day period "
+                f"(SD change: {dtrend['sd_delta']:+.1f} BPM)."
+            )
+
+        trend = hr.get("trend")
+        if trend:
+            sig_note = ""
+            if trend.get("p_value") is not None:
+                sig_note = (
+                    f", statistically significant (p={trend['p_value']:.3f})"
+                    if trend["p_value"] < 0.05 else
+                    f", not statistically significant (p={trend['p_value']:.3f})"
+                )
+            r2_note = (
+                f", R\u00b2={trend['r2']:.2f} ({trend.get('consistency') or 'n/a'} consistency)."
+                if trend.get("r2") is not None else "."
+            )
+            paragraphs.append(
+                f"Resting-rate trend: {trend['trend_label'].replace('_', ' ')} at "
+                f"{trend['slope_bpm_per_day']:+.2f} BPM/day over a "
+                f"{trend['span_days']:.0f}-day span{sig_note}{r2_note}"
+            )
+
+        bd = hr.get("baseline_deviation")
+        if bd:
+            direction = "higher" if bd["delta_bpm"] >= 0 else "lower"
+            pct_note = f" ({bd['delta_pct']:+.1f}%)." if bd.get("delta_pct") is not None else "."
+            paragraphs.append(
+                f"The most recent 7 days (median {bd['recent_median']:.0f} BPM) are "
+                f"{direction} than the prior 30-day baseline (median "
+                f"{bd['baseline_median']:.0f} BPM) by {abs(bd['delta_bpm']):.1f} BPM{pct_note}"
+            )
+
+        re_ = hr.get("rate_events")
+        if re_ and re_.get("n_resting_in_window", 0) >= 1:
+            th = re_.get("thresholds", {}) or {}
+            high = re_.get("high", {}) or {}
+            low = re_.get("low", {}) or {}
+            parts = []
+            for label, bucket, thresh_key, direction_word in [
+                ("above", high, "high", "above"), ("below", low, "low", "below")
+            ]:
+                if bucket.get("count", 0) > 0:
+                    detail = []
+                    if bucket.get("pct") is not None:
+                        detail.append(f"{bucket['pct']:.0f}% of readings")
+                    if bucket.get("episode_count"):
+                        detail.append(f"{bucket['episode_count']} distinct episode(s)")
+                    detail_str = f" ({', '.join(detail)})" if detail else ""
+                    parts.append(
+                        f"{bucket['count']} reading(s) {label} {th.get(thresh_key)} BPM{detail_str}"
+                    )
+            if parts:
+                paragraphs.append(
+                    "Threshold events (reading counts, not duration-weighted \u2014 spot "
+                    "measurements do not support a continuous-coverage burden calculation "
+                    "the way BP's does): " + "; ".join(parts) + "."
+                )
+            if re_.get("marked_low_count", 0) > 0:
+                paragraphs.append(
+                    f"{re_['marked_low_count']} of the low reading(s) were markedly low "
+                    f"(below {th.get('marked_low')} BPM) and warrant closer review."
+                )
+
+        tod = hr.get("time_of_day")
+        if tod and tod.get("pattern_summary"):
+            ps = tod["pattern_summary"]
+            paragraphs.append(
+                f"Time-of-day pattern: resting rate is highest during the "
+                f"{ps['highest_period']} and lowest during the {ps['lowest_period']}."
+            )
+
+        cvc = hr.get("cross_vital_context") or {}
+        cv_parts = []
+        for label, key in [("blood pressure", "blood_pressure"),
+                            ("oxygen saturation", "oxygen_saturation"),
+                            ("temperature", "temperature")]:
+            entry = cvc.get(key)
+            if entry and (entry.get("co_occurrence_high", 0) > 0 or entry.get("co_occurrence_low", 0) > 0):
+                cv_parts.append(
+                    f"{label} was abnormal alongside {entry.get('co_occurrence_high', 0)} "
+                    f"high and {entry.get('co_occurrence_low', 0)} low heart-rate reading(s)"
+                )
+        if cv_parts:
+            paragraphs.append("Same-event context: " + "; ".join(cv_parts) + ".")
+
+        sa = hr.get("symptom_association")
+        if sa:
+            sa_parts = []
+            for tag, entry in sa.items():
+                note = f"{tag} logged with {entry['associated_count']} reading(s)"
+                if entry.get("pct_low") is not None:
+                    note += f", {entry['pct_low']:.0f}% low"
+                if entry.get("pct_high") is not None:
+                    note += f", {entry['pct_high']:.0f}% high"
+                sa_parts.append(note)
+            if sa_parts:
+                paragraphs.append("Symptom correlation: " + "; ".join(sa_parts) + ".")
+
+        meds = hr.get("medication_associations")
+        if meds:
+            for m in meds:
+                direction = "higher" if m["delta_bpm"] >= 0 else "lower"
+                confound_note = (
+                    " (another medication change occurred in this same window \u2014 "
+                    "treat this comparison as less certain)" if m.get("confounded") else ""
+                )
+                paragraphs.append(
+                    f"Following {m['change_type'].replace('_', ' ')} of "
+                    f"{m['medication_name']} ({m['effective_date']}), resting rate was "
+                    f"{abs(m['delta_bpm']):.1f} BPM {direction} in the following 14 days "
+                    f"(median {m['post_median']:.0f} BPM) compared to the preceding 14 "
+                    f"days (median {m['pre_median']:.0f} BPM){confound_note}."
+                )
+
+        ds = hr.get("data_support")
+        if ds:
+            coverage_note = (
+                f", {ds['distinct_day_coverage_pct']:.0f}% of window days logged"
+                if ds.get("distinct_day_coverage_pct") is not None else ""
+            )
+            paragraphs.append(
+                f"Data confidence: {ds['support_state'].replace('_', ' ')} "
+                f"({ds['n']} readings across {ds['distinct_days']} days{coverage_note})."
             )
 
         return paragraphs
@@ -2260,6 +3909,176 @@ def export_medications_pdf(
         pdf.setStrokeColorRGB(0, 0, 0)
         y -= 14
 
+        # =====================================================
+        # HEART RATE — CLINICAL ANALYSIS
+        # Mirrors the Blood Pressure section above in depth (Clinical
+        # Summary + Detailed Metrics), using hr_analysis — the same
+        # run_hr_analysis engine powering the app's Analysis tab — not
+        # the older analyze_vital_series output SpO2/Temperature below
+        # still use. Rate-events methodology is deliberately NOT
+        # AUC/duration-weighted like BP's burden — spot readings don't
+        # support that continuous-coverage assumption (see the note
+        # drawn with that block below).
+        # =====================================================
+        if hr_analysis is not None:
+            y = check_page_break(y, needed=200)
+            pdf.setFont("Helvetica-Bold", 13)
+            pdf.drawString(LEFT, y, "Heart Rate Clinical Analysis")
+            y -= 20
+
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(LEFT, y, "Clinical Summary")
+            y -= 4
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 12
+
+            for para in build_hr_clinical_summary(hr_analysis):
+                y = check_page_break(y, needed=40)
+                y = draw_wrapped_line(y, para, fontsize=9, indent=0, line_spacing=13)
+                y -= 6
+
+            y -= 6
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+
+            rs = hr_analysis.get("resting_summary")
+            if rs:
+                pdf.setFont("Helvetica-Bold", 11)
+                pdf.drawString(LEFT, y, "Detailed Metrics")
+                y -= 14
+
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Readings analyzed:")
+                pdf.setFont("Helvetica", 10)
+                pdf.drawString(LEFT + 130, y, f"{rs['n']} ({rs['distinct_days']} distinct days)")
+                y -= 14
+
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Resting mean / median:")
+                pdf.setFont("Helvetica", 10)
+                pdf.drawString(LEFT + 150, y,
+                    f"{rs['mean']:.0f} / {rs['median']:.0f} BPM  (range {rs['min']}\u2013{rs['max']})")
+                y -= 20
+
+                disp = hr_analysis.get("dispersion")
+                if disp:
+                    y = check_page_break(y, needed=50)
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Variability")
+                    y -= 14
+                    pdf.setFont("Helvetica", 9)
+                    pdf.drawString(LEFT + 10, y,
+                        f"SD: {disp['sd']:.1f} BPM   |   IQR: {disp['iqr']:.1f} BPM "
+                        f"(Q1={disp['q1']:.1f}, Q3={disp['q3']:.1f})")
+                    y -= 20
+
+                trend = hr_analysis.get("trend")
+                if trend:
+                    y = check_page_break(y, needed=60)
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Resting-Rate Trend")
+                    y -= 14
+                    pdf.setFont("Helvetica", 9)
+                    p_display = f"{trend['p_value']:.3f}" if trend.get("p_value") is not None else "n/a (insufficient span/n)"
+                    r2_display = f"{trend['r2']:.2f}" if trend.get("r2") is not None else "n/a"
+                    pdf.drawString(LEFT + 10, y,
+                        f"Trend: {trend['trend_label'].replace('_', ' ').title()}   |   "
+                        f"Rate: {trend['slope_bpm_per_day']:+.2f} BPM/day   |   "
+                        f"Span: {trend['span_days']:.0f} days")
+                    y -= 12
+                    pdf.drawString(LEFT + 10, y,
+                        f"p-value: {p_display}   |   R\u00b2: {r2_display}   |   "
+                        f"Consistency: {trend.get('consistency') or 'n/a'}")
+                    y -= 20
+
+                bd = hr_analysis.get("baseline_deviation")
+                if bd:
+                    y = check_page_break(y, needed=60)
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Personal Baseline Comparison")
+                    y -= 14
+                    pdf.setFont("Helvetica", 9)
+                    pdf.drawString(LEFT + 10, y,
+                        f"Prior 30-day baseline: {bd['baseline_median']:.0f} BPM (n={bd['baseline_n']})   |   "
+                        f"Recent 7 days: {bd['recent_median']:.0f} BPM (n={bd['recent_n']})")
+                    y -= 12
+                    z_note = f"   |   z-score: {bd['z_score']:.2f} (clinician reference only)" if bd.get("z_score") is not None else ""
+                    pct_note = f" ({bd['delta_pct']:+.1f}%)" if bd.get("delta_pct") is not None else ""
+                    pdf.drawString(LEFT + 10, y, f"Change: {bd['delta_bpm']:+.1f} BPM{pct_note}{z_note}")
+                    y -= 20
+
+                re_ = hr_analysis.get("rate_events")
+                if re_ and re_.get("n_resting_in_window", 0) >= 1:
+                    y = check_page_break(y, needed=70)
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Threshold Events (Reading Counts)")
+                    y -= 14
+                    th = re_.get("thresholds", {}) or {}
+                    high = re_.get("high", {}) or {}
+                    low = re_.get("low", {}) or {}
+                    pdf.setFont("Helvetica", 9)
+                    high_pct = f", {high['pct']:.0f}%" if high.get("pct") is not None else ""
+                    low_pct = f", {low['pct']:.0f}%" if low.get("pct") is not None else ""
+                    pdf.drawString(LEFT + 10, y,
+                        f"Above {th.get('high')} BPM: {high.get('count', 0)} reading(s){high_pct}   |   "
+                        f"Below {th.get('low')} BPM: {low.get('count', 0)} reading(s){low_pct}")
+                    y -= 12
+                    pdf.setFont("Helvetica-Oblique", 8)
+                    pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                    pdf.drawString(LEFT + 10, y,
+                        "Methodology: discrete reading counts against fixed thresholds \u2014 "
+                        "not AUC/duration-weighted (spot measurements do not support a "
+                        "continuous-coverage assumption).")
+                    pdf.setFillColorRGB(0, 0, 0)
+                    y -= 20
+
+                meds = hr_analysis.get("medication_associations")
+                if meds:
+                    y = check_page_break(y, needed=40 + 24 * len(meds))
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Medication-Change Associations")
+                    y -= 14
+                    pdf.setFont("Helvetica", 9)
+                    for m in meds:
+                        y = check_page_break(y, needed=24)
+                        confound_flag = "  [CONFOUNDED \u2014 another change occurred nearby]" if m.get("confounded") else ""
+                        pdf.drawString(LEFT + 10, y,
+                            f"{m['medication_name']} \u2014 {m['change_type'].replace('_', ' ').title()} "
+                            f"({m['effective_date']}): {m['pre_median']:.0f} \u2192 "
+                            f"{m['post_median']:.0f} BPM ({m['delta_bpm']:+.1f}){confound_flag}")
+                        y -= 12
+                    y -= 8
+
+            y -= 6
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+
         def draw_secondary_section(y, title, data, class_tuple, unit, normal_range,
                                    burden_headers, burden_keys):
             y = check_page_break(y, needed=110)
@@ -2317,19 +4136,6 @@ def export_medications_pdf(
 
             y -= 14
             return y
-
-        y = draw_secondary_section(
-            y, "Heart Rate", hr_data, hr_class or ("Unknown", "#888888"),
-            "BPM", "60-100 BPM",
-            burden_headers=["Bradycardia (<60)", "Normal (60-100)",
-                            "Mild Tachy (101-120)", "Tachycardia (>120)"],
-            burden_keys=["bradycardia_pct", "normal_pct", "mild_tachy_pct", "tachycardia_pct"]
-        )
-
-        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-        pdf.line(LEFT, y, RIGHT, y)
-        pdf.setStrokeColorRGB(0, 0, 0)
-        y -= 14
 
         y = draw_secondary_section(
             y, "Oxygen Saturation (SpO2)", spo2_data,
@@ -2408,6 +4214,187 @@ def export_medications_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=care-summary.pdf"}
     )
+
+
+@app.get("/api/medications/{patient_id}/schedule-pdf")
+def export_medication_schedule_pdf(
+    patient_id: UUID,
+    x_api_key: str = Header(..., alias="X-API-KEY"),
+    household_id: str = Depends(get_household_id)
+):
+    """
+    Medications-only PDF, organized by time of day (Morning / Midday /
+    Evening / Night / Other) rather than a flat alphabetical list. A
+    medication taken more than once a day (e.g. morning and night)
+    appears under EVERY relevant section, not just once — the point is a
+    quick reference for whoever's actually administering doses, not a
+    catalog. Standalone for now (not yet linked from the Medications
+    screen) — same auth/styling conventions as the full care-summary PDF.
+    """
+    check_key(x_api_key)
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=LETTER)
+    width, height = LETTER
+    LEFT = 50
+    RIGHT = width - 50
+    USABLE_WIDTH = RIGHT - LEFT
+
+    conn = get_conn()
+    cur = conn.cursor()
+    verify_patient_household(cur, str(patient_id), household_id)
+
+    cur.execute("""
+        SELECT first_name, last_name, dob
+        FROM patients WHERE patient_id = %s AND household_id = %s;
+    """, (str(patient_id), household_id))
+    p = cur.fetchone()
+    patient_name = f"{p[0]} {p[1]}" if p else "Unknown Patient"
+    patient_dob = p[2].strftime("%m/%d/%Y") if p and p[2] else "Unknown DOB"
+
+    cur.execute("""
+        SELECT name, dosage, time_of_day, purpose, rxotc
+        FROM medications
+        WHERE patient_id = %s AND household_id = %s AND discontinued = false
+        ORDER BY name;
+    """, (str(patient_id), household_id))
+    meds = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    # =====================================================
+    # PDF HELPERS (same conventions as export_medications_pdf)
+    # =====================================================
+    def check_page_break(y, needed=80):
+        if y < needed:
+            pdf.showPage()
+            return height - 50
+        return y
+
+    def wrap_text(text, col_width, fontsize=9):
+        char_width = fontsize * 0.55
+        max_chars = max(1, int((col_width - 8) / char_width))
+        words = str(text or "").split()
+        lines = []
+        line = ""
+        for word in words:
+            test = (line + " " + word).strip()
+            if len(test) <= max_chars:
+                line = test
+            else:
+                if line:
+                    lines.append(line)
+                line = word
+        if line:
+            lines.append(line)
+        return lines if lines else [""]
+
+    def draw_table_row(y, cols, widths, fontsize=9, bold=False, fill_bg=False):
+        line_height = 12
+        pad = 4
+        wrapped = [wrap_text(col, w, fontsize) for col, w in zip(cols, widths)]
+        num_lines = max(len(lines) for lines in wrapped)
+        row_height = num_lines * line_height + pad * 2
+        x = LEFT
+        if fill_bg:
+            pdf.setFillColorRGB(0.85, 0.85, 0.85)
+            pdf.rect(x, y - row_height + pad, USABLE_WIDTH, row_height, fill=1, stroke=0)
+            pdf.setFillColorRGB(0, 0, 0)
+        pdf.setFont("Helvetica-Bold" if bold else "Helvetica", fontsize)
+        for lines, w in zip(wrapped, widths):
+            pdf.rect(x, y - row_height + pad, w, row_height, fill=0, stroke=1)
+            text_y = y - line_height + 2
+            for line in lines:
+                pdf.drawString(x + pad, text_y, line)
+                text_y -= line_height
+            x += w
+        return y - row_height
+
+    # =====================================================
+    # HEADER
+    # =====================================================
+    y = height - 50
+    pdf.setFont("Helvetica-Bold", 18)
+    pdf.drawString(LEFT, y, "Medication Schedule")
+    y -= 24
+    pdf.setFont("Helvetica", 12)
+    pdf.drawString(LEFT, y, f"{patient_name}  |  DOB: {patient_dob}")
+    y -= 16
+    pdf.setFont("Helvetica", 9)
+    pdf.setFillColorRGB(0.4, 0.4, 0.4)
+    pdf.drawString(LEFT, y, f"Generated {datetime.now().strftime('%m/%d/%Y')}")
+    pdf.setFillColorRGB(0, 0, 0)
+    y -= 26
+
+    # =====================================================
+    # GROUP BY TIME OF DAY — a med with multiple times appears in
+    # every relevant section, matching how the app's own Medications
+    # screen groups them (MedicationsViewModel.ApplyFilterAndGroup).
+    # =====================================================
+    sections = [
+        ("Morning", "morning"),
+        ("Midday", "midday"),
+        ("Evening", "evening"),
+        ("Night", "night"),
+    ]
+    col_widths = [140, 100, 150, 60]
+    headers = ["Name", "Dosage", "Purpose", "Rx/OTC"]
+
+    any_section_printed = False
+
+    for label, key in sections:
+        matches = [m for m in meds if m[2] and key in m[2]]
+        if not matches:
+            continue
+
+        any_section_printed = True
+        y = check_page_break(y, needed=100)
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(LEFT, y, label)
+        y -= 18
+        y = draw_table_row(y, headers, col_widths, bold=True, fill_bg=True)
+
+        for name, dosage, time_of_day, purpose, rxotc in matches:
+            y = check_page_break(y, needed=80)
+            y = draw_table_row(
+                y,
+                [name, dosage or "", purpose or "", (rxotc or "").upper()],
+                col_widths
+            )
+        y -= 16
+
+    # Anything with no time_of_day at all, or a value outside the four
+    # standard slots — shown rather than silently dropped, so nothing a
+    # patient actually takes goes missing from the reference sheet.
+    other = [m for m in meds if not m[2] or not any(k in m[2] for _, k in sections)]
+    if other:
+        any_section_printed = True
+        y = check_page_break(y, needed=100)
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(LEFT, y, "Other / As Needed")
+        y -= 18
+        y = draw_table_row(y, headers, col_widths, bold=True, fill_bg=True)
+        for name, dosage, time_of_day, purpose, rxotc in other:
+            y = check_page_break(y, needed=80)
+            y = draw_table_row(
+                y,
+                [name, dosage or "", purpose or "", (rxotc or "").upper()],
+                col_widths
+            )
+
+    if not any_section_printed:
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(LEFT, y, "No active medications on record.")
+
+    pdf.save()
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=medication-schedule.pdf"}
+    )
+
 
 # --------------------
 # DOCTORS ENDPOINTS
@@ -3210,58 +5197,56 @@ def auth_google(body: GoogleAuthRequest):
 
     try:
         cur.execute("""
-            SELECT user_id, household_id FROM users
+            SELECT user_id, household_id, auth_provider FROM users
             WHERE firebase_uid = %s OR email = %s
             LIMIT 1;
         """, (firebase_uid, email))
         existing = cur.fetchone()
 
         if existing:
-            user_id, household_id = str(existing[0]), str(existing[1])
+            user_id = str(existing[0])
+            household_id = str(existing[1]) if existing[1] else None
+            auth_provider_out = existing[2]
             cur.execute("""
                 UPDATE users SET firebase_uid = %s, last_seen_at = now()
                 WHERE user_id = %s;
             """, (firebase_uid, user_id))
-            is_new_user = False
         else:
-            # households.name is NOT NULL — derive a sensible default from
-            # the Google display name (e.g. "Kristopher's Household"). This
-            # constraint was only ever exercised by a genuinely new signup
-            # creating a brand-new household; every account tested until now
-            # already had an existing household row, so this insert had
-            # never actually run.
-            household_name = f"{display_name}'s Household" if display_name else "New Household"
-
-            cur.execute("""
-                INSERT INTO households (name, created_at)
-                VALUES (%s, now())
-                RETURNING household_id;
-            """, (household_name,))
-            household_id = str(cur.fetchone()[0])
-
+            # Household is NOT created here anymore — the user picks a tier
+            # (Individual/Family/Free) or joins an existing household via
+            # invite code on the new CTA screen, and THAT is what actually
+            # creates/attaches the household. A freshly-registered user has
+            # household_id = NULL until then.
             cur.execute("""
                 INSERT INTO users (
                     household_id, email, display_name,
                     firebase_uid, auth_provider, provider_user_id,
                     subscription_status, last_seen_at, has_logged_in
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, 'trial', now(), true)
+                VALUES (NULL, %s, %s, %s, %s, %s, 'trial', now(), true)
                 RETURNING user_id;
-            """, (household_id, email, display_name,
-                  firebase_uid, provider, firebase_uid))
+            """, (email, display_name, firebase_uid, provider, firebase_uid))
             user_id = str(cur.fetchone()[0])
-            is_new_user = True
+            household_id = None
+            auth_provider_out = provider
 
         conn.commit()
 
+        # is_new_user now means "needs onboarding" — household_id being
+        # null is exactly that signal, whether this is a brand-new row or
+        # an existing account that registered but never finished tier
+        # selection/joining before closing the app.
+        is_new_user = household_id is None
+
         token = create_jwt(user_id, household_id, email)
         return {
-            "token":        token,
-            "user_id":      user_id,
-            "household_id": household_id,
-            "display_name": display_name,
-            "email":        email,
-            "is_new_user":  is_new_user,
+            "token":         token,
+            "user_id":       user_id,
+            "household_id":  household_id,
+            "display_name":  display_name,
+            "email":         email,
+            "is_new_user":   is_new_user,
+            "auth_provider": auth_provider_out,
         }
 
     except Exception as e:
@@ -3288,15 +5273,9 @@ def register(body: RegisterRequest):
         if cur.fetchone():
             raise HTTPException(status_code=409, detail="An account with this email already exists")
 
-        # households.name is NOT NULL — same pattern as the Google signup path.
-        household_name = f"{body.display_name}'s Household" if body.display_name else "New Household"
-        cur.execute("""
-            INSERT INTO households (name, created_at)
-            VALUES (%s, now())
-            RETURNING household_id;
-        """, (household_name,))
-        household_id = str(cur.fetchone()[0])
-
+        # Household is NOT created here anymore — see auth_google for the
+        # same change and reasoning. household_id stays NULL until the user
+        # picks a tier or joins an existing household via invite code.
         password_hash = hash_password(body.password)
         verification_token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
@@ -3308,9 +5287,9 @@ def register(body: RegisterRequest):
                 verification_token_expires_at, subscription_status,
                 last_seen_at, has_logged_in
             )
-            VALUES (%s, %s, %s, 'password', %s, false, %s, %s, 'trial', now(), false)
+            VALUES (NULL, %s, %s, 'password', %s, false, %s, %s, 'trial', now(), false)
             RETURNING user_id;
-        """, (household_id, email, body.display_name.strip(), password_hash,
+        """, (email, body.display_name.strip(), password_hash,
               verification_token, expires_at))
         user_id = str(cur.fetchone()[0])
         conn.commit()
@@ -3422,6 +5401,310 @@ def resend_verification(body: ResendVerificationRequest):
         conn.close()
 
 
+@app.post("/api/household/invite")
+def create_household_invite(
+    body: HouseholdInviteRequest,
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="Household invites require a signed-in account")
+
+    inviter_user_id = auth.get("sub")
+    invitee_email = body.invitee_email.strip().lower()
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT email, display_name FROM users WHERE user_id = %s", (inviter_user_id,))
+        row = cur.fetchone()
+        inviter_email = row[0] if row else None
+        inviter_name = row[1] if row and row[1] else "A Vitals user"
+
+        if inviter_email and invitee_email == inviter_email.strip().lower():
+            raise HTTPException(status_code=400, detail="You can't invite yourself.")
+
+        # If there's already a pending (unused, unexpired) invite to this
+        # same email, cancel it and issue a fresh one rather than creating
+        # a second reservation for what's really the same intended person —
+        # e.g. their first email landed in spam and they need it resent.
+        # Also gives them a full new 24-hour window instead of whatever
+        # time was left on the old code.
+        cur.execute("""
+            SELECT invite_id FROM household_invites
+            WHERE household_id = %s AND invited_email = %s
+              AND used_at IS NULL AND expires_at > now()
+        """, (household_id, invitee_email))
+        existing_pending = cur.fetchone()
+        if existing_pending:
+            mark_invite_used(cur, str(existing_pending[0]))
+
+        patient_limit, patient_count, pending_invite_count = count_reserved_slots(cur, household_id)
+        if patient_count + pending_invite_count >= patient_limit:
+            raise HTTPException(
+                status_code=403,
+                detail="You've used all your available patient slots. Cancel a pending invite, "
+                       "or wait for one to expire, before sending another."
+            )
+
+        code = generate_invite_code()
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+        cur.execute("""
+            INSERT INTO household_invites (household_id, code, invited_email, created_by, expires_at)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING invite_id;
+        """, (household_id, code, invitee_email, inviter_user_id, expires_at))
+        conn.commit()
+
+        send_household_invite_email(invitee_email, code, inviter_name)
+
+        return {"status": "sent", "invitee_email": invitee_email, "expires_at": expires_at.isoformat()}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Invite error: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.get("/api/household/status")
+def get_household_status(
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    """
+    Lets the client (Settings' invite UI) proactively disable the "Invite"
+    button using the exact same math the server enforces
+    (count_reserved_slots), instead of only finding out after tapping it
+    and getting a 403 back.
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="This requires a signed-in account")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    patient_limit, patient_count, pending_invite_count = count_reserved_slots(cur, household_id)
+    cur.close()
+    conn.close()
+
+    available_slots = max(0, patient_limit - patient_count - pending_invite_count)
+
+    return {
+        "patient_limit": patient_limit,
+        "patient_count": patient_count,
+        "pending_invite_count": pending_invite_count,
+        "available_slots": available_slots,
+        "can_invite": available_slots > 0,
+    }
+
+
+@app.get("/api/household/invites")
+def list_household_invites(
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    """
+    Lists this household's pending (unused, unexpired) invites — what the
+    primary account holder sees to decide whether to cancel one and free
+    up a reserved slot, per count_reserved_slots().
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="Household invites require a signed-in account")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT invite_id, invited_email, created_at, expires_at
+        FROM household_invites
+        WHERE household_id = %s AND used_at IS NULL AND expires_at > now()
+        ORDER BY created_at DESC;
+    """, (household_id,))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return {
+        "invites": [
+            {
+                "invite_id": str(r[0]),
+                "invited_email": r[1],
+                "created_at": r[2].isoformat(),
+                "expires_at": r[3].isoformat(),
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.delete("/api/household/invite/{invite_id}")
+def cancel_household_invite(
+    invite_id: str,
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    """
+    Cancels a pending invite before it's redeemed, freeing up the slot it
+    was reserving. Marks the same used_at column an actual redemption
+    would — either way, the invite becomes permanently unredeemable and
+    stops counting toward count_reserved_slots(). Scoped to the caller's
+    own household so one household can't cancel another's invite by ID.
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="Household invites require a signed-in account")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT used_at FROM household_invites
+            WHERE invite_id = %s AND household_id = %s
+        """, (invite_id, household_id))
+        row = cur.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Invite not found")
+        if row[0] is not None:
+            raise HTTPException(status_code=400, detail="This invite is no longer pending")
+
+        mark_invite_used(cur, invite_id)
+        conn.commit()
+        return {"status": "cancelled"}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Cancel error: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.post("/api/household/select-tier")
+def select_household_tier(body: HouseholdTierRequest, auth: dict = Depends(get_auth)):
+    """
+    Creates the household and attaches it to the caller — this is what
+    actually creates a household now, not registration. Called from the
+    plan-selection CTA (Individual / Family / Free) that runs before
+    Personalization. Tier is recorded as intent only; no billing happens
+    here (Stripe integration is Phase 7) — this just makes sure Phase 7
+    has a real tier value to work from instead of having to backfill one.
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="This requires a signed-in account")
+
+    if body.tier not in ("individual", "family", "free"):
+        raise HTTPException(status_code=400, detail="Invalid tier")
+
+    user_id = auth.get("sub")
+    if auth.get("household_id"):
+        raise HTTPException(status_code=400, detail="You're already part of a household.")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT display_name, email FROM users WHERE user_id = %s", (user_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Account not found")
+        display_name, email = row
+
+        # Family gets its real capacity immediately — no billing has
+        # happened yet regardless of tier (Phase 7), so there's no reason
+        # to artificially withhold Family's 5-patient allowance just
+        # because payment collection isn't wired up yet.
+        patient_limit = 5 if body.tier == "family" else 2
+
+        household_name = f"{display_name}'s Household" if display_name else "New Household"
+        cur.execute("""
+            INSERT INTO households (name, tier, subscription_status, trial_started_at, patient_limit, created_at)
+            VALUES (%s, %s, 'trial', now(), %s, now())
+            RETURNING household_id;
+        """, (household_name, body.tier, patient_limit))
+        household_id = str(cur.fetchone()[0])
+
+        cur.execute("UPDATE users SET household_id = %s WHERE user_id = %s", (household_id, user_id))
+        conn.commit()
+
+        token = create_jwt(user_id, household_id, email)
+        return {"status": "created", "household_id": household_id, "tier": body.tier, "token": token}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Tier selection error: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.post("/api/household/join")
+def join_household(
+    body: HouseholdJoinRequest,
+    auth: dict = Depends(get_auth),
+):
+    """
+    Attaches the caller to an existing household (identified by a valid
+    invite code) instead of creating a new one. Called from the plan
+    CTA's "Join an existing household" option. Since household_id is now
+    null until tier selection/join actually happens, there's no orphaned
+    household to clean up here — this just sets it, once, on a user who
+    doesn't have one yet.
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="Joining a household requires a signed-in account")
+
+    user_id = auth.get("sub")
+    if auth.get("household_id"):
+        raise HTTPException(status_code=400, detail="You're already part of a household.")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        household_id, invite_id = resolve_invite_household(cur, body.invite_code)
+
+        cur.execute("UPDATE users SET household_id = %s WHERE user_id = %s", (household_id, user_id))
+        mark_invite_used(cur, invite_id)
+        conn.commit()
+
+        cur.execute("SELECT email FROM users WHERE user_id = %s", (user_id,))
+        email = cur.fetchone()[0]
+        token = create_jwt(user_id, household_id, email)
+
+        # Tells the client whether "create a new patient for myself" should
+        # be offered on the next screen, or whether joining should only
+        # offer attaching to one of the household's existing patients.
+        # Joining itself is never blocked by the patient limit — only
+        # creating an ADDITIONAL patient is, since attaching to an existing
+        # one doesn't consume a slot.
+        cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
+        row = cur.fetchone()
+        patient_limit = row[0] if row and row[0] is not None else 2
+        cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
+        current_count = cur.fetchone()[0]
+        can_create_new_patient = current_count < patient_limit
+
+        return {
+            "status": "joined",
+            "household_id": household_id,
+            "token": token,
+            "can_create_new_patient": can_create_new_patient,
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Join error: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
 @app.post("/api/auth/login")
 def login(body: LoginRequest):
     email = body.email.strip().lower()
@@ -3431,7 +5714,7 @@ def login(body: LoginRequest):
     try:
         cur.execute("""
             SELECT user_id, household_id, display_name, password_hash,
-                   auth_provider, email_verified, has_logged_in
+                   auth_provider, email_verified
             FROM users WHERE email = %s
         """, (email,))
         row = cur.fetchone()
@@ -3439,8 +5722,9 @@ def login(body: LoginRequest):
         if not row:
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
-        (user_id, household_id, display_name, password_hash,
-         auth_provider, email_verified, has_logged_in) = row
+        (user_id, household_id_raw, display_name, password_hash,
+         auth_provider, email_verified) = row
+        household_id = str(household_id_raw) if household_id_raw else None
 
         if auth_provider != "password" or not password_hash:
             other = "Google" if auth_provider == "google.com" else "a different sign-in method"
@@ -3458,25 +5742,25 @@ def login(body: LoginRequest):
                 detail="Please verify your email before signing in. Check your inbox for the verification link."
             )
 
-        # is_new_user reflects whether this is the account's first-ever
-        # successful login — NOT whether the row already existed (it always
-        # does, by the time someone reaches /login). A fresh registration's
-        # first login is exactly as "new" as a first-time Google signup and
-        # needs the same onboarding flow; every login after that is a
-        # returning user.
-        is_new_user = not has_logged_in
+        # is_new_user means "needs onboarding" — household_id being null is
+        # exactly that signal, whether this is this account's first login
+        # ever, or a returning account that verified but never finished
+        # tier selection/joining before closing the app. Simpler and more
+        # correct than tracking a separate has_logged_in flag.
+        is_new_user = household_id is None
 
         cur.execute("UPDATE users SET last_seen_at = now(), has_logged_in = true WHERE user_id = %s", (str(user_id),))
         conn.commit()
 
-        token = create_jwt(str(user_id), str(household_id), email)
+        token = create_jwt(str(user_id), household_id, email)
         return {
-            "token":        token,
-            "user_id":      str(user_id),
-            "household_id": str(household_id),
-            "display_name": display_name,
-            "email":        email,
-            "is_new_user":  is_new_user,
+            "token":         token,
+            "user_id":       str(user_id),
+            "household_id":  household_id,
+            "display_name":  display_name,
+            "email":         email,
+            "is_new_user":   is_new_user,
+            "auth_provider": auth_provider,
         }
     except HTTPException:
         conn.rollback()
