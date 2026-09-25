@@ -91,6 +91,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
 
     // Secondary plain English
     [ObservableProperty] private string _hrSummary = string.Empty;
+    [ObservableProperty] private string _hrPcpLine = string.Empty;
     [ObservableProperty] private string _spo2Summary = string.Empty;
     [ObservableProperty] private string _tempSummary = string.Empty;
 
@@ -407,62 +408,353 @@ public partial class VitalsAnalysisViewModel : ObservableObject
 
     private void BuildHrSummary(VitalsAnalysis a)
     {
-        if (a.HeartRate is null) { HrSummary = string.Empty; return; }
+        if (a.HeartRate is null)
+        {
+            HrSummary = string.Empty;
+            HrPcpLine = string.Empty;
+            return;
+        }
+
         var hr = a.HeartRate;
         var parts = new List<string>();
 
+        // -----------------------------------------------------
+        // 1. Establish the current/resting picture
+        // -----------------------------------------------------
         if (hr.RestingSummary is not null)
         {
             var rs = hr.RestingSummary;
+
             parts.Add(
-                $"Average resting heart rate of {rs.Mean:F0} BPM across {rs.N} readings " +
-                $"over {rs.DistinctDays} days (range {rs.Min}\u2013{rs.Max} BPM).");
+                $"Across {rs.N} resting readings recorded on {rs.DistinctDays} days, " +
+                $"heart rate averaged {rs.Mean:F0} BPM, with a typical value near " +
+                $"{rs.Median:F0} BPM and a recorded range of {rs.Min}\u2013{rs.Max} BPM.");
         }
-        else
+        else if (hr.Bpm is not null)
         {
             parts.Add(
-                $"Latest reading: {hr.Bpm} BPM ({hr.ActivityContextDisplay.ToLower()}). " +
-                "Not enough resting readings yet for trend analysis.");
+                $"The latest heart rate was {hr.Bpm} BPM " +
+                $"({hr.ActivityContextDisplay.ToLower()}, {hr.PostureDisplay.ToLower()}). " +
+                "More resting readings are needed before Vitals can describe a reliable longer-term pattern.");
         }
 
+        // -----------------------------------------------------
+        // 2. Longitudinal trend
+        // -----------------------------------------------------
         if (hr.Trend is not null)
         {
-            parts.Add(hr.Trend.TrendLabel switch
+            var trend = hr.Trend;
+
+            parts.Add(trend.TrendLabel switch
             {
                 "rising_significant" =>
-                    $"Resting heart rate has been rising at a statistically significant rate " +
-                    $"({hr.Trend.SlopeDisplay}) over this period.",
+                    $"Resting heart rate has been rising over this period. " +
+                    $"The modeled rate of change is {trend.SlopeDisplay}, and the trend is " +
+                    $"statistically significant.",
+
                 "rising" =>
-                    $"Resting heart rate has been gradually rising ({hr.Trend.SlopeDisplay}).",
+                    $"Resting heart rate has shown a gradual upward pattern " +
+                    $"({trend.SlopeDisplay}), but the available readings do not yet show " +
+                    $"a statistically significant trend.",
+
                 "falling_significant" =>
-                    $"Resting heart rate has been falling at a statistically significant rate " +
-                    $"({hr.Trend.SlopeDisplay}) over this period.",
+                    $"Resting heart rate has been falling over this period. " +
+                    $"The modeled rate of change is {trend.SlopeDisplay}, and the trend is " +
+                    $"statistically significant.",
+
                 "falling" =>
-                    $"Resting heart rate has been gradually declining ({hr.Trend.SlopeDisplay}).",
-                _ => "Resting heart rate has been stable over this period."
+                    $"Resting heart rate has shown a gradual downward pattern " +
+                    $"({trend.SlopeDisplay}), but the available readings do not yet show " +
+                    $"a statistically significant trend.",
+
+                _ =>
+                    "Resting heart rate has remained generally stable over this period."
+            });
+
+            // R²/consistency describes how closely readings follow the trend,
+            // not whether individual readings themselves are "good" or "bad".
+            parts.Add(trend.Consistency switch
+            {
+                "high" =>
+                    "The readings follow this overall pattern fairly consistently.",
+
+                "moderate" =>
+                    "There is some day-to-day variation around the overall trend.",
+
+                "low" =>
+                    "The readings vary considerably around the trend line, so the overall " +
+                    "direction should be interpreted cautiously.",
+
+                _ => string.Empty
             });
         }
 
-        if (hr.RateEvents is not null && hr.RateEvents.NRestingInWindow >= 1)
-        {
-            var re = hr.RateEvents;
-            if (re.High is not null && re.High.Count > 0)
-                parts.Add($"{re.High.Count} reading(s) were above {re.Thresholds?.High} BPM.");
-            if (re.Low is not null && re.Low.Count > 0)
-                parts.Add($"{re.Low.Count} reading(s) were below {re.Thresholds?.Low} BPM.");
-        }
-
-        if (hr.BaselineDeviation is not null && Math.Abs(hr.BaselineDeviation.DeltaBpm) >= 3)
+        // -----------------------------------------------------
+        // 3. Personal-baseline comparison
+        // -----------------------------------------------------
+        if (hr.BaselineDeviation is not null)
         {
             var bd = hr.BaselineDeviation;
-            var direction = bd.DeltaBpm >= 0 ? "higher" : "lower";
-            parts.Add(
-                $"The past week's resting rate ({bd.RecentMedian:F0} BPM) is {direction} than " +
-                $"the prior month's typical baseline ({bd.BaselineMedian:F0} BPM) by " +
-                $"{Math.Abs(bd.DeltaBpm):F0} BPM.");
+
+            if (Math.Abs(bd.DeltaBpm) >= 3)
+            {
+                var direction = bd.DeltaBpm > 0 ? "higher" : "lower";
+
+                parts.Add(
+                    $"More recently, the typical resting rate has been {bd.RecentMedian:F0} BPM, " +
+                    $"which is about {Math.Abs(bd.DeltaBpm):F0} BPM {direction} than the earlier " +
+                    $"personal baseline of {bd.BaselineMedian:F0} BPM.");
+            }
+            else
+            {
+                parts.Add(
+                    $"The recent resting rate is close to the established personal baseline " +
+                    $"({bd.RecentMedian:F0} versus {bd.BaselineMedian:F0} BPM).");
+            }
         }
 
-        HrSummary = string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+        // -----------------------------------------------------
+        // 4. High / low resting observations
+        // -----------------------------------------------------
+        if (hr.RateEvents is not null &&
+            hr.RateEvents.NRestingInWindow > 0)
+        {
+            var events = hr.RateEvents;
+            var eventParts = new List<string>();
+
+            if (events.High is not null && events.High.Count > 0)
+            {
+                eventParts.Add(
+                    $"{events.High.Count} resting " +
+                    $"{(events.High.Count == 1 ? "reading was" : "readings were")} " +
+                    $"above {events.Thresholds?.High} BPM");
+            }
+
+            if (events.Low is not null && events.Low.Count > 0)
+            {
+                eventParts.Add(
+                    $"{events.Low.Count} resting " +
+                    $"{(events.Low.Count == 1 ? "reading was" : "readings were")} " +
+                    $"below {events.Thresholds?.Low} BPM");
+            }
+
+            if (eventParts.Count > 0)
+            {
+                parts.Add(
+                    $"{string.Join(" and ", eventParts)}. These are recorded observations, " +
+                    "not a diagnosis of a heart rhythm condition.");
+            }
+
+            if (events.MarkedLowCount > 0)
+            {
+                parts.Add(
+                    $"{events.MarkedLowCount} " +
+                    $"{(events.MarkedLowCount == 1 ? "reading was" : "readings were")} " +
+                    $"below {events.Thresholds?.MarkedLow} BPM. Symptoms occurring near these " +
+                    "readings are important context for the care team.");
+            }
+        }
+
+        // -----------------------------------------------------
+        // 5. Time-of-day pattern
+        // -----------------------------------------------------
+        if (hr.TimeOfDay?.PatternSummary is not null &&
+            hr.TimeOfDay.Buckets is not null)
+        {
+            var pattern = hr.TimeOfDay.PatternSummary;
+
+            var highBucket = GetHrTimeBucket(
+                hr.TimeOfDay.Buckets, pattern.HighestPeriod);
+
+            var lowBucket = GetHrTimeBucket(
+                hr.TimeOfDay.Buckets, pattern.LowestPeriod);
+
+            // Avoid making a dramatic statement about trivial differences.
+            // 5 BPM is a Vitals presentation gate, not a clinical threshold.
+            if (highBucket is not null &&
+                lowBucket is not null &&
+                Math.Abs(highBucket.Median - lowBucket.Median) >= 5)
+            {
+                parts.Add(
+                    $"A time-of-day pattern is also visible: resting readings have tended to be " +
+                    $"highest during {FormatHrPeriod(pattern.HighestPeriod)} " +
+                    $"(median {highBucket.Median:F0} BPM) and lowest during " +
+                    $"{FormatHrPeriod(pattern.LowestPeriod)} " +
+                    $"(median {lowBucket.Median:F0} BPM).");
+            }
+        }
+
+        // -----------------------------------------------------
+        // 6. Symptom association
+        // -----------------------------------------------------
+        if (hr.SymptomAssociation is not null &&
+            hr.SymptomAssociation.Count > 0)
+        {
+            // Keep the Plain English section readable. Pick the symptom with
+            // the most associated observations and leave full detail in its card.
+            var strongestSymptom = hr.SymptomAssociation
+                .Where(x => x.Value.AssociatedCount > 0)
+                .OrderByDescending(x => x.Value.AssociatedCount)
+                .FirstOrDefault();
+
+            if (!string.IsNullOrWhiteSpace(strongestSymptom.Key))
+            {
+                var symptom = strongestSymptom.Value;
+                var observations = new List<string>();
+
+                if (symptom.PctHigh is > 0)
+                    observations.Add($"{symptom.PctHigh:F0}% occurred with a high-rate reading");
+
+                if (symptom.PctLow is > 0)
+                    observations.Add($"{symptom.PctLow:F0}% occurred with a low-rate reading");
+
+                if (observations.Count > 0)
+                {
+                    parts.Add(
+                        $"For readings associated with {FormatSymptomName(strongestSymptom.Key)}, " +
+                        $"{string.Join(" and ", observations)}. This shows timing and association only; " +
+                        "it does not establish that the heart-rate change caused the symptom.");
+                }
+            }
+        }
+
+        // -----------------------------------------------------
+        // 7. Medication-change association
+        // -----------------------------------------------------
+        if (hr.MedicationAssociations is not null &&
+            hr.MedicationAssociations.Count > 0)
+        {
+            var association = hr.MedicationAssociations
+                .OrderByDescending(x => Math.Abs(x.DeltaBpm))
+                .First();
+
+            var direction = association.DeltaBpm >= 0 ? "higher" : "lower";
+
+            var medicationSentence =
+                $"Around the recorded {association.ChangeTypeDisplay.ToLower()} for " +
+                $"{association.MedicationName}, median resting heart rate was " +
+                $"{association.PreMedian:F0} BPM before the change and " +
+                $"{association.PostMedian:F0} BPM afterward " +
+                $"({Math.Abs(association.DeltaBpm):F0} BPM {direction}).";
+
+            if (association.Confounded)
+            {
+                medicationSentence +=
+                    " Other changes occurred during the same period, so this comparison " +
+                    "cannot be attributed to that medication alone.";
+            }
+            else
+            {
+                medicationSentence +=
+                    " This is a timing association and does not establish that the medication " +
+                    "caused the change.";
+            }
+
+            parts.Add(medicationSentence);
+        }
+
+        // -----------------------------------------------------
+        // 8. Irregular-pulse observation
+        // -----------------------------------------------------
+        if (hr.IrregularPulseFlag == true)
+        {
+            parts.Add(
+                "An irregular-pulse indication was recorded with at least one measurement. " +
+                "A pulse-rate reading alone cannot identify the heart rhythm, so this finding " +
+                "is best reviewed with the care team, particularly if symptoms were present.");
+        }
+
+        HrSummary = string.Join(
+            " ",
+            parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+        BuildHrPcpLine(a);
+    }
+
+    private static HrBucketStats? GetHrTimeBucket(
+        HrTimeOfDayBuckets buckets,
+        string period)
+    {
+        return period switch
+        {
+            "morning" => buckets.Morning,
+            "afternoon" => buckets.Afternoon,
+            "evening" => buckets.Evening,
+            "overnight" => buckets.Overnight,
+            _ => null
+        };
+    }
+
+    private void BuildHrPcpLine(VitalsAnalysis a)
+    {
+        if (a.HeartRate is null || string.IsNullOrWhiteSpace(a.PcpName))
+        {
+            HrPcpLine = string.Empty;
+            return;
+        }
+
+        var hr = a.HeartRate;
+
+        bool hasNotableEvents =
+            (hr.RateEvents?.High?.Count ?? 0) > 0 ||
+            (hr.RateEvents?.Low?.Count ?? 0) > 0 ||
+            (hr.RateEvents?.MarkedLowCount ?? 0) > 0;
+
+        bool hasSignificantTrend =
+            hr.Trend?.TrendLabel is
+                "rising_significant" or
+                "falling_significant";
+
+        bool hasBaselineChange =
+            hr.BaselineDeviation is not null &&
+            Math.Abs(hr.BaselineDeviation.DeltaBpm) >= 5;
+
+        bool hasIrregularPulse =
+            hr.IrregularPulseFlag == true;
+
+        bool hasSymptomAssociation =
+            hr.SymptomAssociation is not null &&
+            hr.SymptomAssociation.Count > 0;
+
+        var somethingToDiscuss =
+            hasNotableEvents ||
+            hasSignificantTrend ||
+            hasBaselineChange ||
+            hasIrregularPulse ||
+            hasSymptomAssociation;
+
+        if (!somethingToDiscuss)
+        {
+            HrPcpLine = !string.IsNullOrWhiteSpace(a.NextFollowup)
+                ? $"Consider sharing this heart-rate summary with {a.PcpName} at the appointment on {a.NextFollowup}."
+                : $"Consider sharing this heart-rate summary with {a.PcpName} at the next visit.";
+
+            return;
+        }
+
+        HrPcpLine = !string.IsNullOrWhiteSpace(a.NextFollowup)
+            ? $"Consider discussing the heart-rate patterns highlighted above with {a.PcpName} at the appointment on {a.NextFollowup}."
+            : $"Consider discussing the heart-rate patterns highlighted above with {a.PcpName} at the next visit.";
+    }
+
+    private static string FormatHrPeriod(string period)
+    {
+        return period switch
+        {
+            "morning" => "the morning",
+            "afternoon" => "the afternoon",
+            "evening" => "the evening",
+            "overnight" => "overnight",
+            _ => period.Replace("_", " ")
+        };
+    }
+
+    private static string FormatSymptomName(string symptom)
+    {
+        if (string.IsNullOrWhiteSpace(symptom))
+            return symptom;
+
+        return symptom.Replace("_", " ").ToLowerInvariant();
     }
 
     private void BuildSpo2Summary(VitalsAnalysis a)

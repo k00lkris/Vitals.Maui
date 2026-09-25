@@ -2415,6 +2415,9 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.HrSummary">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._hrSummary"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.HrPcpLine">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._hrPcpLine"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.Spo2Summary">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._spo2Summary"/>
         </member>
@@ -3369,6 +3372,9 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HrSummary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HrSummary" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HrPcpLine">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HrPcpLine" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Spo2Summary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Spo2Summary" generated properties.</summary>
         </member>
@@ -4022,6 +4028,9 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HrSummary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HrSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HrPcpLine">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HrPcpLine" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Spo2Summary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Spo2Summary" generated properties.</summary>

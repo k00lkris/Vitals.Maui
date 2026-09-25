@@ -633,11 +633,14 @@
                             </VerticalStackLayout>
                         </Border>
 
-                        <!-- Plain-English summary -->
+                        <!-- Heart Rate — Plain English -->
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
                                 IsVisible="{Binding HrSummary, Converter={StaticResource StringToBoolConverter}}">
-                            <Label Text="{Binding HrSummary}" FontSize="13" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="In Plain English" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding HrSummary}" FontSize="13" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
                         </Border>
 
                         <!-- §6.2 Resting central tendency -->
@@ -966,9 +969,9 @@
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
                             <VerticalStackLayout Spacing="8">
-                                <Label Text="{Binding PcpLine}" FontSize="13" TextColor="{DynamicResource PrimaryAccent}"
+                                <Label Text="{Binding HrPcpLine}" FontSize="13" TextColor="{DynamicResource PrimaryAccent}"
                                        FontAttributes="Italic" LineBreakMode="WordWrap"
-                                       IsVisible="{Binding PcpLine, Converter={StaticResource StringToBoolConverter}}" />
+                                       IsVisible="{Binding HrPcpLine, Converter={StaticResource StringToBoolConverter}}" />
                             </VerticalStackLayout>
                         </Border>
 
