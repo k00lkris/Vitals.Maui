@@ -1558,6 +1558,560 @@ def run_hr_analysis(rows: list, baseline_rows: list | None = None, medication_ch
     result["medication_associations"] = associations if associations else None
 
     return result
+
+def _spo2_local_datetime(row: dict) -> datetime:
+    """
+    Convert recorded_at to the reading's local wall-clock time. Prefer the
+    per-reading UTC offset captured by the client; fall back to the same
+    America/Chicago approximation used by the Heart Rate engine for legacy
+    rows that predate local_offset_minutes.
+    """
+    if row["local_offset_minutes"] is not None:
+        return row["recorded_at"] + timedelta(minutes=row["local_offset_minutes"])
+    return row["recorded_at"].astimezone(ZoneInfo("America/Chicago"))
+
+
+def run_spo2_analysis(rows: list, baseline_rows: list | None = None) -> dict | None:
+    """
+    SpO2 Analysis Engine.
+
+    This intentionally treats manually-entered pulse-oximetry values as
+    discrete observations, not a continuous signal. Counts and percentages
+    below are therefore percentages of LOGGED READINGS only. We do not use
+    Rosendaal/trapezoidal interpolation to claim "time below" a threshold.
+
+    Current database limitation:
+      - no spo2_context table yet, so resting/activity state, symptom tags,
+        supplemental-oxygen state/flow, device/source metadata, and explicit
+        measurement-quality flags are not available.
+      - analyses that require those fields are returned as unavailable in
+        data_support rather than inferred.
+
+    baseline_rows is a fixed 37-day lookback supplied by the registry:
+      recent   = last 7 days
+      baseline = days 8-37 ago
+    """
+
+    if not rows:
+        return None
+
+    def _row_dict(r):
+        return {
+            "recorded_at":          r[0],
+            "local_offset_minutes": r[1],
+            "spo2":                 int(r[2]),
+            "heart_rate":           r[3],
+            "systolic":             r[4],
+            "diastolic":            r[5],
+            "temperature":          float(r[6]) if r[6] is not None else None,
+            "weight":               float(r[7]) if r[7] is not None else None,
+            "blood_glucose":        r[8],
+        }
+
+    rows_d = [_row_dict(r) for r in rows]
+    latest = rows_d[-1]
+    values = [r["spo2"] for r in rows_d]
+
+    # Default descriptive reference thresholds only. These are deliberately
+    # surfaced as metadata so a future patient/clinician-specific target can
+    # replace them without rewriting the analysis engine.
+    LOW_THRESHOLD = 95
+    MODERATE_LOW_THRESHOLD = 92
+    MARKED_LOW_THRESHOLD = 88
+
+    linked_context = {}
+    if latest["heart_rate"] is not None:
+        linked_context["heart_rate"] = latest["heart_rate"]
+    if latest["systolic"] is not None and latest["diastolic"] is not None:
+        linked_context["blood_pressure"] = {
+            "systolic": latest["systolic"],
+            "diastolic": latest["diastolic"],
+        }
+    if latest["temperature"] is not None:
+        linked_context["temperature"] = latest["temperature"]
+    if latest["weight"] is not None:
+        linked_context["weight"] = latest["weight"]
+    if latest["blood_glucose"] is not None:
+        linked_context["blood_glucose"] = latest["blood_glucose"]
+
+    result = {
+        "spo2":              latest["spo2"],
+        "recorded_at":       latest["recorded_at"].isoformat(),
+        "measurement_context": "unknown",
+        "source_type":       "unknown",
+        "linked_context":    linked_context,
+        "reading_count":     len(rows_d),
+        "target_profile": {
+            "low_threshold":        LOW_THRESHOLD,
+            "moderate_threshold":   MODERATE_LOW_THRESHOLD,
+            "marked_low_threshold": MARKED_LOW_THRESHOLD,
+            "source":               "reference_default",
+            "patient_specific":     False,
+        },
+    }
+
+    distinct_days = len({_spo2_local_datetime(r).date() for r in rows_d})
+    span_days = (
+        (rows_d[-1]["recorded_at"] - rows_d[0]["recorded_at"]).total_seconds() / 86400
+        if len(rows_d) > 1 else 0.0
+    )
+
+    # ---------------------------------------------------------
+    # Central tendency and observed range
+    # ---------------------------------------------------------
+    if len(values) >= 3 and distinct_days >= 3:
+        result["spot_summary"] = {
+            "n":             len(values),
+            "distinct_days": distinct_days,
+            "mean":          round(statistics.mean(values), 1),
+            "median":        round(statistics.median(values), 1),
+            "min":           min(values),
+            "max":           max(values),
+            "range":         max(values) - min(values),
+        }
+    else:
+        result["spot_summary"] = None
+
+    # ---------------------------------------------------------
+    # Between-reading dispersion (NOT continuous variability)
+    # ---------------------------------------------------------
+    if len(values) >= 5:
+        q1 = float(np.percentile(values, 25))
+        q3 = float(np.percentile(values, 75))
+        result["dispersion"] = {
+            "n":   len(values),
+            "sd":  round(statistics.stdev(values), 1),
+            "iqr": round(q3 - q1, 1),
+            "q1":  round(q1, 1),
+            "q3":  round(q3, 1),
+        }
+    else:
+        result["dispersion"] = None
+
+    # ---------------------------------------------------------
+    # OLS trend
+    # ---------------------------------------------------------
+    t = v = None
+    if rows_d:
+        origin = rows_d[0]["recorded_at"]
+        t = np.array([
+            (r["recorded_at"] - origin).total_seconds() / 86400
+            for r in rows_d
+        ])
+        v = np.array([float(r["spo2"]) for r in rows_d])
+
+    def _spo2_trend_label(slope: float, significant: bool) -> str:
+        # Vitals presentation gate, not a clinical threshold. A tiny
+        # non-zero regression coefficient should not create an alarming
+        # "rising/falling" label from rounding noise.
+        epsilon = 0.05
+        if slope > epsilon and significant:
+            return "rising_significant"
+        if slope > epsilon:
+            return "rising"
+        if slope < -epsilon and significant:
+            return "falling_significant"
+        if slope < -epsilon:
+            return "falling"
+        return "stable"
+
+    if len(values) >= 5 and distinct_days >= 5 and span_days >= 7:
+        if np.std(v) == 0:
+            result["trend"] = {
+                "slope_pct_points_per_day": 0.0,
+                "modeled_change":           0.0,
+                "span_days":                round(span_days, 1),
+                "r2":                       None,
+                "p_value":                  None,
+                "trend_label":              "stable",
+                "consistency":              None,
+            }
+        else:
+            slope, _, r_val, p_val, _ = stats.linregress(t, v)
+            r2 = float(r_val ** 2)
+            show_p = len(values) >= 8 and span_days >= 14
+            significant = bool(show_p and p_val < 0.05)
+
+            result["trend"] = {
+                "slope_pct_points_per_day": round(float(slope), 3),
+                "modeled_change":           round(float(slope) * (t.max() - t.min()), 1),
+                "span_days":                round(span_days, 1),
+                "r2":                       round(r2, 2),
+                "p_value":                  round(float(p_val), 3) if show_p else None,
+                "trend_label":              _spo2_trend_label(float(slope), significant),
+                "consistency":              _consistency_label(r2),
+            }
+    else:
+        result["trend"] = None
+
+    # LOESS is visualization support only. It does not create a clinical
+    # interpretation independently of the OLS/data-support gates above.
+    if len(values) >= 7 and span_days >= 7:
+        smoothed = loess_smooth(t, v, frac=0.6)
+        result["loess"] = [
+            {
+                "recorded_at": r["recorded_at"].isoformat(),
+                "smoothed_spo2": round(float(s), 1),
+            }
+            for r, s in zip(rows_d, smoothed)
+        ]
+    else:
+        result["loess"] = None
+
+    # ---------------------------------------------------------
+    # Personal baseline deviation
+    # ---------------------------------------------------------
+    result["baseline_deviation"] = None
+    if baseline_rows:
+        baseline_d = [_row_dict(r) for r in baseline_rows]
+        now_utc = datetime.now(timezone.utc)
+
+        recent_set = [
+            r for r in baseline_d
+            if now_utc - timedelta(days=7) <= r["recorded_at"] <= now_utc
+        ]
+        baseline_set = [
+            r for r in baseline_d
+            if now_utc - timedelta(days=37) <= r["recorded_at"] <= now_utc - timedelta(days=8)
+        ]
+
+        baseline_vals = [r["spo2"] for r in baseline_set]
+        recent_vals = [r["spo2"] for r in recent_set]
+        baseline_days = len({_spo2_local_datetime(r).date() for r in baseline_set})
+        recent_days = len({_spo2_local_datetime(r).date() for r in recent_set})
+
+        if (
+            len(baseline_vals) >= 7 and baseline_days >= 7
+            and len(recent_vals) >= 3 and recent_days >= 3
+        ):
+            baseline_median = statistics.median(baseline_vals)
+            recent_median = statistics.median(recent_vals)
+
+            result["baseline_deviation"] = {
+                "baseline_median":  round(baseline_median, 1),
+                "recent_median":    round(recent_median, 1),
+                "baseline_n":       len(baseline_vals),
+                "recent_n":         len(recent_vals),
+                "delta_pct_points": round(recent_median - baseline_median, 1),
+            }
+
+    # ---------------------------------------------------------
+    # Low-observation analysis
+    # ---------------------------------------------------------
+    low_rows = [r for r in rows_d if r["spo2"] < LOW_THRESHOLD]
+    moderate_rows = [r for r in rows_d if r["spo2"] < MODERATE_LOW_THRESHOLD]
+    marked_rows = [r for r in rows_d if r["spo2"] < MARKED_LOW_THRESHOLD]
+    show_pct = len(rows_d) >= 5
+
+    def _reading_payload(r):
+        return {
+            "recorded_at": r["recorded_at"].isoformat(),
+            "spo2":        r["spo2"],
+        }
+
+    result["low_observations"] = {
+        "threshold": LOW_THRESHOLD,
+        "count": len(low_rows),
+        "pct_of_logged_readings": (
+            round(100 * len(low_rows) / len(rows_d), 1) if show_pct else None
+        ),
+        "readings": [_reading_payload(r) for r in low_rows],
+    }
+
+    # Reference bands are descriptive counts of logged readings only.
+    # They intentionally avoid an overall "hypoxemia classification"
+    # based on the average.
+    band_defs = [
+        ("at_or_above_95", lambda x: x >= 95),
+        ("92_to_94",       lambda x: 92 <= x < 95),
+        ("88_to_91",       lambda x: 88 <= x < 92),
+        ("below_88",       lambda x: x < 88),
+    ]
+    result["reference_bands"] = {
+        name: {
+            "count": sum(1 for x in values if predicate(x)),
+            "pct_of_logged_readings": (
+                round(
+                    100 * sum(1 for x in values if predicate(x)) / len(values),
+                    1,
+                )
+                if show_pct else None
+            ),
+        }
+        for name, predicate in band_defs
+    }
+
+    # "Confirmed" here is explicitly a Vitals engineering grouping rule:
+    # at least two below-target observations no more than 15 minutes apart.
+    # It is not a diagnosis and does not imply continuous desaturation.
+    confirmed_groups = []
+    if low_rows:
+        ordered = sorted(low_rows, key=lambda r: r["recorded_at"])
+        group = [ordered[0]]
+
+        def _flush_confirmed(g):
+            if len(g) < 2:
+                return
+            confirmed_groups.append({
+                "first_recorded_at": g[0]["recorded_at"].isoformat(),
+                "last_recorded_at":  g[-1]["recorded_at"].isoformat(),
+                "reading_count":     len(g),
+                "nadir":             min(r["spo2"] for r in g),
+                "readings":          [_reading_payload(r) for r in g],
+            })
+
+        for r in ordered[1:]:
+            gap_minutes = (
+                r["recorded_at"] - group[-1]["recorded_at"]
+            ).total_seconds() / 60
+            if gap_minutes <= 15:
+                group.append(r)
+            else:
+                _flush_confirmed(group)
+                group = [r]
+        _flush_confirmed(group)
+
+    result["confirmed_low_observations"] = {
+        "confirmation_rule_minutes": 15,
+        "episode_count": len(confirmed_groups),
+        "episodes": confirmed_groups,
+    }
+
+    result["marked_low_observations"] = {
+        "threshold": MARKED_LOW_THRESHOLD,
+        "count": len(marked_rows),
+        "pct_of_logged_readings": (
+            round(100 * len(marked_rows) / len(rows_d), 1) if show_pct else None
+        ),
+        "readings": [_reading_payload(r) for r in marked_rows],
+    }
+
+    # ---------------------------------------------------------
+    # Time-of-day pattern
+    # ---------------------------------------------------------
+    bucket_rows = {
+        "morning": [],
+        "afternoon": [],
+        "evening": [],
+        "overnight": [],
+    }
+
+    for r in rows_d:
+        hour = _spo2_local_datetime(r).hour
+        if 5 <= hour < 12:
+            bucket_rows["morning"].append(r)
+        elif 12 <= hour < 17:
+            bucket_rows["afternoon"].append(r)
+        elif 17 <= hour < 22:
+            bucket_rows["evening"].append(r)
+        else:
+            bucket_rows["overnight"].append(r)
+
+    def _bucket_stats(items):
+        if len(items) < 2:
+            return None
+        vals = [r["spo2"] for r in items]
+        return {
+            "n":             len(vals),
+            "distinct_days": len({_spo2_local_datetime(r).date() for r in items}),
+            "mean":          round(statistics.mean(vals), 1),
+            "median":        round(statistics.median(vals), 1),
+            "min":           min(vals),
+            "max":           max(vals),
+        }
+
+    buckets = {name: _bucket_stats(items) for name, items in bucket_rows.items()}
+    usable_buckets = {
+        name: stats_block for name, stats_block in buckets.items()
+        if stats_block is not None
+    }
+
+    pattern_summary = None
+    if len(usable_buckets) >= 2:
+        highest = max(usable_buckets.items(), key=lambda x: x[1]["median"])
+        lowest = min(usable_buckets.items(), key=lambda x: x[1]["median"])
+        median_delta = highest[1]["median"] - lowest[1]["median"]
+
+        # 2 percentage points is a Vitals presentation gate, not a
+        # diagnostic threshold.
+        if median_delta >= 2:
+            pattern_summary = {
+                "highest_period": highest[0],
+                "lowest_period":  lowest[0],
+                "median_delta":   round(median_delta, 1),
+            }
+
+    result["time_of_day"] = {
+        "buckets": buckets,
+        "pattern_summary": pattern_summary,
+    }
+
+    # ---------------------------------------------------------
+    # Same-event context for low observations
+    # ---------------------------------------------------------
+    low_context = []
+    for r in low_rows:
+        context = {}
+        if r["heart_rate"] is not None:
+            context["heart_rate"] = r["heart_rate"]
+        if r["systolic"] is not None and r["diastolic"] is not None:
+            context["blood_pressure"] = {
+                "systolic": r["systolic"],
+                "diastolic": r["diastolic"],
+            }
+        if r["temperature"] is not None:
+            context["temperature"] = r["temperature"]
+
+        low_context.append({
+            "recorded_at": r["recorded_at"].isoformat(),
+            "spo2":        r["spo2"],
+            "context":     context,
+        })
+
+    result["cross_vital_context"] = {
+        "low_observations": low_context,
+    }
+
+    # Optional Pearson correlations for physician-facing context only.
+    # n>=10 paired values across >=7 days and non-zero variance.
+    correlations = {}
+    pair_specs = [
+        ("heart_rate", lambda r: r["heart_rate"]),
+        ("temperature", lambda r: r["temperature"]),
+        ("systolic", lambda r: r["systolic"]),
+        ("diastolic", lambda r: r["diastolic"]),
+    ]
+
+    for name, value_fn in pair_specs:
+        pairs = [r for r in rows_d if value_fn(r) is not None]
+        if len(pairs) < 10:
+            continue
+        pair_span = (
+            pairs[-1]["recorded_at"] - pairs[0]["recorded_at"]
+        ).total_seconds() / 86400
+        if pair_span < 7:
+            continue
+
+        spo2_vals = np.array([float(r["spo2"]) for r in pairs])
+        other_vals = np.array([float(value_fn(r)) for r in pairs])
+
+        if np.std(spo2_vals) == 0 or np.std(other_vals) == 0:
+            continue
+
+        correlations[name] = round(
+            float(np.corrcoef(spo2_vals, other_vals)[0, 1]),
+            2,
+        )
+
+    result["cross_vital_correlations"] = correlations if correlations else None
+
+    # These are intentionally unavailable until the schema captures them.
+    result["symptom_association"] = None
+    result["oxygen_context"] = None
+
+    # ---------------------------------------------------------
+    # Data support / confidence
+    # ---------------------------------------------------------
+    n = len(values)
+
+    if n == 0:
+        support_state = "none"
+    elif n >= 8 and span_days >= 14:
+        support_state = "significance"
+    elif n >= 7 and span_days >= 7:
+        support_state = "loess"
+    elif n >= 5 and distinct_days >= 5 and span_days >= 7:
+        support_state = "trend"
+    elif n >= 3 and distinct_days >= 3:
+        support_state = "descriptive"
+    else:
+        support_state = "snapshot"
+
+    calendar_days_approx = max(int(span_days) + 1, 1)
+    coverage_pct = round(100 * distinct_days / calendar_days_approx, 1)
+
+    unavailable = []
+
+    if result["spot_summary"] is None:
+        unavailable.append({
+            "analysis": "spot_summary",
+            "reason": (
+                f"needs >=3 readings across >=3 distinct days "
+                f"(have n={n}, days={distinct_days})"
+            ),
+        })
+
+    if result["dispersion"] is None:
+        unavailable.append({
+            "analysis": "dispersion",
+            "reason": f"needs >=5 readings (have n={n})",
+        })
+
+    if result["trend"] is None:
+        unavailable.append({
+            "analysis": "trend",
+            "reason": (
+                f"needs >=5 readings across >=5 distinct days and >=7 day span "
+                f"(have n={n}, days={distinct_days}, span={round(span_days, 1)})"
+            ),
+        })
+    elif result["trend"].get("p_value") is None:
+        unavailable.append({
+            "analysis": "trend.p_value",
+            "reason": (
+                f"needs >=8 readings and >=14 day span "
+                f"(have n={n}, span={round(span_days, 1)})"
+            ),
+        })
+
+    if result["loess"] is None:
+        unavailable.append({
+            "analysis": "loess",
+            "reason": (
+                f"needs >=7 readings and >=7 day span "
+                f"(have n={n}, span={round(span_days, 1)})"
+            ),
+        })
+
+    if result["baseline_deviation"] is None:
+        unavailable.append({
+            "analysis": "baseline_deviation",
+            "reason": (
+                "needs its own separate baseline (>=7 readings/>=7 days, "
+                "8-37 days ago) and recent (>=3 readings/>=3 days, last 7 days) "
+                "data — independent of this window"
+            ),
+        })
+
+    if result["time_of_day"]["pattern_summary"] is None:
+        unavailable.append({
+            "analysis": "time_of_day",
+            "reason": (
+                "needs at least two time-of-day buckets with >=2 readings each "
+                "and a >=2 percentage-point median difference"
+            ),
+        })
+
+    unavailable.append({
+        "analysis": "symptom_association",
+        "reason": "SpO2 symptom/context fields are not collected yet",
+    })
+    unavailable.append({
+        "analysis": "oxygen_context",
+        "reason": "supplemental-oxygen state/flow is not collected yet",
+    })
+
+    result["data_support"] = {
+        "support_state":             support_state,
+        "n":                         n,
+        "distinct_days":             distinct_days,
+        "span_days":                 round(span_days, 1),
+        "distinct_day_coverage_pct": coverage_pct,
+        "unavailable_analyses":      unavailable,
+    }
+
+    return result
+
 # --------------------
 # Vitals analysis cache — eager, per-vital-type
 # --------------------
@@ -1628,7 +2182,21 @@ VITAL_ANALYSIS_REGISTRY = {
         # same as every other window in this app already is.
         "prior_period_lookback_days": 60,
     },
-    # "spo2":    {...},   # TODO once the SpO2 spec is implemented
+    "spo2": {
+        "from_clause": "vitals",
+        # Same-row vitals are included for linked/cross-vital context. There
+        # is no spo2_context table yet, so activity/symptoms/oxygen-support
+        # metadata remain explicitly unavailable rather than inferred.
+        "columns": (
+            "vitals.recorded_at, vitals.local_offset_minutes, vitals.oxygen_saturation, "
+            "vitals.heart_rate, vitals.systolic, vitals.diastolic, "
+            "vitals.temperature, vitals.weight, vitals.blood_glucose"
+        ),
+        "where_clause": "vitals.oxygen_saturation IS NOT NULL",
+        "analysis_fn": run_spo2_analysis,
+        # Fixed personal-baseline window: recent 7 days vs days 8-37.
+        "baseline_lookback_days": 37,
+    },
     # "weight":  {...},   # TODO once the Weight spec is implemented
     # "glucose": {...},   # TODO once the Glucose spec is implemented
 }
@@ -2203,9 +2771,9 @@ def record_vitals(
         background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "blood_pressure")
     if vital.heart_rate is not None:
         background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "heart_rate")
+    if vital.oxygen_saturation is not None:
+        background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "spo2")
     # Uncomment each block below as its analysis function is implemented:
-    # if vital.oxygen_saturation is not None:
-    #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "spo2")
     # if vital.weight is not None:
     #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "weight")
     # if vital.blood_glucose is not None:
@@ -2383,16 +2951,6 @@ def get_vitals_analysis(
     bp_row_count = len(cur.fetchall())
 
     cur.execute("""
-        SELECT recorded_at, oxygen_saturation
-        FROM vitals
-        WHERE patient_id = %s AND household_id = %s
-          AND oxygen_saturation IS NOT NULL
-          AND recorded_at >= now() - interval '%s days'
-        ORDER BY recorded_at ASC;
-    """, (patient_id, household_id, days))
-    spo2_rows = cur.fetchall()
-
-    cur.execute("""
         SELECT recorded_at, temperature
         FROM vitals
         WHERE patient_id = %s AND household_id = %s
@@ -2427,14 +2985,13 @@ def get_vitals_analysis(
     cur.close()
     conn.close()
 
-    # Heart Rate now goes through the real engine (run_hr_analysis via the
-    # cache) instead of the older analyze_vital_series — independently
-    # computed and gated on ITS OWN reading count, not BP's. SpO2 and
-    # Temperature still use analyze_vital_series for now (no dedicated
-    # spec/engine built for them yet), just with correctly independent
-    # row fetches rather than ones filtered through BP.
+    # Heart Rate and SpO2 now use their dedicated engines through the
+    # shared registry/cache path. Each is independently computed and gated
+    # on its OWN data, not on BP being present in the same row.
+    # Temperature remains on analyze_vital_series until its dedicated
+    # engine is implemented.
     hr_analysis   = get_cached_or_compute_analysis(patient_id, household_id, "heart_rate", days)
-    spo2_analysis = analyze_vital_series(list(spo2_rows), vital_type="spo2")
+    spo2_analysis = get_cached_or_compute_analysis(patient_id, household_id, "spo2", days)
     temp_analysis = analyze_vital_series(list(temp_rows), vital_type="temp")
 
     pcp_name      = pcp[0] if pcp else None
