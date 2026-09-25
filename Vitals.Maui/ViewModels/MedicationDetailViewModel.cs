@@ -25,6 +25,32 @@ public partial class MedicationDetailViewModel : ObservableObject
     [ObservableProperty] private string _notes = string.Empty;
     [ObservableProperty] private bool _isActive = true;
 
+    // Editable dates — DatePicker-bound DateTime, same convention as
+    // IncidentDetailViewModel.IncidentDate, not the read-only string
+    // FillDate uses elsewhere in this same popup. Defaults to today;
+    // the whole point is being correctable, not assuming prompt logging
+    // (a caregiver adding/updating a medication days or weeks after the
+    // fact is the normal case, not an edge case).
+    [ObservableProperty] private DateTime _startDate = DateTime.Now;
+    [ObservableProperty] private DateTime _discontinuedDate = DateTime.Now;
+    [ObservableProperty] private DateTime _changeEffectiveDate = DateTime.Now;
+
+    // Shown only when this editing session is the one actually turning
+    // the medication off (was active before, is being set inactive now)
+    // — not just "IsActive happens to be false," which would also be
+    // true for an already-inactive medication being edited for some
+    // other reason. Computed from _original, which InitializeAsync
+    // already captures before any edits happen.
+    public bool ShowDiscontinuedDate => !IsActive && (_original?.IsActive ?? false);
+    partial void OnIsActiveChanged(bool value) => OnPropertyChanged(nameof(ShowDiscontinuedDate));
+
+    // Effective-date field is for CHANGES to an existing medication
+    // (dosage/frequency) — a brand-new medication in add mode has no
+    // prior state to compare against, so this only applies once editing
+    // something that already existed.
+    public bool ShowEffectiveDateField => IsEditing && !IsAddMode;
+    partial void OnIsEditingChanged(bool value) => OnPropertyChanged(nameof(ShowEffectiveDateField));
+
     // Time of day toggles
     [ObservableProperty] private bool _morning;
     [ObservableProperty] private bool _midday;
@@ -97,6 +123,10 @@ public partial class MedicationDetailViewModel : ObservableObject
         FillDate = med.FillDate ?? string.Empty;
         EstRefill = med.EstRefill ?? string.Empty;
         IsRx = (med.RxOtc ?? "rx") == "rx";
+
+        StartDate = string.IsNullOrEmpty(med.StartDate) ? DateTime.Now : DateTime.Parse(med.StartDate);
+        DiscontinuedDate = string.IsNullOrEmpty(med.DiscontinuedDate) ? DateTime.Now : DateTime.Parse(med.DiscontinuedDate);
+        ChangeEffectiveDate = DateTime.Now;
 
         Morning = med.TimeOfDay.Contains("morning");
         Midday = med.TimeOfDay.Contains("midday");
@@ -171,7 +201,8 @@ public partial class MedicationDetailViewModel : ObservableObject
                     qty = string.IsNullOrEmpty(Qty) ? (int?)null : int.Parse(Qty),
                     days_supply = string.IsNullOrEmpty(DaysSupply) ? (int?)null : int.Parse(DaysSupply),
                     is_active = IsActive,
-                    rxotc = IsRx ? "rx" : "otc"
+                    rxotc = IsRx ? "rx" : "otc",
+                    start_date = StartDate.ToString("yyyy-MM-dd")
                 };
                 success = await _api.AddMedicationAsync(payload);
             }
@@ -187,7 +218,17 @@ public partial class MedicationDetailViewModel : ObservableObject
                     qty = string.IsNullOrEmpty(Qty) ? (int?)null : int.Parse(Qty),
                     days_supply = string.IsNullOrEmpty(DaysSupply) ? (int?)null : int.Parse(DaysSupply),
                     is_active = IsActive,
-                    rxotc = IsRx ? "rx" : "otc"
+                    rxotc = IsRx ? "rx" : "otc",
+                    // Only sent when this save is actually the one turning
+                    // the medication off — otherwise omitted entirely, so
+                    // an unrelated edit (e.g. just fixing a typo in Purpose)
+                    // never accidentally touches it.
+                    discontinued_date = ShowDiscontinuedDate ? DiscontinuedDate.ToString("yyyy-MM-dd") : null,
+                    // Always sent in edit mode — the backend only acts on
+                    // this if dosage or time_of_day actually changed from
+                    // their prior values; harmless otherwise.
+                    change_effective_date = ChangeEffectiveDate.ToString("yyyy-MM-dd"),
+                    start_date = StartDate.ToString("yyyy-MM-dd")
                 };
                 success = await _api.UpdateMedicationAsync(
                     _original!.MedicationId, payload);

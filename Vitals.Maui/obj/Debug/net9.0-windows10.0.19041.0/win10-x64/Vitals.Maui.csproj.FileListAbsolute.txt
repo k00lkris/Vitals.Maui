@@ -7,9 +7,9 @@ D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\appiconSplashScreen.scale-400.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\OpenSans-Regular.ttf
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\OpenSans-Semibold.ttf
-D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\google_logo.scale-100.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\vitals_logo.scale-100.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\dotnet_bot.scale-100.png
+D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\google_logo.scale-100.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\appiconLargeTile.scale-400.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\appiconLargeTile.scale-200.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-windows10.0.19041.0\win10-x64\appiconLargeTile.scale-150.png
@@ -458,9 +458,9 @@ D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\mauifont.stamp
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\resizetizer\f\OpenSans-Regular.ttf
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\resizetizer\f\OpenSans-Semibold.ttf
-D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\resizetizer\r\google_logo.scale-100.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\resizetizer\r\vitals_logo.scale-100.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\resizetizer\r\dotnet_bot.scale-100.png
+D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\resizetizer\r\google_logo.scale-100.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\resizetizer\r\appiconLargeTile.scale-400.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\resizetizer\r\appiconLargeTile.scale-200.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-windows10.0.19041.0\win10-x64\resizetizer\r\appiconLargeTile.scale-150.png

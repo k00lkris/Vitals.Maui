@@ -167,6 +167,25 @@
 
                 <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
 
+                <!-- Start Date — editable in both add and edit mode,
+                     defaults to today. Correctable rather than fixed at
+                     creation, since logging a medication days or weeks
+                     after actually starting it is the normal case. -->
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Start Date" FontSize="11" FontAttributes="Bold"
+                           TextColor="{DynamicResource PrimaryAccent}" />
+                    <Label Text="{Binding StartDate, StringFormat='{0:MMM d, yyyy}'}"
+                           FontSize="14" TextColor="{DynamicResource TextSecondary}"
+                           IsVisible="{Binding IsEditing,
+                               Converter={StaticResource InvertedBoolConverter}}" />
+                    <DatePicker Date="{Binding StartDate}"
+                                TextColor="{DynamicResource TextPrimary}"
+                                BackgroundColor="{DynamicResource PageBackground}"
+                                IsVisible="{Binding IsEditing}" />
+                </VerticalStackLayout>
+
+                <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+
                 <!-- Time of Day -->
                 <VerticalStackLayout Spacing="8">
                     <Label Text="Time of Day"
@@ -267,6 +286,32 @@
                             IsToggled="{Binding IsActive}"
                             OnColor="{DynamicResource ButtonBackground}" />
                 </Grid>
+
+                <!-- Discontinued Date — only shown when THIS editing
+                     session is the one turning the medication off, not
+                     just because it happens to already be inactive.
+                     Defaults to today, editable. -->
+                <VerticalStackLayout Spacing="2" IsVisible="{Binding ShowDiscontinuedDate}">
+                    <Label Text="Discontinued Date" FontSize="11" FontAttributes="Bold"
+                           TextColor="{DynamicResource PrimaryAccent}" />
+                    <DatePicker Date="{Binding DiscontinuedDate}"
+                                TextColor="{DynamicResource TextPrimary}"
+                                BackgroundColor="{DynamicResource PageBackground}" />
+                </VerticalStackLayout>
+
+                <!-- Effective Date — for a dosage or schedule change made
+                     in this same save. Shown whenever editing an existing
+                     medication (not add mode, which has no prior state to
+                     compare against); the backend only actually acts on
+                     this if dosage/time_of_day genuinely changed, so it's
+                     harmless to show even when nothing else did. -->
+                <VerticalStackLayout Spacing="2" IsVisible="{Binding ShowEffectiveDateField}">
+                    <Label Text="Effective Date (if dosage or schedule changed)" FontSize="11" FontAttributes="Bold"
+                           TextColor="{DynamicResource PrimaryAccent}" />
+                    <DatePicker Date="{Binding ChangeEffectiveDate}"
+                                TextColor="{DynamicResource TextPrimary}"
+                                BackgroundColor="{DynamicResource PageBackground}" />
+                </VerticalStackLayout>
 
                 <!-- Status Message -->
                 <Label Text="{Binding StatusMessage}"

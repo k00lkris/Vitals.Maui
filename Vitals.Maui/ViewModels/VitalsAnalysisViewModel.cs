@@ -411,41 +411,55 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         var hr = a.HeartRate;
         var parts = new List<string>();
 
-        parts.Add(hr.Classification switch
+        if (hr.RestingSummary is not null)
         {
-            "bradycardia" =>
-                $"Average heart rate of {hr.Avg:F0} BPM is below the normal range (60–100 BPM). " +
-                "A resting rate below 60 BPM can be normal for athletes but may indicate bradycardia in others.",
-            "mild_tachycardia" =>
-                $"Average heart rate of {hr.Avg:F0} BPM is mildly elevated. " +
-                "A consistently elevated resting rate can be caused by stress, dehydration, or underlying conditions.",
-            "tachycardia" =>
-                $"Average heart rate of {hr.Avg:F0} BPM is above normal range. " +
-                "A persistently elevated heart rate warrants medical evaluation.",
-            _ =>
-                $"Average heart rate of {hr.Avg:F0} BPM is within the normal range of 60–100 BPM."
-        });
+            var rs = hr.RestingSummary;
+            parts.Add(
+                $"Average resting heart rate of {rs.Mean:F0} BPM across {rs.N} readings " +
+                $"over {rs.DistinctDays} days (range {rs.Min}\u2013{rs.Max} BPM).");
+        }
+        else
+        {
+            parts.Add(
+                $"Latest reading: {hr.Bpm} BPM ({hr.ActivityContextDisplay.ToLower()}). " +
+                "Not enough resting readings yet for trend analysis.");
+        }
 
-        parts.Add(hr.Trend switch
+        if (hr.Trend is not null)
         {
-            "rising_significant" => $"Heart rate has been rising at a statistically significant rate ({hr.SlopeDisplay} BPM/day).",
-            "rising" => $"Heart rate has been gradually rising ({hr.SlopeDisplay} BPM/day).",
-            "falling_significant" => $"Heart rate has been falling at a statistically significant rate ({hr.SlopeDisplay} BPM/day).",
-            "falling" => $"Heart rate has been gradually declining ({hr.SlopeDisplay} BPM/day).",
-            _ => "Heart rate has been stable over this period."
-        });
+            parts.Add(hr.Trend.TrendLabel switch
+            {
+                "rising_significant" =>
+                    $"Resting heart rate has been rising at a statistically significant rate " +
+                    $"({hr.Trend.SlopeDisplay}) over this period.",
+                "rising" =>
+                    $"Resting heart rate has been gradually rising ({hr.Trend.SlopeDisplay}).",
+                "falling_significant" =>
+                    $"Resting heart rate has been falling at a statistically significant rate " +
+                    $"({hr.Trend.SlopeDisplay}) over this period.",
+                "falling" =>
+                    $"Resting heart rate has been gradually declining ({hr.Trend.SlopeDisplay}).",
+                _ => "Resting heart rate has been stable over this period."
+            });
+        }
 
-        var burden = hr.HrBurden;
-        if (burden is not null)
+        if (hr.RateEvents is not null && hr.RateEvents.NRestingInWindow >= 1)
         {
-            if (burden.BradycardiaPct >= 20)
-                parts.Add($"About {burden.BradycardiaPct:F0}% of readings were below 60 BPM (bradycardia range).");
-            else if (burden.TachycardiaPct >= 10)
-                parts.Add($"About {burden.TachycardiaPct:F0}% of readings exceeded 120 BPM (tachycardia range).");
-            else if (burden.MildTachyPct >= 20)
-                parts.Add($"About {burden.MildTachyPct:F0}% of readings were mildly elevated (101–120 BPM).");
-            else if (burden.NormalPct >= 80)
-                parts.Add($"{burden.NormalPct:F0}% of readings were in the normal range — consistent cardiac rhythm.");
+            var re = hr.RateEvents;
+            if (re.High is not null && re.High.Count > 0)
+                parts.Add($"{re.High.Count} reading(s) were above {re.Thresholds?.High} BPM.");
+            if (re.Low is not null && re.Low.Count > 0)
+                parts.Add($"{re.Low.Count} reading(s) were below {re.Thresholds?.Low} BPM.");
+        }
+
+        if (hr.BaselineDeviation is not null && Math.Abs(hr.BaselineDeviation.DeltaBpm) >= 3)
+        {
+            var bd = hr.BaselineDeviation;
+            var direction = bd.DeltaBpm >= 0 ? "higher" : "lower";
+            parts.Add(
+                $"The past week's resting rate ({bd.RecentMedian:F0} BPM) is {direction} than " +
+                $"the prior month's typical baseline ({bd.BaselineMedian:F0} BPM) by " +
+                $"{Math.Abs(bd.DeltaBpm):F0} BPM.");
         }
 
         HrSummary = string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));

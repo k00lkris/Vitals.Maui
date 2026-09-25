@@ -1170,6 +1170,15 @@
         <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.IsActive">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationDetailViewModel._isActive"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.StartDate">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationDetailViewModel._startDate"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.DiscontinuedDate">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationDetailViewModel._discontinuedDate"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.ChangeEffectiveDate">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationDetailViewModel._changeEffectiveDate"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.Morning">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationDetailViewModel._morning"/>
         </member>
@@ -1226,6 +1235,16 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.NdcStatusMessage">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.MedicationDetailViewModel._ndcStatusMessage"/>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.OnIsEditingChanged(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.IsEditing"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.IsEditing"/> is changed.</remarks>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.MedicationDetailViewModel.OnIsActiveChanged(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.IsActive"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.IsActive"/> is changed.</remarks>
         </member>
         <member name="F:Vitals.Maui.ViewModels.MedicationDetailViewModel.startEditCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.MedicationDetailViewModel.StartEditCommand"/>.</summary>
@@ -3032,6 +3051,15 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Purpose">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Purpose" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.StartDate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "StartDate" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.DiscontinuedDate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "DiscontinuedDate" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ChangeEffectiveDate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ChangeEffectiveDate" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Morning">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Morning" generated properties.</summary>
         </member>
@@ -3676,6 +3704,15 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Purpose">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Purpose" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.StartDate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "StartDate" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.DiscontinuedDate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "DiscontinuedDate" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ChangeEffectiveDate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ChangeEffectiveDate" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Morning">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Morning" generated properties.</summary>

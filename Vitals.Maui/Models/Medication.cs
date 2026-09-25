@@ -43,8 +43,15 @@ public class Medication
     [JsonPropertyName("is_active")]
     public bool IsActive { get; set; }
 
-    [JsonPropertyName("discontinued")]
-    public bool Discontinued { get; set; }
+    // discontinued removed — retired backend-side (is_active is the
+    // single source of truth now; discontinued was never read or
+    // written by this app in practice, only carried through unused).
+
+    [JsonPropertyName("start_date")]
+    public string? StartDate { get; set; }
+
+    [JsonPropertyName("discontinued_date")]
+    public string? DiscontinuedDate { get; set; }
 }
 
 public class MedicationsResponse

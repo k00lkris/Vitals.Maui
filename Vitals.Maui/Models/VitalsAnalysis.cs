@@ -33,7 +33,7 @@ public class VitalsAnalysis
     public HypoBurdenAnalysis? HypoBurden { get; set; }
 
     [JsonPropertyName("heart_rate")]
-    public SecondaryAnalysis? HeartRate { get; set; }
+    public HeartRateAnalysis? HeartRate { get; set; }
 
     [JsonPropertyName("spo2")]
     public SecondaryAnalysis? Spo2 { get; set; }

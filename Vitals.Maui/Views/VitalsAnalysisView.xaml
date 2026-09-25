@@ -23,12 +23,12 @@
                     <Label.FormattedText>
                         <FormattedString>
                             <Span Text="{Binding SelectedPatient.FullName,
-                                      TargetNullValue='', FallbackValue=''}"
+                                      TargetNullValue='', FallbackValue='', Mode=OneWay}"
                                   TextColor="{DynamicResource PrimaryAccent}" />
                             <Span Text="  •  Last " TextColor="{DynamicResource TextMuted}" />
-                            <Span Text="{Binding SelectedDays}" TextColor="{DynamicResource PrimaryAccent}" />
+                            <Span Text="{Binding SelectedDays, Mode=OneWay}" TextColor="{DynamicResource PrimaryAccent}" />
                             <Span Text=" days  •  " TextColor="{DynamicResource TextMuted}" />
-                            <Span Text="{Binding Analysis.ReadingCount}" TextColor="{DynamicResource PrimaryAccent}" />
+                            <Span Text="{Binding Analysis.ReadingCount, Mode=OneWay}" TextColor="{DynamicResource PrimaryAccent}" />
                             <Span Text=" readings" TextColor="{DynamicResource TextMuted}" />
                         </FormattedString>
                     </Label.FormattedText>
@@ -142,10 +142,10 @@
                                     <Label.FormattedText>
                                         <FormattedString>
                                             <Span Text="Avg BP  " />
-                                            <Span Text="{Binding Analysis.Systolic.Avg, StringFormat='{0:F1}'}"
+                                            <Span Text="{Binding Analysis.Systolic.Avg, StringFormat='{0:F1}', Mode=OneWay}"
                                                   TextColor="{DynamicResource TextPrimary}" />
                                             <Span Text=" / " />
-                                            <Span Text="{Binding Analysis.Diastolic.Avg, StringFormat='{0:F1}'}"
+                                            <Span Text="{Binding Analysis.Diastolic.Avg, StringFormat='{0:F1}', Mode=OneWay}"
                                                   TextColor="{DynamicResource TextPrimary}" />
                                             <Span Text=" mmHg" />
                                         </FormattedString>
@@ -156,10 +156,10 @@
                                     <Label.FormattedText>
                                         <FormattedString>
                                             <Span Text="MAP  " />
-                                            <Span Text="{Binding Analysis.Map.Avg, StringFormat='{0:F1}'}"
+                                            <Span Text="{Binding Analysis.Map.Avg, StringFormat='{0:F1}', Mode=OneWay}"
                                                   TextColor="{DynamicResource TextPrimary}" />
                                             <Span Text=" mmHg  " />
-                                            <Span Text="{Binding Analysis.Map.RangeLabel}" FontSize="11" />
+                                            <Span Text="{Binding Analysis.Map.RangeLabel, Mode=OneWay}" FontSize="11" />
                                         </FormattedString>
                                     </Label.FormattedText>
                                 </Label>
@@ -187,9 +187,9 @@
                                         <Label FontSize="14" FontAttributes="Bold">
                                             <Label.FormattedText>
                                                 <FormattedString>
-                                                    <Span Text="{Binding Analysis.Systolic.TrendArrow}" FontSize="16" />
+                                                    <Span Text="{Binding Analysis.Systolic.TrendArrow, Mode=OneWay}" FontSize="16" />
                                                     <Span Text="  " />
-                                                    <Span Text="{Binding Analysis.Systolic.TrendLabel}" />
+                                                    <Span Text="{Binding Analysis.Systolic.TrendLabel, Mode=OneWay}" />
                                                 </FormattedString>
                                             </Label.FormattedText>
                                             <Label.TextColor>
@@ -232,9 +232,9 @@
                                         <Label FontSize="14" FontAttributes="Bold">
                                             <Label.FormattedText>
                                                 <FormattedString>
-                                                    <Span Text="{Binding Analysis.Diastolic.TrendArrow}" FontSize="16" />
+                                                    <Span Text="{Binding Analysis.Diastolic.TrendArrow, Mode=OneWay}" FontSize="16" />
                                                     <Span Text="  " />
-                                                    <Span Text="{Binding Analysis.Diastolic.TrendLabel}" />
+                                                    <Span Text="{Binding Analysis.Diastolic.TrendLabel, Mode=OneWay}" />
                                                 </FormattedString>
                                             </Label.FormattedText>
                                             <Label.TextColor>
@@ -438,7 +438,7 @@
                                     <Label.FormattedText>
                                         <FormattedString>
                                             <Span Text="Lowest recorded diastolic: " />
-                                            <Span Text="{Binding Analysis.LowDbpBurden.LowestDiaDisplay}"
+                                            <Span Text="{Binding Analysis.LowDbpBurden.LowestDiaDisplay, Mode=OneWay}"
                                                   FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
                                         </FormattedString>
                                     </Label.FormattedText>
@@ -606,107 +606,366 @@
                     <!-- ==================== HR TAB ==================== -->
                     <VerticalStackLayout Spacing="12" IsVisible="{Binding ShowHr}">
 
+                        <!-- §6.1 Latest reading + context -->
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
                             <VerticalStackLayout Spacing="4">
-                                <Label Text="Heart Rate Classification" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
-                                <Label Text="{Binding Analysis.HeartRate.HrClassificationDisplay}"
-                                       FontSize="18" FontAttributes="Bold">
-                                    <Label.TextColor>
-                                        <Binding Path="Analysis.HeartRate.HrClassificationColor" />
-                                    </Label.TextColor>
-                                </Label>
-                                <Label Text="{Binding Analysis.HeartRate.Avg, StringFormat='Avg {0:F0} BPM'}"
-                                       FontSize="12" TextColor="{DynamicResource TextMuted}" />
-                            </VerticalStackLayout>
-                        </Border>
-
-                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
-                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
-                            <VerticalStackLayout Spacing="10">
-                                <Label Text="HEART RATE TREND" FontSize="11" FontAttributes="Bold"
-                                       TextColor="{DynamicResource PrimaryAccent}" />
-                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="10">
-                                    <VerticalStackLayout Grid.Row="0" Grid.Column="0" Spacing="2">
-                                        <Label Text="Direction" FontSize="11" TextColor="{DynamicResource TextMuted}" />
-                                        <Label FontSize="14" FontAttributes="Bold">
-                                            <Label.FormattedText>
-                                                <FormattedString>
-                                                    <Span Text="{Binding Analysis.HeartRate.TrendArrow}" FontSize="16" />
-                                                    <Span Text="  " />
-                                                    <Span Text="{Binding Analysis.HeartRate.TrendLabel}" />
-                                                </FormattedString>
-                                            </Label.FormattedText>
-                                            <Label.TextColor>
-                                                <Binding Path="Analysis.HeartRate.TrendColor" />
-                                            </Label.TextColor>
-                                        </Label>
+                                <Label Text="Latest Reading" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.HeartRate.Bpm, StringFormat='{0} BPM'}"
+                                       FontSize="24" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.HeartRate.RecordedAt, StringFormat='{0:MMM d, yyyy \\a\\t h:mm tt}'}"
+                                       FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                                <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="0,8" />
+                                <Grid ColumnDefinitions="*,*" RowSpacing="4" ColumnSpacing="8">
+                                    <VerticalStackLayout Grid.Column="0">
+                                        <Label Text="Activity" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                        <Label Text="{Binding Analysis.HeartRate.ActivityContextDisplay}" FontSize="14" TextColor="{DynamicResource TextPrimary}" />
                                     </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Row="0" Grid.Column="1" Spacing="2">
-                                        <Label Text="Rate of Change" FontSize="11" TextColor="{DynamicResource TextMuted}" />
-                                        <Label Text="{Binding Analysis.HeartRate.SlopeDisplay, StringFormat='{0} BPM/day'}"
-                                               FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Row="1" Grid.Column="0" Spacing="2">
-                                        <Label Text="Significance" FontSize="11" TextColor="{DynamicResource TextMuted}" />
-                                        <Label Text="{Binding Analysis.HeartRate.PValueDisplay}"
-                                               FontSize="13" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Row="1" Grid.Column="1" Spacing="2">
-                                        <Label Text="Consistency" FontSize="11" TextColor="{DynamicResource TextMuted}" />
-                                        <Label Text="{Binding Analysis.HeartRate.ConsistencyLabel}"
-                                               FontSize="13" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
+                                    <VerticalStackLayout Grid.Column="1">
+                                        <Label Text="Position" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                        <Label Text="{Binding Analysis.HeartRate.PostureDisplay}" FontSize="14" TextColor="{DynamicResource TextPrimary}" />
                                     </VerticalStackLayout>
                                 </Grid>
+                                <Label Text="{Binding Analysis.HeartRate.SymptomTagsDisplay, StringFormat='Symptoms: {0}'}"
+                                       FontSize="12" TextColor="{DynamicResource TextSecondary}" Margin="0,4,0,0" />
+                                <Label Text="{Binding Analysis.HeartRate.IrregularPulseDisplay}"
+                                       FontSize="12" TextColor="{DynamicResource TextSecondary}" />
                             </VerticalStackLayout>
                         </Border>
 
-                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
-                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
-                            <VerticalStackLayout Spacing="10">
-                                <Label Text="HEART RATE BURDEN" FontSize="11" FontAttributes="Bold"
-                                       TextColor="{DynamicResource PrimaryAccent}" />
-                                <Label Text="Percentage of time spent in each range:"
-                                       FontSize="12" TextColor="{DynamicResource TextMuted}" />
-                                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
-                                    <Border Grid.Column="0" Padding="8,6" BackgroundColor="{DynamicResource TileLowBg}" StrokeShape="RoundRectangle 6">
-                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                            <Label Text="{Binding Analysis.HeartRate.HrBurden.BradycardiaDisplay}" FontSize="16" FontAttributes="Bold" TextColor="#1976d2" HorizontalOptions="Center" />
-                                            <Label Text="Brady" FontSize="10" TextColor="#1976d2" HorizontalOptions="Center" />
-                                            <Label Text="&lt;60" FontSize="9" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
-                                        </VerticalStackLayout>
-                                    </Border>
-                                    <Border Grid.Column="1" Padding="8,6" BackgroundColor="{DynamicResource TileNormalBg}" StrokeShape="RoundRectangle 6">
-                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                            <Label Text="{Binding Analysis.HeartRate.HrBurden.NormalDisplay}" FontSize="16" FontAttributes="Bold" TextColor="#388e3c" HorizontalOptions="Center" />
-                                            <Label Text="Normal" FontSize="10" TextColor="#388e3c" HorizontalOptions="Center" />
-                                            <Label Text="60-100" FontSize="9" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
-                                        </VerticalStackLayout>
-                                    </Border>
-                                    <Border Grid.Column="2" Padding="8,6" BackgroundColor="{DynamicResource TileSevereBg}" StrokeShape="RoundRectangle 6">
-                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                            <Label Text="{Binding Analysis.HeartRate.HrBurden.MildTachyDisplay}" FontSize="16" FontAttributes="Bold" TextColor="#f57c00" HorizontalOptions="Center" />
-                                            <Label Text="Mild Tachy" FontSize="10" TextColor="#f57c00" HorizontalOptions="Center" />
-                                            <Label Text="101-120" FontSize="9" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
-                                        </VerticalStackLayout>
-                                    </Border>
-                                    <Border Grid.Column="3" Padding="8,6" BackgroundColor="{DynamicResource TileCriticalBg}" StrokeShape="RoundRectangle 6">
-                                        <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                            <Label Text="{Binding Analysis.HeartRate.HrBurden.TachycardiaDisplay}" FontSize="16" FontAttributes="Bold" TextColor="#d32f2f" HorizontalOptions="Center" />
-                                            <Label Text="Tachy" FontSize="10" TextColor="#d32f2f" HorizontalOptions="Center" />
-                                            <Label Text="&gt;120" FontSize="9" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
-                                        </VerticalStackLayout>
-                                    </Border>
-                                </Grid>
-                            </VerticalStackLayout>
-                        </Border>
-
+                        <!-- Plain-English summary -->
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
                                 IsVisible="{Binding HrSummary, Converter={StaticResource StringToBoolConverter}}">
-                            <VerticalStackLayout Spacing="10">
-                                <Label Text="💬  In Plain English" FontSize="13" FontAttributes="Bold" TextColor="{DynamicResource PrimaryAccent}" />
-                                <Label Text="{Binding HrSummary}" FontSize="13" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
+                            <Label Text="{Binding HrSummary}" FontSize="13" TextColor="{DynamicResource TextSecondary}" LineBreakMode="WordWrap" />
+                        </Border>
+
+                        <!-- §6.2 Resting central tendency -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.HeartRate.HasRestingSummary}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Resting Average" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.HeartRate.RestingSummary.Mean, StringFormat='{0:F0} BPM mean  ·  {1:F0} BPM median'}"
+                                       FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,0">
+                                    <VerticalStackLayout Grid.Column="0">
+                                        <Label Text="{Binding Analysis.HeartRate.RestingSummary.N}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" HorizontalOptions="Center" />
+                                        <Label Text="readings" FontSize="10" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1">
+                                        <Label Text="{Binding Analysis.HeartRate.RestingSummary.DistinctDays}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" HorizontalOptions="Center" />
+                                        <Label Text="days" FontSize="10" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="2">
+                                        <Label Text="{Binding Analysis.HeartRate.RestingSummary.Range, StringFormat='{0} BPM'}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" HorizontalOptions="Center" />
+                                        <Label Text="range" FontSize="10" TextColor="{DynamicResource TextMuted}" HorizontalOptions="Center" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- §6.3 Dispersion -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.HeartRate.HasDispersion}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Reading-to-Reading Variability" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.HeartRate.Dispersion.Sd, StringFormat='SD {0:F1} BPM'}"
+                                       FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.HeartRate.Dispersion.Iqr, StringFormat='IQR {0:F1} BPM'}"
+                                       FontSize="13" TextColor="{DynamicResource TextSecondary}" />
+
+                                <!-- §6.3 comparison vs prior 30 days — fixed, independent of the selected window -->
+                                <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" Margin="0,8"
+                                         IsVisible="{Binding Analysis.HeartRate.DispersionTrend.Message, Converter={StaticResource StringToBoolConverter}}" />
+                                <Label Text="{Binding Analysis.HeartRate.DispersionTrend.Message}"
+                                       FontSize="12" TextColor="{DynamicResource TextMuted}" FontAttributes="Italic"
+                                       IsVisible="{Binding Analysis.HeartRate.DispersionTrend.Message, Converter={StaticResource StringToBoolConverter}}" />
+                                <Label FontSize="13" TextColor="{DynamicResource TextSecondary}"
+                                       IsVisible="{Binding Analysis.HeartRate.HasDispersionTrendComparison}">
+                                    <Label.Text>
+                                        <Binding Path="Analysis.HeartRate.DispersionTrend.SdDelta" StringFormat="SD change vs. prior 30 days: {0:+0.0;-0.0} BPM" />
+                                    </Label.Text>
+                                </Label>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- §6.4/§6.5 Trend -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.HeartRate.HasTrend}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Trend" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label FontSize="16" FontAttributes="Bold">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="{Binding Analysis.HeartRate.Trend.TrendArrow, Mode=OneWay}" FontSize="18" />
+                                            <Span Text=" " />
+                                            <Span Text="{Binding Analysis.HeartRate.Trend.TrendLabelDisplay, Mode=OneWay}" />
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                    <Label.TextColor>
+                                        <Binding Path="Analysis.HeartRate.Trend.TrendColor" />
+                                    </Label.TextColor>
+                                </Label>
+                                <Label Text="{Binding Analysis.HeartRate.Trend.SlopeDisplay}" FontSize="13" TextColor="{DynamicResource TextSecondary}" />
+                                <Label Text="{Binding Analysis.HeartRate.Trend.PValueDisplay}" FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                                <Label Text="{Binding Analysis.HeartRate.Trend.ConsistencyDisplay}" FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                                <!-- §6.5 LOESS: smoothed-trend data availability. Chart overlay
+                                     rendering is a follow-up — this confirms the smoothed series
+                                     exists without yet drawing it. -->
+                                <Label Text="A smoothed trend line is available for the chart view."
+                                       FontSize="12" TextColor="{DynamicResource TextMuted}" FontAttributes="Italic"
+                                       Margin="0,4,0,0"
+                                       IsVisible="{Binding Analysis.HeartRate.HasLoess}" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- §6.6 Personal baseline deviation -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.HeartRate.HasBaselineDeviation}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="This Week vs. Your Typical Baseline" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Grid ColumnDefinitions="*,*">
+                                    <VerticalStackLayout Grid.Column="0">
+                                        <Label Text="{Binding Analysis.HeartRate.BaselineDeviation.BaselineMedian, StringFormat='{0:F0} BPM'}"
+                                               FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                        <Label Text="Prior 30 days (baseline)" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1">
+                                        <Label Text="{Binding Analysis.HeartRate.BaselineDeviation.RecentMedian, StringFormat='{0:F0} BPM'}"
+                                               FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                        <Label Text="Last 7 days (recent)" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                                <Label Text="{Binding Analysis.HeartRate.BaselineDeviation.DeltaDisplay, StringFormat='Change: {0}'}"
+                                       FontSize="13" TextColor="{DynamicResource TextSecondary}" Margin="0,4,0,0" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- §6.7 High/low resting-rate events -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.HeartRate.HasRateEvents}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="High/Low Resting Readings" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                                    <VerticalStackLayout Grid.Column="0">
+                                        <Label FontSize="16" FontAttributes="Bold" TextColor="#d32f2f">
+                                            <Label.Text>
+                                                <Binding Path="Analysis.HeartRate.RateEvents.High.Count" StringFormat="{}{0} high" />
+                                            </Label.Text>
+                                        </Label>
+                                        <Label FontSize="11" TextColor="{DynamicResource TextMuted}">
+                                            <Label.Text>
+                                                <Binding Path="Analysis.HeartRate.RateEvents.Thresholds.High" StringFormat="above {0} BPM" />
+                                            </Label.Text>
+                                        </Label>
+                                        <Label FontSize="11" TextColor="{DynamicResource TextSecondary}"
+                                               IsVisible="{Binding Analysis.HeartRate.RateEvents.High.HasPct}">
+                                            <Label.Text>
+                                                <Binding Path="Analysis.HeartRate.RateEvents.High.Pct" StringFormat="{}{0:F0}% of readings" />
+                                            </Label.Text>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1">
+                                        <Label FontSize="16" FontAttributes="Bold" TextColor="#1976d2">
+                                            <Label.Text>
+                                                <Binding Path="Analysis.HeartRate.RateEvents.Low.Count" StringFormat="{}{0} low" />
+                                            </Label.Text>
+                                        </Label>
+                                        <Label FontSize="11" TextColor="{DynamicResource TextMuted}">
+                                            <Label.Text>
+                                                <Binding Path="Analysis.HeartRate.RateEvents.Thresholds.Low" StringFormat="below {0} BPM" />
+                                            </Label.Text>
+                                        </Label>
+                                        <Label FontSize="11" TextColor="{DynamicResource TextSecondary}"
+                                               IsVisible="{Binding Analysis.HeartRate.RateEvents.Low.HasPct}">
+                                            <Label.Text>
+                                                <Binding Path="Analysis.HeartRate.RateEvents.Low.Pct" StringFormat="{}{0:F0}% of readings" />
+                                            </Label.Text>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                </Grid>
+                                <Label FontSize="11" TextColor="{DynamicResource TextMuted}" Margin="0,4,0,0"
+                                       IsVisible="{Binding Analysis.HeartRate.RateEvents.HasMarkedLow}">
+                                    <Label.Text>
+                                        <Binding Path="Analysis.HeartRate.RateEvents.MarkedLowCount" StringFormat="{}{0} of these were markedly low" />
+                                    </Label.Text>
+                                </Label>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- §6.8 Time-of-day pattern -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.HeartRate.TimeOfDay.Buckets.HasAny}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Time-of-Day Pattern" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="8" ColumnSpacing="8">
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="0" IsVisible="{Binding Analysis.HeartRate.TimeOfDay.Buckets.HasMorning}">
+                                        <Label Text="Morning" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                        <Label Text="{Binding Analysis.HeartRate.TimeOfDay.Buckets.Morning.Mean, StringFormat='{0:F0} BPM'}" FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="0" Grid.Column="1" IsVisible="{Binding Analysis.HeartRate.TimeOfDay.Buckets.HasAfternoon}">
+                                        <Label Text="Afternoon" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                        <Label Text="{Binding Analysis.HeartRate.TimeOfDay.Buckets.Afternoon.Mean, StringFormat='{0:F0} BPM'}" FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="0" IsVisible="{Binding Analysis.HeartRate.TimeOfDay.Buckets.HasEvening}">
+                                        <Label Text="Evening" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                        <Label Text="{Binding Analysis.HeartRate.TimeOfDay.Buckets.Evening.Mean, StringFormat='{0:F0} BPM'}" FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Row="1" Grid.Column="1" IsVisible="{Binding Analysis.HeartRate.TimeOfDay.Buckets.HasOvernight}">
+                                        <Label Text="Overnight" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                        <Label Text="{Binding Analysis.HeartRate.TimeOfDay.Buckets.Overnight.Mean, StringFormat='{0:F0} BPM'}" FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                                <Label FontSize="12" TextColor="{DynamicResource TextSecondary}" Margin="0,4,0,0"
+                                       IsVisible="{Binding Analysis.HeartRate.HasTimeOfDayPattern}">
+                                    <Label.Text>
+                                        <MultiBinding StringFormat="Highest: {0}  ·  Lowest: {1}">
+                                            <Binding Path="Analysis.HeartRate.TimeOfDay.PatternSummary.HighestPeriod" />
+                                            <Binding Path="Analysis.HeartRate.TimeOfDay.PatternSummary.LowestPeriod" />
+                                        </MultiBinding>
+                                    </Label.Text>
+                                </Label>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- §6.9 Symptom association -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.HeartRate.HasSymptomAssociation}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Symptoms Logged with Readings" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <CollectionView ItemsSource="{Binding Analysis.HeartRate.SymptomAssociationList}">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate>
+                                            <VerticalStackLayout Spacing="2" Margin="0,0,0,8">
+                                                <!-- Plain Label bound to HeaderDisplay (combines tag + count
+                                                     in C#) — same pattern as HrUnavailableAnalysis.DisplayText,
+                                                     not FormattedString/Span. -->
+                                                <Label Text="{Binding HeaderDisplay}" FontSize="13"
+                                                       FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                                <Label FontSize="12" TextColor="{DynamicResource TextSecondary}"
+                                                       IsVisible="{Binding HasPctLow}">
+                                                    <Label.Text>
+                                                        <Binding Path="PctLow" StringFormat="{}{0:F0}% occurred with a low reading" />
+                                                    </Label.Text>
+                                                </Label>
+                                                <Label FontSize="12" TextColor="{DynamicResource TextSecondary}"
+                                                       IsVisible="{Binding HasPctHigh}">
+                                                    <Label.Text>
+                                                        <Binding Path="PctHigh" StringFormat="{}{0:F0}% occurred with a high reading" />
+                                                    </Label.Text>
+                                                </Label>
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- §6.11 Cross-vital same-event context -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.HeartRate.CrossVitalContext.HasAny}">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="Alongside Other Vitals" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label FontSize="13" TextColor="{DynamicResource TextSecondary}"
+                                       IsVisible="{Binding Analysis.HeartRate.CrossVitalContext.HasBloodPressure}">
+                                    <Label.Text>
+                                        <MultiBinding StringFormat="Blood pressure was elevated alongside {0} high and {1} low heart-rate reading(s)">
+                                            <Binding Path="Analysis.HeartRate.CrossVitalContext.BloodPressure.CoOccurrenceHigh" />
+                                            <Binding Path="Analysis.HeartRate.CrossVitalContext.BloodPressure.CoOccurrenceLow" />
+                                        </MultiBinding>
+                                    </Label.Text>
+                                </Label>
+                                <Label FontSize="13" TextColor="{DynamicResource TextSecondary}"
+                                       IsVisible="{Binding Analysis.HeartRate.CrossVitalContext.HasOxygenSaturation}">
+                                    <Label.Text>
+                                        <MultiBinding StringFormat="SpO₂ was abnormal alongside {0} high and {1} low heart-rate reading(s)">
+                                            <Binding Path="Analysis.HeartRate.CrossVitalContext.OxygenSaturation.CoOccurrenceHigh" />
+                                            <Binding Path="Analysis.HeartRate.CrossVitalContext.OxygenSaturation.CoOccurrenceLow" />
+                                        </MultiBinding>
+                                    </Label.Text>
+                                </Label>
+                                <Label FontSize="13" TextColor="{DynamicResource TextSecondary}"
+                                       IsVisible="{Binding Analysis.HeartRate.CrossVitalContext.HasTemperature}">
+                                    <Label.Text>
+                                        <MultiBinding StringFormat="Temperature was abnormal alongside {0} high and {1} low heart-rate reading(s)">
+                                            <Binding Path="Analysis.HeartRate.CrossVitalContext.Temperature.CoOccurrenceHigh" />
+                                            <Binding Path="Analysis.HeartRate.CrossVitalContext.Temperature.CoOccurrenceLow" />
+                                        </MultiBinding>
+                                    </Label.Text>
+                                </Label>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- §6.10 Medication-change association -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.HeartRate.HasMedicationAssociations}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Around Medication Changes" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <CollectionView ItemsSource="{Binding Analysis.HeartRate.MedicationAssociations}">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate>
+                                            <VerticalStackLayout Spacing="2" Margin="0,0,0,10">
+                                                <!-- Both plain Labels bound to combined-string properties on
+                                                     the model — NameAndChangeDisplay and BpmChangeDisplay —
+                                                     replacing FormattedString/Span and MultiBinding
+                                                     respectively. Same pattern as HrUnavailableAnalysis
+                                                     .DisplayText above. -->
+                                                <Label Text="{Binding NameAndChangeDisplay}" FontSize="13"
+                                                       FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                                <Label Text="{Binding EffectiveDate, StringFormat='{0:MMM d, yyyy}'}" FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                                <Label Text="{Binding BpmChangeDisplay}" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                                                <Label Text="⚠ Another medication change occurred in this same window — treat this comparison as less certain"
+                                                       FontSize="11" TextColor="#f57c00" FontAttributes="Italic"
+                                                       IsVisible="{Binding Confounded}" />
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- §6.12 Data support -->
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="Data Confidence" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.HeartRate.DataSupport.SupportStateDisplay}"
+                                       FontSize="14" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                                <Label FontSize="12" TextColor="{DynamicResource TextSecondary}"
+                                       IsVisible="{Binding Analysis.HeartRate.DataSupport.HasCoverage}">
+                                    <Label.Text>
+                                        <Binding Path="Analysis.HeartRate.DataSupport.DistinctDayCoveragePct" StringFormat="Logged on {0:F0}% of days in this window" />
+                                    </Label.Text>
+                                </Label>
+                                <CollectionView ItemsSource="{Binding Analysis.HeartRate.DataSupport.UnavailableAnalyses}"
+                                                IsVisible="{Binding Analysis.HeartRate.HasUnavailableAnalyses}"
+                                                Margin="0,6,0,0">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate>
+                                            <!-- Single plain Label bound to DisplayText (a computed property
+                                                 on the model that combines name + reason in C#) — the same
+                                                 binding pattern already confirmed working elsewhere on this
+                                                 page (SupportStateDisplay), not FormattedString/Span. -->
+                                            <Label Text="{Binding DisplayText}" FontSize="11"
+                                                   TextColor="{DynamicResource TextMuted}" Margin="0,0,0,2" />
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
+                            <VerticalStackLayout Spacing="8">
                                 <Label Text="{Binding PcpLine}" FontSize="13" TextColor="{DynamicResource PrimaryAccent}"
                                        FontAttributes="Italic" LineBreakMode="WordWrap"
                                        IsVisible="{Binding PcpLine, Converter={StaticResource StringToBoolConverter}}" />
@@ -742,9 +1001,9 @@
                                         <Label FontSize="14" FontAttributes="Bold">
                                             <Label.FormattedText>
                                                 <FormattedString>
-                                                    <Span Text="{Binding Analysis.Spo2.TrendArrow}" FontSize="16" />
+                                                    <Span Text="{Binding Analysis.Spo2.TrendArrow, Mode=OneWay}" FontSize="16" />
                                                     <Span Text="  " />
-                                                    <Span Text="{Binding Analysis.Spo2.TrendLabel}" />
+                                                    <Span Text="{Binding Analysis.Spo2.TrendLabel, Mode=OneWay}" />
                                                 </FormattedString>
                                             </Label.FormattedText>
                                             <Label.TextColor>
@@ -850,9 +1109,9 @@
                                         <Label FontSize="14" FontAttributes="Bold">
                                             <Label.FormattedText>
                                                 <FormattedString>
-                                                    <Span Text="{Binding Analysis.Temperature.TrendArrow}" FontSize="16" />
+                                                    <Span Text="{Binding Analysis.Temperature.TrendArrow, Mode=OneWay}" FontSize="16" />
                                                     <Span Text="  " />
-                                                    <Span Text="{Binding Analysis.Temperature.TrendLabel}" />
+                                                    <Span Text="{Binding Analysis.Temperature.TrendLabel, Mode=OneWay}" />
                                                 </FormattedString>
                                             </Label.FormattedText>
                                             <Label.TextColor>
