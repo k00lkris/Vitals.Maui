@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Vitals.Maui.Models;
 using Vitals.Maui.Services;
 using Vitals.Maui.Views;
 
@@ -7,9 +8,10 @@ namespace Vitals.Maui.ViewModels;
 
 public partial class SettingsViewModel : ObservableObject
 {
-    private readonly ApiService _apiService;
+    private readonly UserPreferencesService _preferences;
     private readonly AuthService _auth;
     private readonly PatientStateService _patientState;
+    private bool _suppressPreferenceSave;
 
     [ObservableProperty] string _currentTheme = "vitals_blue";
     [ObservableProperty] bool _showHeartRate = true;
@@ -38,9 +40,12 @@ public partial class SettingsViewModel : ObservableObject
     public string ThemeVitalsBlueColor => CurrentTheme == "vitals_blue" ? "#0f3460" : "Transparent";
     public string ThemeSystemColor => CurrentTheme == "system" ? "#0f3460" : "Transparent";
 
-    public SettingsViewModel(ApiService apiService, AuthService auth, PatientStateService patientState)
+    public SettingsViewModel(
+        UserPreferencesService preferences,
+        AuthService auth,
+        PatientStateService patientState)
     {
-        _apiService = apiService;
+        _preferences = preferences;
         _auth = auth;
         _patientState = patientState;
         LoadPreferences();
@@ -65,12 +70,37 @@ public partial class SettingsViewModel : ObservableObject
 
     private void LoadPreferences()
     {
-        CurrentTheme = Preferences.Get("theme", "vitals_blue");
-        ShowHeartRate = Preferences.Get("show_heart_rate", true);
-        ShowSpo2 = Preferences.Get("show_spo2", true);
-        ShowTemperature = Preferences.Get("show_temperature", true);
-        ShowWeight = Preferences.Get("show_weight", false);
-        ShowGlucose = Preferences.Get("show_glucose", false);
+        ApplyPreferences(_preferences.LocalSnapshot());
+    }
+
+    public async Task LoadAsync()
+    {
+        var preferences = await _preferences.RefreshAsync();
+        ApplyPreferences(preferences);
+    }
+
+    private void ApplyPreferences(UserPreferences preferences)
+    {
+        _suppressPreferenceSave = true;
+        try
+        {
+            CurrentTheme = preferences.Theme;
+            ShowHeartRate = preferences.ShowHeartRate;
+            ShowSpo2 = preferences.ShowSpo2;
+            ShowTemperature = preferences.ShowTemperature;
+            ShowWeight = preferences.ShowWeight;
+            ShowGlucose = preferences.ShowGlucose;
+        }
+        finally
+        {
+            _suppressPreferenceSave = false;
+        }
+
+        ThemeService.Apply(CurrentTheme);
+        OnPropertyChanged(nameof(ThemeDarkColor));
+        OnPropertyChanged(nameof(ThemeLightColor));
+        OnPropertyChanged(nameof(ThemeVitalsBlueColor));
+        OnPropertyChanged(nameof(ThemeSystemColor));
     }
 
     [RelayCommand]
@@ -129,30 +159,35 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnShowHeartRateChanged(bool value)
     {
+        if (_suppressPreferenceSave) return;
         Preferences.Set("show_heart_rate", value);
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowSpo2Changed(bool value)
     {
+        if (_suppressPreferenceSave) return;
         Preferences.Set("show_spo2", value);
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowTemperatureChanged(bool value)
     {
+        if (_suppressPreferenceSave) return;
         Preferences.Set("show_temperature", value);
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowWeightChanged(bool value)
     {
+        if (_suppressPreferenceSave) return;
         Preferences.Set("show_weight", value);
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowGlucoseChanged(bool value)
     {
+        if (_suppressPreferenceSave) return;
         Preferences.Set("show_glucose", value);
         _ = SavePreferencesAsync();
     }
@@ -161,19 +196,17 @@ public partial class SettingsViewModel : ObservableObject
     {
         try
         {
-            var userId = _auth.UserId;
-            if (string.IsNullOrEmpty(userId)) return;
-
-            await _apiService.UpdateUserPreferencesAsync(
-                userId,
-                new
+            await _preferences.SaveAsync(
+                new UserPreferences
                 {
-                    theme = CurrentTheme,
-                    show_heart_rate = ShowHeartRate,
-                    show_spo2 = ShowSpo2,
-                    show_temperature = ShowTemperature,
-                    show_weight = ShowWeight,
-                    show_glucose = ShowGlucose,
+                    UserId = _auth.UserId ?? string.Empty,
+                    DisplayName = _auth.DisplayName,
+                    Theme = CurrentTheme,
+                    ShowHeartRate = ShowHeartRate,
+                    ShowSpo2 = ShowSpo2,
+                    ShowTemperature = ShowTemperature,
+                    ShowWeight = ShowWeight,
+                    ShowGlucose = ShowGlucose,
                 });
         }
         catch (Exception ex)
