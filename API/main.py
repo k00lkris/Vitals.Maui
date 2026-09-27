@@ -4287,7 +4287,7 @@ def export_medications_pdf(
     patient_name = f"{p[0]} {p[1]}" if p else "Unknown Patient"
     patient_dob  = p[2].strftime("%m/%d/%Y") if p and p[2] else "Unknown DOB"
 
-    cur.execute("""
+    cur.execute(f"""
         SELECT
             (SELECT recorded_at FROM vitals
              WHERE patient_id = %s AND household_id = %s
