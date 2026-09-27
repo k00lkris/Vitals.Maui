@@ -35,6 +35,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _isInsufficient;
     [ObservableProperty] private bool _isOk;
+    [ObservableProperty] private bool _hasAnalysisResults;
 
     // Day buttons — background colors
     [ObservableProperty] private int _selectedDays = 30;
@@ -217,11 +218,19 @@ public partial class VitalsAnalysisViewModel : ObservableObject
                 StatusMessage = "Could not load analysis. Check your connection.";
                 IsInsufficient = false;
                 IsOk = false;
+                HasAnalysisResults = false;
                 return;
             }
 
             IsInsufficient = result.IsInsufficient;
             IsOk = result.IsOk;
+            HasAnalysisResults =
+                result.IsOk ||
+                (TrackHeartRate && result.HeartRate is not null) ||
+                (TrackSpo2 && result.Spo2 is not null) ||
+                (TrackTemperature && result.Temperature is not null) ||
+                (TrackWeight && result.Weight is not null) ||
+                (TrackGlucose && result.Glucose is not null);
 
             if (result.IsOk)
             {
@@ -236,6 +245,20 @@ public partial class VitalsAnalysisViewModel : ObservableObject
             BuildTempSummary(result);
             BuildWeightSummary(result);
             BuildGlucoseSummary(result);
+
+            if (!result.IsOk)
+            {
+                if (TrackHeartRate && result.HeartRate is not null)
+                    SelectTab("hr");
+                else if (TrackSpo2 && result.Spo2 is not null)
+                    SelectTab("spo2");
+                else if (TrackTemperature && result.Temperature is not null)
+                    SelectTab("temp");
+                else if (TrackWeight && result.Weight is not null)
+                    SelectTab("weight");
+                else if (TrackGlucose && result.Glucose is not null)
+                    SelectTab("glucose");
+            }
         }
         catch (Exception ex)
         {
