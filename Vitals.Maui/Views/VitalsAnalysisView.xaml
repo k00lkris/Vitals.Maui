@@ -91,7 +91,7 @@
                 </Border>
 
                 <!-- Analysis Results -->
-                <VerticalStackLayout Spacing="12" IsVisible="{Binding IsOk}">
+                <VerticalStackLayout Spacing="12" IsVisible="{Binding HasAnalysisResults}">
 
                     <!-- Tab Buttons — optional vital tabs are only shown
                          when the signed-in user tracks that metric. -->
@@ -102,6 +102,7 @@
                         <Button Text="❤️ BP"
                                 WidthRequest="76"
                                 Margin="0,0,6,6"
+                                IsEnabled="{Binding IsOk}"
                                 BackgroundColor="{Binding TabBpColor}"
                                 TextColor="{Binding TabBpTextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
@@ -134,6 +135,24 @@
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="temp" />
+                        <Button Text="⚖️ Weight"
+                                WidthRequest="92"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding TrackWeight}"
+                                BackgroundColor="{Binding TabWeightColor}"
+                                TextColor="{Binding TabWeightTextColor}" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Command="{Binding SelectTabCommand}"
+                                CommandParameter="weight" />
+                        <Button Text="🩸 Glucose"
+                                WidthRequest="96"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding TrackGlucose}"
+                                BackgroundColor="{Binding TabGlucoseColor}"
+                                TextColor="{Binding TabGlucoseTextColor}" FontSize="12"
+                                HeightRequest="36" CornerRadius="6"
+                                Command="{Binding SelectTabCommand}"
+                                CommandParameter="glucose" />
                     </FlexLayout>
 
                     <!-- ==================== BP TAB ==================== -->
@@ -1777,6 +1796,175 @@
                                        TextColor="{DynamicResource PrimaryAccent}"
                                        FontAttributes="Italic"
                                        LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </VerticalStackLayout>
+
+                    <!-- ==================== WEIGHT TAB ==================== -->
+                    <VerticalStackLayout Spacing="12" IsVisible="{Binding ShowWeight}">
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding WeightSummary, Converter={StaticResource StringToBoolConverter}}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="💬  In Plain English" FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding WeightSummary}"
+                                       FontSize="13" TextColor="{DynamicResource TextSecondary}"
+                                       LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Weight.HasLatest}">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="Latest Weight" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Weight.LatestDisplay}"
+                                       FontSize="22" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Weight.Latest.RecordedAt, StringFormat='{0:MMM d, yyyy h:mm tt}'}"
+                                       FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Weight.HasSummary}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Logged Reading Summary" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Weight.SummaryDisplay}"
+                                       FontSize="13" TextColor="{DynamicResource TextSecondary}"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="{Binding Analysis.Weight.ChangeDisplay}"
+                                       IsVisible="{Binding Analysis.Weight.HasChange}"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Weight.HasTrend}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Longitudinal Trend" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Weight.TrendDisplay}"
+                                       FontSize="15" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Weight.Trend.FitDisplay}"
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}" />
+                                <Label Text="This is a descriptive modeled pattern, not a judgment that weight gain or loss is beneficial or harmful."
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       FontAttributes="Italic" LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
+                            <VerticalStackLayout Spacing="5">
+                                <Label Text="Data Confidence" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Weight.DataSupport.SupportStateDisplay}"
+                                       FontSize="14" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Weight.DataSupport.CoverageDisplay}"
+                                       FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                                <Label Text="{Binding Analysis.Weight.UnavailableAnalysesDisplay}"
+                                       IsVisible="{Binding Analysis.Weight.HasUnavailableAnalyses}"
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       LineBreakMode="WordWrap" Margin="0,6,0,0" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding WeightPcpLine, Converter={StaticResource StringToBoolConverter}}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Care Team" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding WeightPcpLine}" FontSize="13"
+                                       TextColor="{DynamicResource PrimaryAccent}"
+                                       FontAttributes="Italic" LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </VerticalStackLayout>
+
+                    <!-- ==================== GLUCOSE TAB ==================== -->
+                    <VerticalStackLayout Spacing="12" IsVisible="{Binding ShowGlucose}">
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding GlucoseSummary, Converter={StaticResource StringToBoolConverter}}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="💬  In Plain English" FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding GlucoseSummary}"
+                                       FontSize="13" TextColor="{DynamicResource TextSecondary}"
+                                       LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Glucose.HasLatest}">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="Latest Blood Glucose" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Glucose.LatestDisplay}"
+                                       FontSize="22" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Glucose.Latest.RecordedAt, StringFormat='{0:MMM d, yyyy h:mm tt}'}"
+                                       FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Glucose.HasSummary}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Logged Reading Summary" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Glucose.SummaryDisplay}"
+                                       FontSize="13" TextColor="{DynamicResource TextSecondary}"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="Fasting, pre-meal, post-meal, bedtime, and random context are not collected yet. These values are therefore shown descriptively rather than classified against one target range."
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       FontAttributes="Italic" LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
+                            <VerticalStackLayout Spacing="5">
+                                <Label Text="Data Confidence" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Glucose.DataSupport.SupportStateDisplay}"
+                                       FontSize="14" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Glucose.DataSupport.CoverageDisplay}"
+                                       FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                                <Label Text="{Binding Analysis.Glucose.UnavailableAnalysesDisplay}"
+                                       IsVisible="{Binding Analysis.Glucose.HasUnavailableAnalyses}"
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       LineBreakMode="WordWrap" Margin="0,6,0,0" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding GlucosePcpLine, Converter={StaticResource StringToBoolConverter}}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Care Team" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding GlucosePcpLine}" FontSize="13"
+                                       TextColor="{DynamicResource PrimaryAccent}"
+                                       FontAttributes="Italic" LineBreakMode="WordWrap" />
                             </VerticalStackLayout>
                         </Border>
 
