@@ -153,7 +153,7 @@
                     <Label Text="VITAL FIELDS"
                            FontSize="11" FontAttributes="Bold"
                            TextColor="{DynamicResource PrimaryAccent}" />
-                    <Label Text="Choose which vitals appear on the entry form."
+                    <Label Text="Choose which vitals you track across entry, dashboard, analysis, and reports."
                            FontSize="12"
                            TextColor="{DynamicResource TextSecondary}"
                            LineBreakMode="WordWrap" />
@@ -240,7 +240,7 @@
                             <Label Text="Blood Glucose"
                                    FontSize="13" FontAttributes="Bold"
                                    TextColor="{DynamicResource TextPrimary}" />
-                            <Label Text="mg/dL — diabetes monitoring (coming soon)"
+                            <Label Text="mg/dL — blood glucose tracking"
                                    FontSize="11"
                                    TextColor="{DynamicResource TextSecondary}" />
                         </VerticalStackLayout>
