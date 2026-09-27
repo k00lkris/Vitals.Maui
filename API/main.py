@@ -3346,18 +3346,70 @@ def get_latest_vitals(
     conn = get_conn()
     cur = conn.cursor()
     verify_patient_household(cur, patient_id, household_id)
+    # "Latest" is per vital, not "whatever happened to be populated on
+    # the newest row." A user may log weight today and BP yesterday; the
+    # dashboard should still show yesterday's BP as the latest BP instead
+    # of replacing it with an em dash just because today's row has no BP.
     cur.execute("""
-        SELECT recorded_at, systolic, diastolic, oxygen_saturation,
-               heart_rate, temperature, temperature_site, weight, blood_glucose
-        FROM vitals
-        WHERE patient_id = %s
-        ORDER BY recorded_at DESC
-        LIMIT 1;
-    """, (patient_id,))
+        SELECT
+            (SELECT recorded_at FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+             ORDER BY recorded_at DESC LIMIT 1) AS latest_event_at,
+
+            (SELECT systolic FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND systolic IS NOT NULL AND diastolic IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS systolic,
+
+            (SELECT diastolic FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND systolic IS NOT NULL AND diastolic IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS diastolic,
+
+            (SELECT oxygen_saturation FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND oxygen_saturation IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS oxygen_saturation,
+
+            (SELECT heart_rate FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND heart_rate IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS heart_rate,
+
+            (SELECT temperature FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND temperature IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS temperature,
+
+            (SELECT temperature_site FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND temperature IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS temperature_site,
+
+            (SELECT weight FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND weight IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS weight,
+
+            (SELECT blood_glucose FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND blood_glucose IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS blood_glucose;
+    """, (
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+    ))
     row = cur.fetchone()
     cur.close()
     conn.close()
-    if not row:
+    if not row or row[0] is None:
         return {}
     return {
         "recorded_at": row[0],
@@ -3367,7 +3419,7 @@ def get_latest_vitals(
         "heart_rate": row[4],
         "temperature": row[5],
         "temperature_site": row[6],
-        "weight": float(row[7]) if row[7] else None,
+        "weight": float(row[7]) if row[7] is not None else None,
         "blood_glucose": row[8]
     }
 
