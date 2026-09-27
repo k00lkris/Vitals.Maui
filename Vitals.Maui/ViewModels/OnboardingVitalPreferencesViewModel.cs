@@ -1,10 +1,14 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Vitals.Maui.Models;
+using Vitals.Maui.Services;
 
 namespace Vitals.Maui.ViewModels;
 
 public partial class OnboardingVitalPreferencesViewModel : ObservableObject
 {
+    private readonly UserPreferencesService _preferences;
+
     // Wired by the page's code-behind, same pattern as the other onboarding VMs.
     public Action? OnContinue { get; set; }
     public Action? OnBack { get; set; }
@@ -21,13 +25,15 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     [ObservableProperty] private bool _showWeight = false;
     [ObservableProperty] private bool _showGlucose = false;
 
-    public OnboardingVitalPreferencesViewModel()
+    public OnboardingVitalPreferencesViewModel(UserPreferencesService preferences)
     {
-        ShowHeartRate = Preferences.Get("show_heart_rate", true);
-        ShowSpo2 = Preferences.Get("show_spo2", true);
-        ShowTemperature = Preferences.Get("show_temperature", true);
-        ShowWeight = Preferences.Get("show_weight", false);
-        ShowGlucose = Preferences.Get("show_glucose", false);
+        _preferences = preferences;
+        var current = _preferences.LocalSnapshot();
+        ShowHeartRate = current.ShowHeartRate;
+        ShowSpo2 = current.ShowSpo2;
+        ShowTemperature = current.ShowTemperature;
+        ShowWeight = current.ShowWeight;
+        ShowGlucose = current.ShowGlucose;
     }
 
     partial void OnShowHeartRateChanged(bool value) => Preferences.Set("show_heart_rate", value);
@@ -37,8 +43,21 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     partial void OnShowGlucoseChanged(bool value) => Preferences.Set("show_glucose", value);
 
     [RelayCommand]
-    public void Continue()
+    public async Task ContinueAsync()
     {
+        var current = _preferences.LocalSnapshot();
+        await _preferences.SaveAsync(
+            new UserPreferences
+            {
+                UserId = current.UserId,
+                Theme = current.Theme,
+                ShowHeartRate = ShowHeartRate,
+                ShowSpo2 = ShowSpo2,
+                ShowTemperature = ShowTemperature,
+                ShowWeight = ShowWeight,
+                ShowGlucose = ShowGlucose,
+            });
+
         OnContinue?.Invoke();
     }
 
