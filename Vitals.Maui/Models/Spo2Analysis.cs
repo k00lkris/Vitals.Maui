@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Linq;
 
 namespace Vitals.Maui.Models;
 
@@ -71,6 +72,27 @@ public class SpO2Analysis
 
     [JsonPropertyName("cross_vital_correlations")]
     public Dictionary<string, double>? CrossVitalCorrelations { get; set; }
+
+    // The XAML binds to this, not the raw dictionary — same reasoning
+    // as HeartRateAnalysis.SymptomAssociationList. Deliberately exposes
+    // the raw Pearson r value with no weak/moderate/strong labeling —
+    // those cutoffs aren't documented as a Vitals engineering choice
+    // anywhere, so applying them here would be inventing a
+    // classification the spec never asked for.
+    [JsonIgnore]
+    public List<Spo2CorrelationItem> CorrelationItems =>
+        CrossVitalCorrelations?.Select(kv => new Spo2CorrelationItem
+        {
+            Label = kv.Key switch
+            {
+                "heart_rate" => "Heart rate",
+                "temperature" => "Temperature",
+                "systolic" => "Systolic BP",
+                "diastolic" => "Diastolic BP",
+                _ => kv.Key
+            },
+            R = kv.Value
+        }).ToList() ?? new();
 
     // Always null today — schema doesn't collect either yet. Kept as
     // real fields (not omitted) so the UI/PDF just work once the
@@ -263,7 +285,7 @@ public class Spo2Trend
     {
         "high" => $"High (R\u00b2={R2:F2})",
         "moderate" => $"Moderate (R\u00b2={R2:F2})",
-        "low" => $"Low (R\u00b2={R2:F2})",
+        "low" => $"Trend fit: R\u00b2 = {R2:F2}",
         _ => R2 is not null ? $"R\u00b2={R2:F2}" : "\u2014"
     };
 }
@@ -479,6 +501,17 @@ public class Spo2CrossVitalReading
     public Dictionary<string, object>? Context { get; set; }
 }
 
+// A flat, list-friendly view of one correlation entry — see
+// SpO2Analysis.CorrelationItems for why the raw dictionary isn't
+// bound to directly.
+public class Spo2CorrelationItem
+{
+    public string Label { get; set; } = string.Empty;
+    public double R { get; set; }
+
+    public string DisplayText => $"{Label}: r = {R:F2}";
+}
+
 // §6.13 — data support and density
 public class Spo2DataSupport
 {
@@ -507,7 +540,7 @@ public class Spo2DataSupport
         "descriptive" => "Basic averages available",
         "trend" => "Trend analysis available",
         "loess" => "Smoothed trend available",
-        "significance" => "Full statistical analysis available",
+        "significance" => "Statistical trend testing available",
         _ => SupportState
     };
 

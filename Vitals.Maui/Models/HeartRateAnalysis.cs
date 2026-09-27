@@ -291,7 +291,7 @@ public class HrTrend
     {
         "high" => $"High (R²={R2:F2})",
         "moderate" => $"Moderate (R²={R2:F2})",
-        "low" => $"Low (R²={R2:F2})",
+        "low" => $"Trend fit: R²={R2:F2}",
         _ => R2 is not null ? $"R²={R2:F2}" : "—"
     };
 }

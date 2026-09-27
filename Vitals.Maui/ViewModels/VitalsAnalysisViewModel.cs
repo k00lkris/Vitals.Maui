@@ -13,6 +13,19 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     public Patient? SelectedPatient => _patientState.SelectedPatient;
 
     [ObservableProperty] private VitalsAnalysis? _analysis;
+
+    // The header shows whichever metric's own reading count is
+    // currently selected, not always BP's top-level count. Manually
+    // notified (see SelectTab and RunAnalysisAsync) since this doesn't
+    // have its own [ObservableProperty] backing field to auto-notify on.
+    public int SelectedMetricReadingCount =>
+        ShowHr
+            ? Analysis?.HeartRate?.ReadingCount ?? 0
+            : ShowSpo2
+                ? Analysis?.Spo2?.ReadingCount ?? 0
+                : ShowTemp
+                    ? Analysis?.Temperature?.ReadingCount ?? 0
+                    : Analysis?.ReadingCount ?? 0;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _isInsufficient;
@@ -151,6 +164,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
                 _patientState.SelectedPatient.PatientId, SelectedDays);
 
             Analysis = result;
+            OnPropertyChanged(nameof(SelectedMetricReadingCount));
 
             if (result is null)
             {
@@ -230,6 +244,8 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         TabHrTextColor = tab == "hr" ? activeTxt : inactiveTxt;
         TabSpo2TextColor = tab == "spo2" ? activeTxt : inactiveTxt;
         TabTempTextColor = tab == "temp" ? activeTxt : inactiveTxt;
+
+        OnPropertyChanged(nameof(SelectedMetricReadingCount));
     }
 
     private void BuildPlainEnglish(VitalsAnalysis a)
@@ -814,15 +830,20 @@ public partial class VitalsAnalysisViewModel : ObservableObject
                     "Oxygen saturation has remained generally stable over this period."
             });
 
-            parts.Add(trend.Consistency switch
+            if (trend.TrendLabel != "stable")
             {
-                "high" => "The readings follow this overall pattern fairly consistently.",
-                "moderate" => "There is some day-to-day variation around the overall trend.",
-                "low" =>
-                    "The readings vary considerably around the trend line, so the overall " +
-                    "direction should be interpreted cautiously.",
-                _ => string.Empty
-            });
+                parts.Add(trend.Consistency switch
+                {
+                    "high" =>
+                        "The readings follow this overall direction fairly consistently.",
+                    "moderate" =>
+                        "The readings show some variation around the overall direction.",
+                    "low" =>
+                        "The readings do not closely follow a straight-line trend, so the " +
+                        "direction should be interpreted cautiously.",
+                    _ => string.Empty
+                });
+            }
         }
 
         // -----------------------------------------------------

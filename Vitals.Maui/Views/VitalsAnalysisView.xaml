@@ -28,7 +28,7 @@
                             <Span Text="  •  Last " TextColor="{DynamicResource TextMuted}" />
                             <Span Text="{Binding SelectedDays, Mode=OneWay}" TextColor="{DynamicResource PrimaryAccent}" />
                             <Span Text=" days  •  " TextColor="{DynamicResource TextMuted}" />
-                            <Span Text="{Binding Analysis.ReadingCount, Mode=OneWay}" TextColor="{DynamicResource PrimaryAccent}" />
+                            <Span Text="{Binding SelectedMetricReadingCount, Mode=OneWay}" TextColor="{DynamicResource PrimaryAccent}" />
                             <Span Text=" readings" TextColor="{DynamicResource TextMuted}" />
                         </FormattedString>
                     </Label.FormattedText>
@@ -843,8 +843,11 @@
                                 IsVisible="{Binding Analysis.HeartRate.HasSymptomAssociation}">
                             <VerticalStackLayout Spacing="8">
                                 <Label Text="Symptoms Logged with Readings" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
-                                <CollectionView ItemsSource="{Binding Analysis.HeartRate.SymptomAssociationList}">
-                                    <CollectionView.ItemTemplate>
+                                <!-- BindableLayout, not CollectionView — a small static list
+                                     inside a page that's already one big ScrollView; CollectionView
+                                     doesn't size itself correctly when nested this way. -->
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Analysis.HeartRate.SymptomAssociationList}">
+                                    <BindableLayout.ItemTemplate>
                                         <DataTemplate>
                                             <VerticalStackLayout Spacing="2" Margin="0,0,0,8">
                                                 <!-- Plain Label bound to HeaderDisplay (combines tag + count
@@ -866,8 +869,8 @@
                                                 </Label>
                                             </VerticalStackLayout>
                                         </DataTemplate>
-                                    </CollectionView.ItemTemplate>
-                                </CollectionView>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
                             </VerticalStackLayout>
                         </Border>
 
@@ -913,8 +916,9 @@
                                 IsVisible="{Binding Analysis.HeartRate.HasMedicationAssociations}">
                             <VerticalStackLayout Spacing="8">
                                 <Label Text="Around Medication Changes" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
-                                <CollectionView ItemsSource="{Binding Analysis.HeartRate.MedicationAssociations}">
-                                    <CollectionView.ItemTemplate>
+                                <!-- BindableLayout, not CollectionView — same reasoning as above. -->
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Analysis.HeartRate.MedicationAssociations}">
+                                    <BindableLayout.ItemTemplate>
                                         <DataTemplate>
                                             <VerticalStackLayout Spacing="2" Margin="0,0,0,10">
                                                 <!-- Both plain Labels bound to combined-string properties on
@@ -931,8 +935,8 @@
                                                        IsVisible="{Binding Confounded}" />
                                             </VerticalStackLayout>
                                         </DataTemplate>
-                                    </CollectionView.ItemTemplate>
-                                </CollectionView>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
                             </VerticalStackLayout>
                         </Border>
 
@@ -949,20 +953,23 @@
                                         <Binding Path="Analysis.HeartRate.DataSupport.DistinctDayCoveragePct" StringFormat="Logged on {0:F0}% of days in this window" />
                                     </Label.Text>
                                 </Label>
-                                <CollectionView ItemsSource="{Binding Analysis.HeartRate.DataSupport.UnavailableAnalyses}"
-                                                IsVisible="{Binding Analysis.HeartRate.HasUnavailableAnalyses}"
-                                                Margin="0,6,0,0">
-                                    <CollectionView.ItemTemplate>
+                                <!-- BindableLayout, not CollectionView — same reasoning as above. -->
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Analysis.HeartRate.DataSupport.UnavailableAnalyses}"
+                                                     IsVisible="{Binding Analysis.HeartRate.HasUnavailableAnalyses}"
+                                                     Margin="0,6,0,0"
+                                                     Spacing="2">
+                                    <BindableLayout.ItemTemplate>
                                         <DataTemplate>
                                             <!-- Single plain Label bound to DisplayText (a computed property
                                                  on the model that combines name + reason in C#) — the same
                                                  binding pattern already confirmed working elsewhere on this
                                                  page (SupportStateDisplay), not FormattedString/Span. -->
                                             <Label Text="{Binding DisplayText}" FontSize="11"
-                                                   TextColor="{DynamicResource TextMuted}" Margin="0,0,0,2" />
+                                                   TextColor="{DynamicResource TextMuted}"
+                                                   LineBreakMode="WordWrap" />
                                         </DataTemplate>
-                                    </CollectionView.ItemTemplate>
-                                </CollectionView>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
                             </VerticalStackLayout>
                         </Border>
 
@@ -1116,16 +1123,17 @@
                                 <Label Text="Repeat-Confirmed Low Episodes" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
                                 <Label Text="{Binding Analysis.Spo2.ConfirmedLowObservations.ConfirmationRuleMinutes, StringFormat='Two or more below-target readings within {0} minutes of each other'}"
                                        FontSize="11" TextColor="{DynamicResource TextMuted}" />
-                                <CollectionView ItemsSource="{Binding Analysis.Spo2.ConfirmedLowObservations.Episodes}">
-                                    <CollectionView.ItemTemplate>
+                                <!-- BindableLayout, not CollectionView — same reasoning as above. -->
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Analysis.Spo2.ConfirmedLowObservations.Episodes}">
+                                    <BindableLayout.ItemTemplate>
                                         <DataTemplate>
                                             <!-- Single plain Label bound to SummaryDisplay (a computed
                                                  property on the model) — not FormattedString/Span. -->
                                             <Label Text="{Binding SummaryDisplay}" FontSize="12"
                                                    TextColor="{DynamicResource TextSecondary}" Margin="0,0,0,4" />
                                         </DataTemplate>
-                                    </CollectionView.ItemTemplate>
-                                </CollectionView>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
                             </VerticalStackLayout>
                         </Border>
 
@@ -1190,7 +1198,7 @@
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
                                 IsVisible="{Binding Analysis.Spo2.TimeOfDay.Buckets.HasAny}">
                             <VerticalStackLayout Spacing="8">
-                                <Label Text="Time-of-Day Pattern" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="Readings by Time of Day" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
                                 <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="8" ColumnSpacing="8">
                                     <VerticalStackLayout Grid.Row="0" Grid.Column="0" IsVisible="{Binding Analysis.Spo2.TimeOfDay.Buckets.HasMorning}">
                                         <Label Text="Morning" FontSize="11" TextColor="{DynamicResource TextMuted}" />
@@ -1227,8 +1235,20 @@
                                 IsVisible="{Binding Analysis.Spo2.HasCrossVitalCorrelations}">
                             <VerticalStackLayout Spacing="6">
                                 <Label Text="Correlation with Other Vitals" FontSize="11" TextColor="{DynamicResource PrimaryAccent}" />
+                                <!-- BindableLayout, not CollectionView — a handful of static rows
+                                     inside a page that's already one big ScrollView; CollectionView
+                                     expects to manage its own scrolling/virtualization and doesn't
+                                     size itself correctly when nested this way. -->
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Analysis.Spo2.CorrelationItems}"
+                                                     Spacing="2">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate>
+                                            <Label Text="{Binding DisplayText}" FontSize="13" TextColor="{DynamicResource TextSecondary}" />
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
                                 <Label Text="Physician reference only — correlation does not establish cause."
-                                       FontSize="11" TextColor="{DynamicResource TextMuted}" FontAttributes="Italic" />
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}" FontAttributes="Italic" Margin="0,4,0,0" />
                             </VerticalStackLayout>
                         </Border>
 
@@ -1245,16 +1265,22 @@
                                         <Binding Path="Analysis.Spo2.DataSupport.DistinctDayCoveragePct" StringFormat="Logged on {0:F0}% of days in this window" />
                                     </Label.Text>
                                 </Label>
-                                <CollectionView ItemsSource="{Binding Analysis.Spo2.DataSupport.UnavailableAnalyses}"
-                                                IsVisible="{Binding Analysis.Spo2.HasUnavailableAnalyses}"
-                                                Margin="0,6,0,0">
-                                    <CollectionView.ItemTemplate>
+                                <!-- BindableLayout, not CollectionView — same reasoning as the
+                                     Correlation card above: a small static list inside a page
+                                     that's already one big ScrollView. -->
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Analysis.Spo2.DataSupport.UnavailableAnalyses}"
+                                                     IsVisible="{Binding Analysis.Spo2.HasUnavailableAnalyses}"
+                                                     Margin="0,6,0,0"
+                                                     Spacing="2">
+                                    <BindableLayout.ItemTemplate>
                                         <DataTemplate>
-                                            <Label Text="{Binding DisplayText}" FontSize="11"
-                                                   TextColor="{DynamicResource TextMuted}" Margin="0,0,0,2" />
+                                            <Label Text="{Binding DisplayText}"
+                                                   FontSize="11"
+                                                   TextColor="{DynamicResource TextMuted}"
+                                                   LineBreakMode="WordWrap" />
                                         </DataTemplate>
-                                    </CollectionView.ItemTemplate>
-                                </CollectionView>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
                             </VerticalStackLayout>
                         </Border>
 
