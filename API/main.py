@@ -2646,6 +2646,165 @@ def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> d
 
 
 # --------------------
+# Weight / glucose descriptive analysis
+# --------------------
+def _run_descriptive_scalar_analysis(
+    rows: list,
+    *,
+    vital_type: str,
+    unit: str,
+    allow_longitudinal_trend: bool,
+) -> dict | None:
+    """
+    Conservative P0 engine for scalar vitals that do not yet have enough
+    structured context for a clinically targeted interpretation.
+
+    Weight supports a descriptive longitudinal model because repeated body
+    weight measurements are comparable as the same physical quantity.
+    Blood glucose deliberately does NOT expose a clinical target band or
+    trend yet: fasting/post-meal/random context is not collected, so mixing
+    those states into a target or trajectory would overstate what the data
+    can support.
+    """
+    if not rows:
+        return None
+
+    points = [
+        {
+            "recorded_at": r[0],
+            "local_offset_minutes": r[1],
+            "value": float(r[2]),
+        }
+        for r in rows
+        if r[2] is not None
+    ]
+    if not points:
+        return None
+
+    values = np.array([p["value"] for p in points], dtype=float)
+    first = points[0]
+    latest = points[-1]
+    span_days = max(
+        0.0,
+        (latest["recorded_at"] - first["recorded_at"]).total_seconds() / 86400.0,
+    )
+    distinct_days = len({_hr_local_datetime(p).date() for p in points})
+
+    summary = {
+        "mean": round(float(np.mean(values)), 1),
+        "median": round(float(np.median(values)), 1),
+        "min": round(float(np.min(values)), 1),
+        "max": round(float(np.max(values)), 1),
+    }
+
+    change = None
+    if len(points) >= 2:
+        absolute_change = float(latest["value"] - first["value"])
+        pct_change = (
+            absolute_change / float(first["value"]) * 100.0
+            if float(first["value"]) != 0
+            else None
+        )
+        change = {
+            "first_value": round(float(first["value"]), 1),
+            "first_at": first["recorded_at"].isoformat(),
+            "latest_value": round(float(latest["value"]), 1),
+            "latest_at": latest["recorded_at"].isoformat(),
+            "absolute_change": round(absolute_change, 1),
+            "pct_change": round(pct_change, 1) if pct_change is not None else None,
+        }
+
+    trend = None
+    unavailable = []
+
+    if allow_longitudinal_trend:
+        if len(points) >= 3 and distinct_days >= 3 and span_days >= 7.0:
+            origin = first["recorded_at"]
+            t = np.array([
+                (p["recorded_at"] - origin).total_seconds() / 86400.0
+                for p in points
+            ], dtype=float)
+            slope, _, r_val, p_val, _ = stats.linregress(t, values)
+            trend = {
+                "n": len(points),
+                "span_days": round(span_days, 1),
+                "slope_per_day": round(float(slope), 3),
+                "slope_per_week": round(float(slope) * 7.0, 2),
+                "r2": round(float(r_val ** 2), 2),
+                "p_value": round(float(p_val), 3),
+            }
+        else:
+            unavailable.append({
+                "analysis": "longitudinal_trend",
+                "reason_code": "insufficient_longitudinal_support",
+                "reason": "needs >=3 readings on >=3 distinct days spanning >=7 days",
+            })
+    else:
+        unavailable.append({
+            "analysis": "longitudinal_trend",
+            "reason_code": "measurement_context_not_collected",
+            "reason": (
+                "fasting/post-meal/random measurement context is not collected, "
+                "so Vitals does not model a single glucose trajectory across mixed contexts"
+            ),
+        })
+        unavailable.append({
+            "analysis": "target_range",
+            "reason_code": "measurement_context_not_collected",
+            "reason": (
+                "glucose target interpretation requires measurement context and may also "
+                "depend on an individualized care plan"
+            ),
+        })
+
+    support_state = (
+        "trend"
+        if trend is not None
+        else "descriptive"
+        if len(points) >= 2
+        else "snapshot"
+    )
+
+    return {
+        "vital_type": vital_type,
+        "unit": unit,
+        "latest": {
+            "value": round(float(latest["value"]), 1),
+            "recorded_at": latest["recorded_at"].isoformat(),
+        },
+        "reading_count": len(points),
+        "summary": summary,
+        "change_from_first": change,
+        "trend": trend,
+        "data_support": {
+            "n": len(points),
+            "distinct_days": distinct_days,
+            "span_days": round(span_days, 1),
+            "support_state": support_state,
+            "unavailable_analyses": unavailable,
+        },
+    }
+
+
+def run_weight_analysis(rows: list) -> dict | None:
+    return _run_descriptive_scalar_analysis(
+        rows,
+        vital_type="weight",
+        unit="lb",
+        allow_longitudinal_trend=True,
+    )
+
+
+def run_glucose_analysis(rows: list) -> dict | None:
+    return _run_descriptive_scalar_analysis(
+        rows,
+        vital_type="glucose",
+        unit="mg/dL",
+        allow_longitudinal_trend=False,
+    )
+
+
+# --------------------
 # Vitals analysis cache — eager, per-vital-type
 # --------------------
 # Standard windows are computed and cached the moment a relevant vital is
@@ -2745,8 +2904,18 @@ VITAL_ANALYSIS_REGISTRY = {
         # this fetch window.
         "baseline_lookback_days": 60,
     },
-    # "weight":  {...},   # TODO once the Weight spec is implemented
-    # "glucose": {...},   # TODO once the Glucose spec is implemented
+    "weight": {
+        "from_clause": "vitals",
+        "columns": "vitals.recorded_at, vitals.local_offset_minutes, vitals.weight",
+        "where_clause": "vitals.weight IS NOT NULL",
+        "analysis_fn": run_weight_analysis,
+    },
+    "glucose": {
+        "from_clause": "vitals",
+        "columns": "vitals.recorded_at, vitals.local_offset_minutes, vitals.blood_glucose",
+        "where_clause": "vitals.blood_glucose IS NOT NULL",
+        "analysis_fn": run_glucose_analysis,
+    },
 }
 
 def recompute_vital_cache(patient_id: str, household_id: str, vital_type: str):
@@ -3324,11 +3493,10 @@ def record_vitals(
         background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "spo2")
     if vital.temperature is not None:
         background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "temperature")
-    # Uncomment each block below as its analysis function is implemented:
-    # if vital.weight is not None:
-    #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "weight")
-    # if vital.blood_glucose is not None:
-    #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "glucose")
+    if vital.weight is not None:
+        background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "weight")
+    if vital.blood_glucose is not None:
+        background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "glucose")
 
     return {"status": "success", "vital_id": vital_id, "message": "Vitals recorded"}
 
@@ -3583,9 +3751,11 @@ def get_vitals_analysis(
     # Heart Rate, SpO2, and Temperature use dedicated engines through
     # the shared registry/cache path. Each is independently computed and
     # gated on its OWN observations.
-    hr_analysis   = get_cached_or_compute_analysis(patient_id, household_id, "heart_rate", days)
-    spo2_analysis = get_cached_or_compute_analysis(patient_id, household_id, "spo2", days)
-    temp_analysis = get_cached_or_compute_analysis(patient_id, household_id, "temperature", days)
+    hr_analysis      = get_cached_or_compute_analysis(patient_id, household_id, "heart_rate", days)
+    spo2_analysis    = get_cached_or_compute_analysis(patient_id, household_id, "spo2", days)
+    temp_analysis    = get_cached_or_compute_analysis(patient_id, household_id, "temperature", days)
+    weight_analysis  = get_cached_or_compute_analysis(patient_id, household_id, "weight", days)
+    glucose_analysis = get_cached_or_compute_analysis(patient_id, household_id, "glucose", days)
 
     pcp_name      = pcp[0] if pcp else None
     next_followup = pcp[1].strftime("%b %-d, %Y") if pcp and pcp[1] else None
@@ -3606,6 +3776,8 @@ def get_vitals_analysis(
             "heart_rate":    hr_analysis,
             "spo2":          spo2_analysis,
             "temperature":   temp_analysis,
+            "weight":        weight_analysis,
+            "glucose":       glucose_analysis,
             "pcp_name":      pcp_name,
             "next_followup": next_followup,
         }
@@ -3629,6 +3801,8 @@ def get_vitals_analysis(
         "heart_rate":     hr_analysis,
         "spo2":           spo2_analysis,
         "temperature":    temp_analysis,
+        "weight":         weight_analysis,
+        "glucose":        glucose_analysis,
         "pcp_name":       pcp_name,
         "next_followup":  next_followup,
     }
