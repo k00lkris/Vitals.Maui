@@ -93,33 +93,48 @@
                 <!-- Analysis Results -->
                 <VerticalStackLayout Spacing="12" IsVisible="{Binding IsOk}">
 
-                    <!-- Tab Buttons -->
-                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
-                        <Button Grid.Column="0" Text="❤️ BP"
+                    <!-- Tab Buttons — optional vital tabs are only shown
+                         when the signed-in user tracks that metric. -->
+                    <FlexLayout Direction="Row"
+                                Wrap="Wrap"
+                                JustifyContent="Start"
+                                AlignItems="Center">
+                        <Button Text="❤️ BP"
+                                WidthRequest="76"
+                                Margin="0,0,6,6"
                                 BackgroundColor="{Binding TabBpColor}"
                                 TextColor="{Binding TabBpTextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="bp" />
-                        <Button Grid.Column="1" Text="💓 HR"
+                        <Button Text="💓 HR"
+                                WidthRequest="76"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding TrackHeartRate}"
                                 BackgroundColor="{Binding TabHrColor}"
                                 TextColor="{Binding TabHrTextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="hr" />
-                        <Button Grid.Column="2" Text="🫁 SpO₂"
+                        <Button Text="🫁 SpO₂"
+                                WidthRequest="82"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding TrackSpo2}"
                                 BackgroundColor="{Binding TabSpo2Color}"
                                 TextColor="{Binding TabSpo2TextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="spo2" />
-                        <Button Grid.Column="3" Text="🌡️ Temp"
+                        <Button Text="🌡️ Temp"
+                                WidthRequest="82"
+                                Margin="0,0,6,6"
+                                IsVisible="{Binding TrackTemperature}"
                                 BackgroundColor="{Binding TabTempColor}"
                                 TextColor="{Binding TabTempTextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="temp" />
-                    </Grid>
+                    </FlexLayout>
 
                     <!-- ==================== BP TAB ==================== -->
                     <VerticalStackLayout Spacing="12" IsVisible="{Binding ShowBp}">
