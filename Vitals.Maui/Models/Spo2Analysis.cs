@@ -128,7 +128,6 @@ public class SpO2Analysis
     public bool HasTimeOfDayPattern => TimeOfDay?.PatternSummary is not null;
     public bool HasCrossVitalLowObservations => CrossVitalContext is not null && CrossVitalContext.LowObservations.Count > 0;
     public bool HasCrossVitalCorrelations => CrossVitalCorrelations is not null && CrossVitalCorrelations.Count > 0;
-    public bool HasUnavailableAnalyses => DataSupport is not null && DataSupport.UnavailableAnalyses.Count > 0;
     public bool HasReferenceBands => ReferenceBands is not null;
 }
 
@@ -545,6 +544,25 @@ public class Spo2DataSupport
     };
 
     public bool HasCoverage => DistinctDayCoveragePct is not null;
+
+    [JsonIgnore]
+    public bool HasUnavailableAnalyses =>
+        UnavailableAnalyses is { Count: > 0 };
+
+    // Combines every unavailable-analysis entry into one string here, in
+    // C#, rather than a list-rendering control in XAML — replaces the
+    // BindableLayout, which still added more machinery (ScrollView ->
+    // BindableLayout -> DataTemplate -> item BindingContext ->
+    // DisplayText) than this small, static bit of text needs.
+    [JsonIgnore]
+    public string UnavailableAnalysesDisplay =>
+        HasUnavailableAnalyses
+            ? string.Join(
+                Environment.NewLine,
+                UnavailableAnalyses
+                    .Where(x => !string.IsNullOrWhiteSpace(x.DisplayText))
+                    .Select(x => $"\u2022 {x.DisplayText}"))
+            : string.Empty;
 }
 
 public class Spo2UnavailableAnalysis

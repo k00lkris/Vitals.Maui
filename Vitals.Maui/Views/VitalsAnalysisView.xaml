@@ -1265,22 +1265,17 @@
                                         <Binding Path="Analysis.Spo2.DataSupport.DistinctDayCoveragePct" StringFormat="Logged on {0:F0}% of days in this window" />
                                     </Label.Text>
                                 </Label>
-                                <!-- BindableLayout, not CollectionView — same reasoning as the
-                                     Correlation card above: a small static list inside a page
-                                     that's already one big ScrollView. -->
-                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Analysis.Spo2.DataSupport.UnavailableAnalyses}"
-                                                     IsVisible="{Binding Analysis.Spo2.HasUnavailableAnalyses}"
-                                                     Margin="0,6,0,0"
-                                                     Spacing="2">
-                                    <BindableLayout.ItemTemplate>
-                                        <DataTemplate>
-                                            <Label Text="{Binding DisplayText}"
-                                                   FontSize="11"
-                                                   TextColor="{DynamicResource TextMuted}"
-                                                   LineBreakMode="WordWrap" />
-                                        </DataTemplate>
-                                    </BindableLayout.ItemTemplate>
-                                </VerticalStackLayout>
+                                <!-- Single Label bound to UnavailableAnalysesDisplay (combines every
+                                     entry into one string in C#) — replaces the BindableLayout, which
+                                     was still more machinery than this small, static text needs:
+                                     ScrollView -> BindableLayout -> DataTemplate -> item BindingContext
+                                     -> DisplayText, now just ScrollView -> Label -> one string. -->
+                                <Label Text="{Binding Analysis.Spo2.DataSupport.UnavailableAnalysesDisplay}"
+                                       IsVisible="{Binding Analysis.Spo2.DataSupport.HasUnavailableAnalyses}"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextMuted}"
+                                       LineBreakMode="WordWrap"
+                                       Margin="0,6,0,0" />
                             </VerticalStackLayout>
                         </Border>
 

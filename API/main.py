@@ -242,6 +242,9 @@ class VitalCreate(BaseModel):
     oxygen_saturation: Optional[int] = Field(None, ge=50, le=100)
     heart_rate: Optional[int] = Field(None, ge=30, le=220)
     temperature: Optional[float] = Field(None, ge=90, le=110)
+    temperature_site: Optional[Literal[
+        "oral", "rectal", "axillary", "tympanic", "temporal", "other", "unknown"
+    ]] = None
     blood_glucose: Optional[int] = Field(None, ge=30, le=600)
     weight: Optional[float] = Field(None, ge=50, le=700)
     source: Optional[str] = "home_assistant"
@@ -391,6 +394,9 @@ class VisitCreate(BaseModel):
     oxygen_saturation: Optional[int] = Field(None, ge=50, le=100)
     heart_rate: Optional[int] = Field(None, ge=30, le=220)
     temperature: Optional[float] = Field(None, ge=90, le=110)
+    temperature_site: Optional[Literal[
+        "oral", "rectal", "axillary", "tympanic", "temporal", "other", "unknown"
+    ]] = None
     blood_glucose: Optional[int] = Field(None, ge=30, le=600)
     weight: Optional[float] = Field(None, ge=50, le=700)
 
@@ -1558,6 +1564,1087 @@ def run_hr_analysis(rows: list, baseline_rows: list | None = None, medication_ch
     result["medication_associations"] = associations if associations else None
 
     return result
+
+def _spo2_local_datetime(row: dict) -> datetime:
+    """
+    Convert recorded_at to the reading's local wall-clock time. Prefer the
+    per-reading UTC offset captured by the client; fall back to the same
+    America/Chicago approximation used by the Heart Rate engine for legacy
+    rows that predate local_offset_minutes.
+    """
+    if row["local_offset_minutes"] is not None:
+        return row["recorded_at"] + timedelta(minutes=row["local_offset_minutes"])
+    return row["recorded_at"].astimezone(ZoneInfo("America/Chicago"))
+
+
+def run_spo2_analysis(rows: list, baseline_rows: list | None = None) -> dict | None:
+    """
+    SpO2 Analysis Engine.
+
+    This intentionally treats manually-entered pulse-oximetry values as
+    discrete observations, not a continuous signal. Counts and percentages
+    below are therefore percentages of LOGGED READINGS only. We do not use
+    Rosendaal/trapezoidal interpolation to claim "time below" a threshold.
+
+    Current database limitation:
+      - no spo2_context table yet, so resting/activity state, symptom tags,
+        supplemental-oxygen state/flow, device/source metadata, and explicit
+        measurement-quality flags are not available.
+      - analyses that require those fields are returned as unavailable in
+        data_support rather than inferred.
+
+    baseline_rows is a fixed 37-day lookback supplied by the registry:
+      recent   = last 7 days
+      baseline = days 8-37 ago
+    """
+
+    if not rows:
+        return None
+
+    def _row_dict(r):
+        return {
+            "recorded_at":          r[0],
+            "local_offset_minutes": r[1],
+            "spo2":                 int(r[2]),
+            "heart_rate":           r[3],
+            "systolic":             r[4],
+            "diastolic":            r[5],
+            "temperature":          float(r[6]) if r[6] is not None else None,
+            "weight":               float(r[7]) if r[7] is not None else None,
+            "blood_glucose":        r[8],
+        }
+
+    rows_d = [_row_dict(r) for r in rows]
+    latest = rows_d[-1]
+    values = [r["spo2"] for r in rows_d]
+
+    # Default descriptive reference thresholds only. These are deliberately
+    # surfaced as metadata so a future patient/clinician-specific target can
+    # replace them without rewriting the analysis engine.
+    LOW_THRESHOLD = 95
+    MODERATE_LOW_THRESHOLD = 92
+    MARKED_LOW_THRESHOLD = 88
+
+    # Spec's own default (§6.8, W_confirm) is 10 minutes — NOT Heart Rate's
+    # 15-minute episode window. Defined once here so the grouping logic and
+    # the value reported back in the result can never drift apart again.
+    CONFIRMATION_WINDOW_MINUTES = 10
+
+    linked_context = {}
+    if latest["heart_rate"] is not None:
+        linked_context["heart_rate"] = latest["heart_rate"]
+    if latest["systolic"] is not None and latest["diastolic"] is not None:
+        linked_context["blood_pressure"] = {
+            "systolic": latest["systolic"],
+            "diastolic": latest["diastolic"],
+        }
+    if latest["temperature"] is not None:
+        linked_context["temperature"] = latest["temperature"]
+    if latest["weight"] is not None:
+        linked_context["weight"] = latest["weight"]
+    if latest["blood_glucose"] is not None:
+        linked_context["blood_glucose"] = latest["blood_glucose"]
+
+    result = {
+        "spo2":              latest["spo2"],
+        "recorded_at":       latest["recorded_at"].isoformat(),
+        "measurement_context": "unknown",
+        "source_type":       "unknown",
+        "linked_context":    linked_context,
+        "reading_count":     len(rows_d),
+        "target_profile": {
+            "low_threshold":        LOW_THRESHOLD,
+            "moderate_threshold":   MODERATE_LOW_THRESHOLD,
+            "marked_low_threshold": MARKED_LOW_THRESHOLD,
+            "source":               "reference_default",
+            "patient_specific":     False,
+        },
+    }
+
+    distinct_days = len({_spo2_local_datetime(r).date() for r in rows_d})
+    span_days = (
+        (rows_d[-1]["recorded_at"] - rows_d[0]["recorded_at"]).total_seconds() / 86400
+        if len(rows_d) > 1 else 0.0
+    )
+
+    # ---------------------------------------------------------
+    # Central tendency and observed range
+    # ---------------------------------------------------------
+    if len(values) >= 3 and distinct_days >= 3:
+        result["spot_summary"] = {
+            "n":             len(values),
+            "distinct_days": distinct_days,
+            "mean":          round(statistics.mean(values), 1),
+            "median":        round(statistics.median(values), 1),
+            "min":           min(values),
+            "max":           max(values),
+            "range":         max(values) - min(values),
+        }
+    else:
+        result["spot_summary"] = None
+
+    # ---------------------------------------------------------
+    # Between-reading dispersion (NOT continuous variability)
+    # ---------------------------------------------------------
+    if len(values) >= 5:
+        q1 = float(np.percentile(values, 25))
+        q3 = float(np.percentile(values, 75))
+        result["dispersion"] = {
+            "n":   len(values),
+            "sd":  round(statistics.stdev(values), 1),
+            "iqr": round(q3 - q1, 1),
+            "q1":  round(q1, 1),
+            "q3":  round(q3, 1),
+        }
+    else:
+        result["dispersion"] = None
+
+    # ---------------------------------------------------------
+    # OLS trend
+    # ---------------------------------------------------------
+    t = v = None
+    if rows_d:
+        origin = rows_d[0]["recorded_at"]
+        t = np.array([
+            (r["recorded_at"] - origin).total_seconds() / 86400
+            for r in rows_d
+        ])
+        v = np.array([float(r["spo2"]) for r in rows_d])
+
+    def _spo2_trend_label(slope: float, significant: bool) -> str:
+        # Vitals presentation gate, not a clinical threshold. A tiny
+        # non-zero regression coefficient should not create an alarming
+        # "rising/falling" label from rounding noise.
+        epsilon = 0.05
+        if slope > epsilon and significant:
+            return "rising_significant"
+        if slope > epsilon:
+            return "rising"
+        if slope < -epsilon and significant:
+            return "falling_significant"
+        if slope < -epsilon:
+            return "falling"
+        return "stable"
+
+    if len(values) >= 5 and distinct_days >= 5 and span_days >= 7:
+        if np.std(v) == 0:
+            result["trend"] = {
+                "slope_pct_points_per_day": 0.0,
+                "modeled_change":           0.0,
+                "span_days":                round(span_days, 1),
+                "r2":                       None,
+                "p_value":                  None,
+                "trend_label":              "stable",
+                "consistency":              None,
+            }
+        else:
+            slope, _, r_val, p_val, _ = stats.linregress(t, v)
+            r2 = float(r_val ** 2)
+            show_p = len(values) >= 8 and span_days >= 14
+            significant = bool(show_p and p_val < 0.05)
+
+            result["trend"] = {
+                "slope_pct_points_per_day": round(float(slope), 3),
+                "modeled_change":           round(float(slope) * (t.max() - t.min()), 1),
+                "span_days":                round(span_days, 1),
+                "r2":                       round(r2, 2),
+                "p_value":                  round(float(p_val), 3) if show_p else None,
+                "trend_label":              _spo2_trend_label(float(slope), significant),
+                "consistency":              _consistency_label(r2),
+            }
+    else:
+        result["trend"] = None
+
+    # LOESS is visualization support only. It does not create a clinical
+    # interpretation independently of the OLS/data-support gates above.
+    if len(values) >= 7 and span_days >= 7:
+        smoothed = loess_smooth(t, v, frac=0.6)
+        result["loess"] = [
+            {
+                "recorded_at": r["recorded_at"].isoformat(),
+                "smoothed_spo2": round(float(s), 1),
+            }
+            for r, s in zip(rows_d, smoothed)
+        ]
+    else:
+        result["loess"] = None
+
+    # ---------------------------------------------------------
+    # Personal baseline deviation
+    # ---------------------------------------------------------
+    result["baseline_deviation"] = None
+    if baseline_rows:
+        baseline_d = [_row_dict(r) for r in baseline_rows]
+        now_utc = datetime.now(timezone.utc)
+
+        recent_set = [
+            r for r in baseline_d
+            if now_utc - timedelta(days=7) <= r["recorded_at"] <= now_utc
+        ]
+        baseline_set = [
+            r for r in baseline_d
+            if now_utc - timedelta(days=37) <= r["recorded_at"] <= now_utc - timedelta(days=8)
+        ]
+
+        baseline_vals = [r["spo2"] for r in baseline_set]
+        recent_vals = [r["spo2"] for r in recent_set]
+        baseline_days = len({_spo2_local_datetime(r).date() for r in baseline_set})
+        recent_days = len({_spo2_local_datetime(r).date() for r in recent_set})
+
+        if (
+            len(baseline_vals) >= 7 and baseline_days >= 7
+            and len(recent_vals) >= 3 and recent_days >= 3
+        ):
+            baseline_median = statistics.median(baseline_vals)
+            recent_median = statistics.median(recent_vals)
+
+            result["baseline_deviation"] = {
+                "baseline_median":  round(baseline_median, 1),
+                "recent_median":    round(recent_median, 1),
+                "baseline_n":       len(baseline_vals),
+                "recent_n":         len(recent_vals),
+                "delta_pct_points": round(recent_median - baseline_median, 1),
+            }
+
+    # ---------------------------------------------------------
+    # Low-observation analysis
+    # ---------------------------------------------------------
+    low_rows = [r for r in rows_d if r["spo2"] < LOW_THRESHOLD]
+    moderate_rows = [r for r in rows_d if r["spo2"] < MODERATE_LOW_THRESHOLD]
+    marked_rows = [r for r in rows_d if r["spo2"] < MARKED_LOW_THRESHOLD]
+    show_pct = len(rows_d) >= 5
+
+    def _reading_payload(r):
+        return {
+            "recorded_at": r["recorded_at"].isoformat(),
+            "spo2":        r["spo2"],
+        }
+
+    result["low_observations"] = {
+        "threshold": LOW_THRESHOLD,
+        "count": len(low_rows),
+        "pct_of_logged_readings": (
+            round(100 * len(low_rows) / len(rows_d), 1) if show_pct else None
+        ),
+        "readings": [_reading_payload(r) for r in low_rows],
+    }
+
+    # Reference bands are descriptive counts of logged readings only.
+    # They intentionally avoid an overall "hypoxemia classification"
+    # based on the average.
+    band_defs = [
+        ("at_or_above_95", lambda x: x >= 95),
+        ("92_to_94",       lambda x: 92 <= x < 95),
+        ("88_to_91",       lambda x: 88 <= x < 92),
+        ("below_88",       lambda x: x < 88),
+    ]
+    result["reference_bands"] = {
+        name: {
+            "count": sum(1 for x in values if predicate(x)),
+            "pct_of_logged_readings": (
+                round(
+                    100 * sum(1 for x in values if predicate(x)) / len(values),
+                    1,
+                )
+                if show_pct else None
+            ),
+        }
+        for name, predicate in band_defs
+    }
+
+    # "Confirmed" here is explicitly a Vitals engineering grouping rule:
+    # at least two below-target observations no more than
+    # CONFIRMATION_WINDOW_MINUTES apart. It is not a diagnosis and does
+    # not imply continuous desaturation.
+    confirmed_groups = []
+    if low_rows:
+        ordered = sorted(low_rows, key=lambda r: r["recorded_at"])
+        group = [ordered[0]]
+
+        def _flush_confirmed(g):
+            if len(g) < 2:
+                return
+            confirmed_groups.append({
+                "first_recorded_at": g[0]["recorded_at"].isoformat(),
+                "last_recorded_at":  g[-1]["recorded_at"].isoformat(),
+                "reading_count":     len(g),
+                "nadir":             min(r["spo2"] for r in g),
+                "readings":          [_reading_payload(r) for r in g],
+            })
+
+        for r in ordered[1:]:
+            gap_minutes = (
+                r["recorded_at"] - group[-1]["recorded_at"]
+            ).total_seconds() / 60
+            if gap_minutes <= CONFIRMATION_WINDOW_MINUTES:
+                group.append(r)
+            else:
+                _flush_confirmed(group)
+                group = [r]
+        _flush_confirmed(group)
+
+    result["confirmed_low_observations"] = {
+        "confirmation_rule_minutes": CONFIRMATION_WINDOW_MINUTES,
+        "episode_count": len(confirmed_groups),
+        "episodes": confirmed_groups,
+    }
+
+    result["marked_low_observations"] = {
+        "threshold": MARKED_LOW_THRESHOLD,
+        "count": len(marked_rows),
+        "pct_of_logged_readings": (
+            round(100 * len(marked_rows) / len(rows_d), 1) if show_pct else None
+        ),
+        "readings": [_reading_payload(r) for r in marked_rows],
+    }
+
+    # ---------------------------------------------------------
+    # Time-of-day pattern
+    # ---------------------------------------------------------
+    bucket_rows = {
+        "morning": [],
+        "afternoon": [],
+        "evening": [],
+        "overnight": [],
+    }
+
+    for r in rows_d:
+        hour = _spo2_local_datetime(r).hour
+        if 5 <= hour < 12:
+            bucket_rows["morning"].append(r)
+        elif 12 <= hour < 17:
+            bucket_rows["afternoon"].append(r)
+        elif 17 <= hour < 22:
+            bucket_rows["evening"].append(r)
+        else:
+            bucket_rows["overnight"].append(r)
+
+    def _bucket_stats(items):
+        if len(items) < 2:
+            return None
+        vals = [r["spo2"] for r in items]
+        return {
+            "n":             len(vals),
+            "distinct_days": len({_spo2_local_datetime(r).date() for r in items}),
+            "mean":          round(statistics.mean(vals), 1),
+            "median":        round(statistics.median(vals), 1),
+            "min":           min(vals),
+            "max":           max(vals),
+        }
+
+    buckets = {name: _bucket_stats(items) for name, items in bucket_rows.items()}
+    usable_buckets = {
+        name: stats_block for name, stats_block in buckets.items()
+        if stats_block is not None
+    }
+
+    pattern_summary = None
+    if len(usable_buckets) >= 2:
+        highest = max(usable_buckets.items(), key=lambda x: x[1]["median"])
+        lowest = min(usable_buckets.items(), key=lambda x: x[1]["median"])
+        median_delta = highest[1]["median"] - lowest[1]["median"]
+
+        # 2 percentage points is a Vitals presentation gate, not a
+        # diagnostic threshold.
+        if median_delta >= 2:
+            pattern_summary = {
+                "highest_period": highest[0],
+                "lowest_period":  lowest[0],
+                "median_delta":   round(median_delta, 1),
+            }
+
+    result["time_of_day"] = {
+        "buckets": buckets,
+        "pattern_summary": pattern_summary,
+    }
+
+    # ---------------------------------------------------------
+    # Same-event context for low observations
+    # ---------------------------------------------------------
+    low_context = []
+    for r in low_rows:
+        context = {}
+        if r["heart_rate"] is not None:
+            context["heart_rate"] = r["heart_rate"]
+        if r["systolic"] is not None and r["diastolic"] is not None:
+            context["blood_pressure"] = {
+                "systolic": r["systolic"],
+                "diastolic": r["diastolic"],
+            }
+        if r["temperature"] is not None:
+            context["temperature"] = r["temperature"]
+
+        low_context.append({
+            "recorded_at": r["recorded_at"].isoformat(),
+            "spo2":        r["spo2"],
+            "context":     context,
+        })
+
+    result["cross_vital_context"] = {
+        "low_observations": low_context,
+    }
+
+    # Optional Pearson correlations for physician-facing context only.
+    # n>=10 paired values across >=7 days and non-zero variance.
+    correlations = {}
+    pair_specs = [
+        ("heart_rate", lambda r: r["heart_rate"]),
+        ("temperature", lambda r: r["temperature"]),
+        ("systolic", lambda r: r["systolic"]),
+        ("diastolic", lambda r: r["diastolic"]),
+    ]
+
+    for name, value_fn in pair_specs:
+        pairs = [r for r in rows_d if value_fn(r) is not None]
+        if len(pairs) < 10:
+            continue
+        pair_span = (
+            pairs[-1]["recorded_at"] - pairs[0]["recorded_at"]
+        ).total_seconds() / 86400
+        if pair_span < 7:
+            continue
+
+        spo2_vals = np.array([float(r["spo2"]) for r in pairs])
+        other_vals = np.array([float(value_fn(r)) for r in pairs])
+
+        if np.std(spo2_vals) == 0 or np.std(other_vals) == 0:
+            continue
+
+        correlations[name] = round(
+            float(np.corrcoef(spo2_vals, other_vals)[0, 1]),
+            2,
+        )
+
+    result["cross_vital_correlations"] = correlations if correlations else None
+
+    # These are intentionally unavailable until the schema captures them.
+    result["symptom_association"] = None
+    result["oxygen_context"] = None
+
+    # ---------------------------------------------------------
+    # Data support / confidence
+    # ---------------------------------------------------------
+    n = len(values)
+
+    if n == 0:
+        support_state = "none"
+    elif n >= 8 and span_days >= 14:
+        support_state = "significance"
+    elif n >= 7 and span_days >= 7:
+        support_state = "loess"
+    elif n >= 5 and distinct_days >= 5 and span_days >= 7:
+        support_state = "trend"
+    elif n >= 3 and distinct_days >= 3:
+        support_state = "descriptive"
+    else:
+        support_state = "snapshot"
+
+    calendar_days_approx = max(int(span_days) + 1, 1)
+    coverage_pct = round(100 * distinct_days / calendar_days_approx, 1)
+
+    unavailable = []
+
+    if result["spot_summary"] is None:
+        unavailable.append({
+            "analysis": "spot_summary",
+            "reason": (
+                f"needs >=3 readings across >=3 distinct days "
+                f"(have n={n}, days={distinct_days})"
+            ),
+        })
+
+    if result["dispersion"] is None:
+        unavailable.append({
+            "analysis": "dispersion",
+            "reason": f"needs >=5 readings (have n={n})",
+        })
+
+    if result["trend"] is None:
+        unavailable.append({
+            "analysis": "trend",
+            "reason": (
+                f"needs >=5 readings across >=5 distinct days and >=7 day span "
+                f"(have n={n}, days={distinct_days}, span={round(span_days, 1)})"
+            ),
+        })
+    elif result["trend"].get("p_value") is None:
+        unavailable.append({
+            "analysis": "trend.p_value",
+            "reason": (
+                f"needs >=8 readings and >=14 day span "
+                f"(have n={n}, span={round(span_days, 1)})"
+            ),
+        })
+
+    if result["loess"] is None:
+        unavailable.append({
+            "analysis": "loess",
+            "reason": (
+                f"needs >=7 readings and >=7 day span "
+                f"(have n={n}, span={round(span_days, 1)})"
+            ),
+        })
+
+    if result["baseline_deviation"] is None:
+        unavailable.append({
+            "analysis": "baseline_deviation",
+            "reason": (
+                "needs its own separate baseline (>=7 readings/>=7 days, "
+                "8-37 days ago) and recent (>=3 readings/>=3 days, last 7 days) "
+                "data — independent of this window"
+            ),
+        })
+
+    if result["time_of_day"]["pattern_summary"] is None:
+        unavailable.append({
+            "analysis": "time_of_day",
+            "reason": (
+                "needs at least two time-of-day buckets with >=2 readings each "
+                "and a >=2 percentage-point median difference"
+            ),
+        })
+
+    unavailable.append({
+        "analysis": "symptom_association",
+        "reason": "SpO2 symptom/context fields are not collected yet",
+    })
+    unavailable.append({
+        "analysis": "oxygen_context",
+        "reason": "supplemental-oxygen state/flow is not collected yet",
+    })
+
+    result["data_support"] = {
+        "support_state":             support_state,
+        "n":                         n,
+        "distinct_days":             distinct_days,
+        "span_days":                 round(span_days, 1),
+        "distinct_day_coverage_pct": coverage_pct,
+        "unavailable_analyses":      unavailable,
+    }
+
+    return result
+
+
+def _temperature_local_datetime(row: dict) -> datetime:
+    """
+    Convert recorded_at to the reading's local wall-clock time. Prefer the
+    per-reading UTC offset captured by the client; use the same
+    America/Chicago fallback as the other analysis engines for legacy rows.
+    """
+    if row["local_offset_minutes"] is not None:
+        return row["recorded_at"] + timedelta(minutes=row["local_offset_minutes"])
+    return row["recorded_at"].astimezone(ZoneInfo("America/Chicago"))
+
+
+def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> dict | None:
+    """
+    Dedicated Temperature Analysis Engine.
+
+    Temperature is treated as an episode-centric, site-aware vital. Sparse
+    manual readings support observed counts, peaks, distinct febrile days,
+    episode grouping, and same-site baseline comparisons. They DO NOT support
+    inferred continuous fever duration or interpolated "time in fever."
+
+    Current product storage is Fahrenheit. The engine normalizes to Celsius
+    internally/output-side for deterministic dual-unit representation while
+    preserving the original Fahrenheit value. temperature_site may be
+    'unknown' for pre-migration rows.
+
+    baseline_rows is a fixed 60-day implementation lookback used only to give
+    the same-site baseline enough history. The clinical/data-sufficiency gate
+    remains >=7 eligible readings on >=7 distinct days spanning >=14 days.
+    The 60-day fetch window is a Vitals engineering implementation choice, not
+    a clinical threshold.
+    """
+    if not rows:
+        return None
+
+    FEVER_F = 100.4
+    HYPOTHERMIA_F = 95.0
+    EPISODE_GAP_HOURS = 24.0
+
+    def _to_c(value_f: float) -> float:
+        return (value_f - 32.0) * 5.0 / 9.0
+
+    def _site(value) -> str:
+        value = (value or "unknown").strip().lower()
+        return value if value in {
+            "oral", "rectal", "axillary", "tympanic",
+            "temporal", "other", "unknown"
+        } else "unknown"
+
+    def _row_dict(r):
+        return {
+            "recorded_at":          r[0],
+            "local_offset_minutes": r[1],
+            "temperature_f":        float(r[2]),
+            "temperature_site":     _site(r[3]),
+            # vitals.source is the ingestion/application source (for example
+            # "maui_app"), not thermometer/device provenance. Keep it
+            # separate from the future temperature source_type field defined
+            # by the engineering spec.
+            "source":               r[4] or "unknown",
+            "heart_rate":           r[5],
+            "oxygen_saturation":    r[6],
+            "systolic":             r[7],
+            "diastolic":            r[8],
+            "blood_glucose":        r[9],
+            "weight":               float(r[10]) if r[10] is not None else None,
+        }
+
+    rows_d = [_row_dict(r) for r in rows]
+    latest = rows_d[-1]
+
+    latest_context = {}
+    if latest["heart_rate"] is not None:
+        latest_context["heart_rate"] = latest["heart_rate"]
+    if latest["oxygen_saturation"] is not None:
+        latest_context["oxygen_saturation"] = latest["oxygen_saturation"]
+    if latest["systolic"] is not None and latest["diastolic"] is not None:
+        latest_context["blood_pressure"] = {
+            "systolic": latest["systolic"],
+            "diastolic": latest["diastolic"],
+        }
+    if latest["blood_glucose"] is not None:
+        latest_context["blood_glucose"] = latest["blood_glucose"]
+    if latest["weight"] is not None:
+        latest_context["weight"] = latest["weight"]
+
+    distinct_days = len({_temperature_local_datetime(r).date() for r in rows_d})
+    span_days = (
+        (rows_d[-1]["recorded_at"] - rows_d[0]["recorded_at"]).total_seconds() / 86400
+        if len(rows_d) > 1 else 0.0
+    )
+
+    # Measurement-site consistency. Unknown-site rows remain valid history,
+    # but do not participate in same-site baseline/trend claims.
+    known_sites = [
+        r["temperature_site"]
+        for r in rows_d
+        if r["temperature_site"] != "unknown"
+    ]
+    unique_known_sites = sorted(set(known_sites))
+    modal_site = None
+    site_consistency_pct = None
+    if known_sites:
+        modal_site = statistics.multimode(known_sites)[0]
+        site_consistency_pct = round(
+            100.0 * sum(1 for s in known_sites if s == modal_site) / len(known_sites),
+            1,
+        )
+
+    known_site_pct = round(100.0 * len(known_sites) / len(rows_d), 1)
+
+    # Range observations. These are logged-reading counts only.
+    fever_rows = [r for r in rows_d if r["temperature_f"] >= FEVER_F]
+    hypothermia_rows = [r for r in rows_d if r["temperature_f"] < HYPOTHERMIA_F]
+    febrile_days = len({_temperature_local_datetime(r).date() for r in fever_rows})
+
+    lowest = min(rows_d, key=lambda r: r["temperature_f"])
+
+    # Fever episode grouping: a new episode begins when the gap from the
+    # prior fever-range observation exceeds 24 hours. This is a Vitals
+    # grouping rule, not a medical definition.
+    episode_groups = []
+    if fever_rows:
+        ordered_fever = sorted(fever_rows, key=lambda r: r["recorded_at"])
+        group = [ordered_fever[0]]
+        for r in ordered_fever[1:]:
+            gap_hours = (
+                r["recorded_at"] - group[-1]["recorded_at"]
+            ).total_seconds() / 3600.0
+            if gap_hours <= EPISODE_GAP_HOURS:
+                group.append(r)
+            else:
+                episode_groups.append(group)
+                group = [r]
+        episode_groups.append(group)
+
+    episodes = []
+    for idx, group in enumerate(episode_groups, start=1):
+        peak = max(group, key=lambda r: r["temperature_f"])
+        minimum = min(group, key=lambda r: r["temperature_f"])
+        sites = sorted(set(r["temperature_site"] for r in group))
+        span_hours = (
+            (group[-1]["recorded_at"] - group[0]["recorded_at"]).total_seconds() / 3600.0
+            if len(group) > 1 else 0.0
+        )
+        delta_latest = None
+        hours_since_peak = None
+
+        # Only compare latest vs peak when the measurement site matches;
+        # fixed cross-site offsets are intentionally not used.
+        if (
+            idx == len(episode_groups)
+            and latest["recorded_at"] >= peak["recorded_at"]
+            and latest["temperature_site"] != "unknown"
+            and latest["temperature_site"] == peak["temperature_site"]
+        ):
+            delta_latest = round(
+                latest["temperature_f"] - peak["temperature_f"], 1
+            )
+            hours_since_peak = round(
+                (latest["recorded_at"] - peak["recorded_at"]).total_seconds() / 3600.0,
+                1,
+            )
+
+        episodes.append({
+            "episode_id":                 idx,
+            "first_fever_at":             group[0]["recorded_at"].isoformat(),
+            "last_fever_at":              group[-1]["recorded_at"].isoformat(),
+            "observed_span_hours":        round(span_hours, 1),
+            "peak_f":                     round(peak["temperature_f"], 1),
+            "peak_c":                     round(_to_c(peak["temperature_f"]), 1),
+            "peak_at":                    peak["recorded_at"].isoformat(),
+            "peak_site":                  peak["temperature_site"],
+            "minimum_f":                  round(minimum["temperature_f"], 1),
+            "minimum_c":                  round(_to_c(minimum["temperature_f"]), 1),
+            "minimum_at":                 minimum["recorded_at"].isoformat(),
+            "minimum_site":               minimum["temperature_site"],
+            "n_fever_readings":           len(group),
+            "febrile_days":               len({_temperature_local_datetime(r).date() for r in group}),
+            "sites":                      sites,
+            "mixed_sites":                len([s for s in sites if s != "unknown"]) > 1,
+            "delta_latest_from_peak_f":   delta_latest,
+            "hours_since_peak":           hours_since_peak,
+        })
+
+    latest_episode_group = episode_groups[-1] if episode_groups else None
+    latest_episode = episodes[-1] if episodes else None
+
+    # Same-site personal baseline. Eligible readings are non-fever,
+    # non-hypothermia-range values from the latest reading's known site.
+    # When the selected data contain a fever episode, baseline candidates
+    # on/after the latest episode start are excluded so the acute episode
+    # does not define the patient's "usual" temperature.
+    baseline = None
+    baseline_failure_reason = None
+    latest_site = latest["temperature_site"]
+
+    if latest_site == "unknown":
+        baseline_failure_reason = "measurement_site_unknown"
+    else:
+        source_rows = [_row_dict(r) for r in baseline_rows] if baseline_rows else rows_d
+        cutoff = (
+            latest_episode_group[0]["recorded_at"]
+            if latest_episode_group else latest["recorded_at"]
+        )
+
+        candidates = [
+            r for r in source_rows
+            if r["temperature_site"] == latest_site
+            and HYPOTHERMIA_F <= r["temperature_f"] < FEVER_F
+            and r["recorded_at"] < cutoff
+        ]
+
+        baseline_days = len({_temperature_local_datetime(r).date() for r in candidates})
+        baseline_span_days = (
+            (candidates[-1]["recorded_at"] - candidates[0]["recorded_at"]).total_seconds() / 86400.0
+            if len(candidates) > 1 else 0.0
+        )
+
+        if len(candidates) >= 7 and baseline_days >= 7 and baseline_span_days >= 14:
+            baseline_median_f = float(statistics.median(
+                [r["temperature_f"] for r in candidates]
+            ))
+            baseline = {
+                "site":            latest_site,
+                "median_f":        round(baseline_median_f, 1),
+                "median_c":        round(_to_c(baseline_median_f), 1),
+                "n":               len(candidates),
+                "distinct_days":   baseline_days,
+                "span_days":       round(baseline_span_days, 1),
+                "delta_current_f": round(latest["temperature_f"] - baseline_median_f, 1),
+                "delta_current_c": round(
+                    _to_c(latest["temperature_f"]) - _to_c(baseline_median_f), 1
+                ),
+            }
+        else:
+            baseline_failure_reason = "insufficient_same_site_baseline"
+
+    # Acute OLS trajectory for the latest recorded fever episode.
+    #
+    # Important: this is NOT restricted to fever-range points. Once an
+    # episode has started, same-site temperatures below the fever reference
+    # can be the most informative evidence of a downward/recovery pattern.
+    # We therefore include same-site readings from the first fever
+    # observation through at most 24 hours after the last fever observation.
+    # The 24-hour association window mirrors the episode-gap engineering rule
+    # and is not a medical definition of episode duration.
+    acute_trend = None
+    acute_trend_failure_reason = None
+    acute_trend_rows = []
+
+    if latest_episode_group:
+        episode_known_sites = {
+            r["temperature_site"]
+            for r in latest_episode_group
+            if r["temperature_site"] != "unknown"
+        }
+
+        if len(episode_known_sites) == 0:
+            acute_trend_failure_reason = "measurement_site_unknown"
+        elif len(episode_known_sites) > 1:
+            acute_trend_failure_reason = "mixed_measurement_sites"
+        else:
+            acute_site = next(iter(episode_known_sites))
+            first_fever_at = latest_episode_group[0]["recorded_at"]
+            last_fever_at = latest_episode_group[-1]["recorded_at"]
+            association_end = last_fever_at + timedelta(hours=EPISODE_GAP_HOURS)
+
+            acute_trend_rows = [
+                r for r in rows_d
+                if r["temperature_site"] == acute_site
+                and first_fever_at <= r["recorded_at"] <= association_end
+            ]
+
+            acute_span_hours = (
+                (acute_trend_rows[-1]["recorded_at"] - acute_trend_rows[0]["recorded_at"]).total_seconds() / 3600.0
+                if len(acute_trend_rows) > 1 else 0.0
+            )
+
+            if len(acute_trend_rows) >= 3 and acute_span_hours >= 6:
+                origin = acute_trend_rows[0]["recorded_at"]
+                x_hours = np.array([
+                    (r["recorded_at"] - origin).total_seconds() / 3600.0
+                    for r in acute_trend_rows
+                ])
+                y_f = np.array([r["temperature_f"] for r in acute_trend_rows])
+
+                if np.std(y_f) == 0:
+                    slope = 0.0
+                    r2 = None
+                    p_value = None
+                else:
+                    slope, _, r_value, p_value_raw, _ = stats.linregress(x_hours, y_f)
+                    slope = float(slope)
+                    r2 = float(r_value ** 2)
+                    p_value = float(p_value_raw)
+
+                modeled_change = slope * acute_span_hours
+
+                # 0.5°F total modeled change is a Vitals presentation gate
+                # only, not a clinical threshold.
+                if abs(modeled_change) < 0.5:
+                    label = "stable"
+                elif slope > 0:
+                    label = "rising"
+                else:
+                    label = "falling"
+
+                acute_trend = {
+                    "site":                  acute_site,
+                    "n":                     len(acute_trend_rows),
+                    "span_hours":            round(acute_span_hours, 1),
+                    "slope_f_per_hour":      round(slope, 3),
+                    "slope_f_per_12_hours":  round(slope * 12.0, 2),
+                    "modeled_change_f":      round(modeled_change, 1),
+                    "r2":                    round(r2, 2) if r2 is not None else None,
+                    "p_value":               round(p_value, 3) if p_value is not None else None,
+                    "trend_label":           label,
+                    "first_reading_at":      acute_trend_rows[0]["recorded_at"].isoformat(),
+                    "last_reading_at":       acute_trend_rows[-1]["recorded_at"].isoformat(),
+                    "includes_post_fever_readings": any(
+                        r["temperature_f"] < FEVER_F for r in acute_trend_rows
+                    ),
+                }
+            else:
+                acute_trend_failure_reason = "insufficient_episode_density"
+    else:
+        acute_trend_failure_reason = "no_fever_range_readings"
+
+    # Same-event paired-vital context for fever-range observations. No
+    # causation is inferred and no temperature-specific threshold is
+    # invented for the paired vital.
+    fever_context = []
+    paired_counts = {
+        "heart_rate": 0,
+        "oxygen_saturation": 0,
+        "blood_pressure": 0,
+    }
+
+    for r in fever_rows:
+        context = {}
+        if r["heart_rate"] is not None:
+            context["heart_rate"] = r["heart_rate"]
+            paired_counts["heart_rate"] += 1
+        if r["oxygen_saturation"] is not None:
+            context["oxygen_saturation"] = r["oxygen_saturation"]
+            paired_counts["oxygen_saturation"] += 1
+        if r["systolic"] is not None and r["diastolic"] is not None:
+            context["blood_pressure"] = {
+                "systolic": r["systolic"],
+                "diastolic": r["diastolic"],
+            }
+            paired_counts["blood_pressure"] += 1
+
+        fever_context.append({
+            "recorded_at":   r["recorded_at"].isoformat(),
+            "temperature_f": round(r["temperature_f"], 1),
+            "site":          r["temperature_site"],
+            "context":       context,
+        })
+
+    cross_vital_context = {
+        "fever_observations": fever_context,
+        "paired_counts":      paired_counts,
+    }
+
+    unavailable = []
+
+    if latest_site == "unknown":
+        unavailable.append({
+            "analysis": "personal_baseline",
+            "reason_code": "measurement_site_unknown",
+            "reason": "measurement site is unknown; same-site baseline comparison is unavailable",
+        })
+    elif baseline is None:
+        unavailable.append({
+            "analysis": "personal_baseline",
+            "reason_code": baseline_failure_reason or "insufficient_same_site_baseline",
+            "reason": "needs >=7 eligible same-site readings on >=7 distinct days spanning >=14 days",
+        })
+
+    if not fever_rows:
+        unavailable.append({
+            "analysis": "fever_episode",
+            "reason_code": "no_fever_range_readings",
+            "reason": "no logged readings met the configured fever-range reference",
+        })
+
+    if acute_trend is None:
+        unavailable.append({
+            "analysis": "acute_trend",
+            "reason_code": acute_trend_failure_reason or "insufficient_episode_density",
+            "reason": (
+                "needs >=3 same-site temperature readings spanning >=6 hours "
+                "from the start of the latest fever episode through its 24-hour association window"
+            ),
+        })
+
+    # Broader "low temperature" analysis remains capability-gated until
+    # Vitals defines a configurable product threshold. Do not invent a
+    # universal cutoff. The recognized <95°F hypothermia-range safety
+    # context remains implemented independently.
+    unavailable.append({
+        "analysis": "low_temperature",
+        "reason_code": "low_temperature_threshold_not_configured",
+        "reason": "a broader low-temperature reference has not been configured; hypothermia-range observations below 95°F are still evaluated separately",
+    })
+
+    if len(unique_known_sites) > 1:
+        unavailable.append({
+            "analysis": "site_sensitive_comparison",
+            "reason_code": "mixed_measurement_sites",
+            "reason": "mixed measurement sites limit direct comparison; same-method readings are more comparable",
+        })
+
+    if not any(paired_counts.values()):
+        unavailable.append({
+            "analysis": "cross_vital_context",
+            "reason_code": "no_paired_vitals",
+            "reason": "no fever-range readings had paired HR, SpO2, or blood-pressure data",
+        })
+
+    # P1 capabilities are intentionally not inferred from fields Vitals does
+    # not collect yet.
+    unavailable.extend([
+        {
+            "analysis": "symptom_association",
+            "reason_code": "no_symptom_data",
+            "reason": "structured temperature symptom tags are not collected yet",
+        },
+        {
+            "analysis": "antipyretic_association",
+            "reason_code": "no_medication_administration_events",
+            "reason": "actual antipyretic dose-administration events are not collected yet",
+        },
+    ])
+
+    if acute_trend is not None:
+        support_state = "acute_trend"
+    elif fever_rows:
+        support_state = "episode"
+    elif baseline is not None:
+        support_state = "baseline"
+    elif len(rows_d) >= 3 and distinct_days >= 3:
+        support_state = "descriptive"
+    else:
+        support_state = "snapshot"
+
+    result = {
+        "latest": {
+            "value_f":        round(latest["temperature_f"], 1),
+            "value_c":        round(_to_c(latest["temperature_f"]), 1),
+            "recorded_at":    latest["recorded_at"].isoformat(),
+            "site":           latest_site,
+            "source":         latest["source"],
+            # Reserved for true measurement provenance (manual,
+            # thermometer, HealthKit/HealthConnect, etc.). The current
+            # vitals table does not collect this separately yet.
+            "source_type":    None,
+            "linked_context": latest_context,
+        },
+        "reading_count": len(rows_d),
+        "target_profile": {
+            "fever_threshold_f":          FEVER_F,
+            "fever_threshold_c":          38.0,
+            "low_temperature_threshold_f": None,
+            "low_temperature_threshold_c": None,
+            "hypothermia_threshold_f":    HYPOTHERMIA_F,
+            "hypothermia_threshold_c": 35.0,
+            "source":                  "reference_default",
+            "patient_specific":        False,
+        },
+        "baseline": baseline,
+        "range_events": {
+            "fever_threshold_f":       FEVER_F,
+            "fever_count":             len(fever_rows),
+            "fever_logged_pct":        round(100.0 * len(fever_rows) / len(rows_d), 1),
+            "febrile_days":               febrile_days,
+            "low_temperature_threshold_f": None,
+            "low_temperature_count":       None,
+            "low_temperature_readings":    None,
+            "hypothermia_threshold_f":    HYPOTHERMIA_F,
+            "hypothermia_range_count":    len(hypothermia_rows),
+            "hypothermia_readings": [
+                {
+                    "recorded_at": r["recorded_at"].isoformat(),
+                    "value_f":     round(r["temperature_f"], 1),
+                    "site":        r["temperature_site"],
+                }
+                for r in hypothermia_rows
+            ],
+            "lowest_f":                round(lowest["temperature_f"], 1),
+            "lowest_c":                round(_to_c(lowest["temperature_f"]), 1),
+            "lowest_at":               lowest["recorded_at"].isoformat(),
+            "lowest_site":             lowest["temperature_site"],
+        },
+        "episodes":            episodes,
+        "latest_episode":      latest_episode,
+        "acute_trend":         acute_trend,
+        "cross_vital_context": cross_vital_context,
+        "time_of_day_baseline": None,
+        "symptom_associations": None,
+        "antipyretic_associations": None,
+        "pediatric_flags": None,
+        "data_support": {
+            "n":                         len(rows_d),
+            "distinct_days":             distinct_days,
+            "span_days":                 round(span_days, 1),
+            "known_site_pct":            known_site_pct,
+            "modal_site":                modal_site,
+            "site_consistency_pct":      site_consistency_pct,
+            "mixed_measurement_sites":   len(unique_known_sites) > 1,
+            "support_state":             support_state,
+            "unavailable_analyses":      unavailable,
+        },
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    return result
+
+
 # --------------------
 # Vitals analysis cache — eager, per-vital-type
 # --------------------
@@ -1628,7 +2715,36 @@ VITAL_ANALYSIS_REGISTRY = {
         # same as every other window in this app already is.
         "prior_period_lookback_days": 60,
     },
-    # "spo2":    {...},   # TODO once the SpO2 spec is implemented
+    "spo2": {
+        "from_clause": "vitals",
+        # Same-row vitals are included for linked/cross-vital context. There
+        # is no spo2_context table yet, so activity/symptoms/oxygen-support
+        # metadata remain explicitly unavailable rather than inferred.
+        "columns": (
+            "vitals.recorded_at, vitals.local_offset_minutes, vitals.oxygen_saturation, "
+            "vitals.heart_rate, vitals.systolic, vitals.diastolic, "
+            "vitals.temperature, vitals.weight, vitals.blood_glucose"
+        ),
+        "where_clause": "vitals.oxygen_saturation IS NOT NULL",
+        "analysis_fn": run_spo2_analysis,
+        # Fixed personal-baseline window: recent 7 days vs days 8-37.
+        "baseline_lookback_days": 37,
+    },
+    "temperature": {
+        "from_clause": "vitals",
+        "columns": (
+            "vitals.recorded_at, vitals.local_offset_minutes, vitals.temperature, "
+            "vitals.temperature_site, vitals.source, vitals.heart_rate, "
+            "vitals.oxygen_saturation, vitals.systolic, vitals.diastolic, "
+            "vitals.blood_glucose, vitals.weight"
+        ),
+        "where_clause": "vitals.temperature IS NOT NULL",
+        "analysis_fn": run_temperature_analysis,
+        # Implementation lookback only. The baseline eligibility gate itself
+        # is defined inside run_temperature_analysis and is independent of
+        # this fetch window.
+        "baseline_lookback_days": 60,
+    },
     # "weight":  {...},   # TODO once the Weight spec is implemented
     # "glucose": {...},   # TODO once the Glucose spec is implemented
 }
@@ -2156,16 +3272,17 @@ def record_vitals(
         INSERT INTO vitals (
             household_id, patient_id, recorded_at, local_offset_minutes,
             systolic, diastolic, oxygen_saturation,
-            heart_rate, temperature, blood_glucose,
+            heart_rate, temperature, temperature_site, blood_glucose,
             weight, source, notes
         )
-        VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING vital_id;
     """, (
         household_id, vital.patient_id, vital.recorded_at, vital.local_offset_minutes,
         vital.systolic, vital.diastolic, vital.oxygen_saturation,
-        vital.heart_rate, vital.temperature, vital.blood_glucose,
-        vital.weight, vital.source, vital.notes
+        vital.heart_rate, vital.temperature,
+        (vital.temperature_site or "unknown") if vital.temperature is not None else None,
+        vital.blood_glucose, vital.weight, vital.source, vital.notes
     ))
     vital_id = cur.fetchone()[0]
 
@@ -2203,9 +3320,11 @@ def record_vitals(
         background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "blood_pressure")
     if vital.heart_rate is not None:
         background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "heart_rate")
+    if vital.oxygen_saturation is not None:
+        background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "spo2")
+    if vital.temperature is not None:
+        background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "temperature")
     # Uncomment each block below as its analysis function is implemented:
-    # if vital.oxygen_saturation is not None:
-    #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "spo2")
     # if vital.weight is not None:
     #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "weight")
     # if vital.blood_glucose is not None:
@@ -2229,7 +3348,7 @@ def get_latest_vitals(
     verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT recorded_at, systolic, diastolic, oxygen_saturation,
-               heart_rate, temperature, weight, blood_glucose
+               heart_rate, temperature, temperature_site, weight, blood_glucose
         FROM vitals
         WHERE patient_id = %s
         ORDER BY recorded_at DESC
@@ -2247,8 +3366,9 @@ def get_latest_vitals(
         "oxygen_saturation": row[3],
         "heart_rate": row[4],
         "temperature": row[5],
-        "weight": float(row[6]) if row[6] else None,
-        "blood_glucose": row[7]
+        "temperature_site": row[6],
+        "weight": float(row[7]) if row[7] else None,
+        "blood_glucose": row[8]
     }
 
 @app.get("/api/vitals/history")
@@ -2268,7 +3388,7 @@ def get_vitals_history(
     verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT recorded_at, systolic, diastolic, oxygen_saturation,
-               heart_rate, round(temperature, 1), weight, blood_glucose
+               heart_rate, round(temperature, 1), temperature_site, weight, blood_glucose
         FROM vitals
         WHERE patient_id = %s
           AND recorded_at >= now() - interval '%s days'
@@ -2286,8 +3406,9 @@ def get_vitals_history(
                 "spo2": r[3],
                 "heart_rate": r[4],
                 "temperature": float(r[5]) if r[5] else None,
-                "weight": float(r[6]) if r[6] else None,
-                "blood_glucose": r[7]
+                "temperature_site": r[6],
+                "weight": float(r[7]) if r[7] else None,
+                "blood_glucose": r[8]
             }
             for r in rows
         ]
@@ -2383,26 +3504,6 @@ def get_vitals_analysis(
     bp_row_count = len(cur.fetchall())
 
     cur.execute("""
-        SELECT recorded_at, oxygen_saturation
-        FROM vitals
-        WHERE patient_id = %s AND household_id = %s
-          AND oxygen_saturation IS NOT NULL
-          AND recorded_at >= now() - interval '%s days'
-        ORDER BY recorded_at ASC;
-    """, (patient_id, household_id, days))
-    spo2_rows = cur.fetchall()
-
-    cur.execute("""
-        SELECT recorded_at, temperature
-        FROM vitals
-        WHERE patient_id = %s AND household_id = %s
-          AND temperature IS NOT NULL
-          AND recorded_at >= now() - interval '%s days'
-        ORDER BY recorded_at ASC;
-    """, (patient_id, household_id, days))
-    temp_rows = cur.fetchall()
-
-    cur.execute("""
         SELECT d.name, v.follow_up_date
         FROM patient_doctors pd
         JOIN doctors d ON pd.doctor_id = d.doctor_id
@@ -2427,15 +3528,12 @@ def get_vitals_analysis(
     cur.close()
     conn.close()
 
-    # Heart Rate now goes through the real engine (run_hr_analysis via the
-    # cache) instead of the older analyze_vital_series — independently
-    # computed and gated on ITS OWN reading count, not BP's. SpO2 and
-    # Temperature still use analyze_vital_series for now (no dedicated
-    # spec/engine built for them yet), just with correctly independent
-    # row fetches rather than ones filtered through BP.
+    # Heart Rate, SpO2, and Temperature use dedicated engines through
+    # the shared registry/cache path. Each is independently computed and
+    # gated on its OWN observations.
     hr_analysis   = get_cached_or_compute_analysis(patient_id, household_id, "heart_rate", days)
-    spo2_analysis = analyze_vital_series(list(spo2_rows), vital_type="spo2")
-    temp_analysis = analyze_vital_series(list(temp_rows), vital_type="temp")
+    spo2_analysis = get_cached_or_compute_analysis(patient_id, household_id, "spo2", days)
+    temp_analysis = get_cached_or_compute_analysis(patient_id, household_id, "temperature", days)
 
     pcp_name      = pcp[0] if pcp else None
     next_followup = pcp[1].strftime("%b %-d, %Y") if pcp and pcp[1] else None
@@ -2985,26 +4083,17 @@ def export_medications_pdf(
     """, (str(patient_id), household_id, days))
     secondary_rows = cur.fetchall()
 
-    spo2_rows_pdf = [(r[0], r[2]) for r in secondary_rows if r[2] is not None]
     temp_rows_pdf = [(r[0], float(r[3])) for r in secondary_rows if r[3] is not None]
 
-    # Heart Rate now uses the real engine (run_hr_analysis via the
-    # cache) — the same one powering the app's Analysis tab — instead
-    # of analyze_vital_series. SpO2/Temperature stay on the older
-    # function; no dedicated spec/engine built for them yet.
+    # Heart Rate and SpO2 now both use the real engine (via the cache)
+    # — the same one powering the app's Analysis tab — instead of
+    # analyze_vital_series. Temperature's own analysis engine now exists
+    # too (see run_temperature_analysis), but the PDF section for it
+    # hasn't been built yet — that's its own separate task, same as
+    # SpO2's PDF section was.
     hr_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "heart_rate", days)
-    spo2_data = analyze_vital_series(spo2_rows_pdf, vital_type="spo2")
+    spo2_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "spo2", days)
     temp_data = analyze_vital_series(temp_rows_pdf, vital_type="temp")
-
-    spo2_class = None
-    if spo2_data:
-        c = spo2_data["classification"]
-        spo2_class = {
-            "normal":             ("Normal",             "#388e3c"),
-            "mild_hypoxemia":     ("Mild Hypoxemia",     "#f57c00"),
-            "moderate_hypoxemia": ("Moderate Hypoxemia", "#d32f2f"),
-            "severe_hypoxemia":   ("Severe Hypoxemia",   "#7b1fa2"),
-        }.get(c, ("Unknown", "#888888"))
 
     temp_class = None
     if temp_data:
@@ -3443,6 +4532,137 @@ def export_medications_pdf(
                 )
 
         ds = hr.get("data_support")
+        if ds:
+            coverage_note = (
+                f", {ds['distinct_day_coverage_pct']:.0f}% of window days logged"
+                if ds.get("distinct_day_coverage_pct") is not None else ""
+            )
+            paragraphs.append(
+                f"Data confidence: {ds['support_state'].replace('_', ' ')} "
+                f"({ds['n']} readings across {ds['distinct_days']} days{coverage_note})."
+            )
+
+        return paragraphs
+
+    def build_spo2_clinical_summary(spo2) -> list:
+        """
+        Mirrors build_hr_clinical_summary(hr) in depth and style, using
+        SpO2's own data shape (run_spo2_analysis via the cache — the
+        same engine powering the app's Analysis tab). Deliberately
+        NOT modeled on BP's AUC/duration-weighted burden methodology
+        for low-observation counts or reference bands — spot SpO2
+        readings don't support a continuous-coverage assumption, so
+        those are framed explicitly as reading counts, never "time
+        spent" or "time below target."
+
+        Trend consistency (R²) is only interpreted when the trend is
+        actually rising or falling — a low R² against an otherwise
+        flat, stable series isn't a data-quality concern, it just means
+        a straight-line model explains little of essentially-no
+        variation. Same reasoning the app's own summary applies.
+        """
+        if spo2 is None:
+            return []
+
+        paragraphs = []
+
+        ss = spo2.get("spot_summary")
+        if ss:
+            paragraphs.append(
+                f"Across {ss['n']} logged readings on {ss['distinct_days']} days, oxygen "
+                f"saturation averaged {ss['mean']:.1f}%, with a typical value near "
+                f"{ss['median']:.1f}% and a recorded range of {ss['min']}\u2013{ss['max']}%."
+            )
+        else:
+            bpm_val = spo2.get('spo2')
+            paragraphs.append(
+                f"Most recent oxygen saturation reading: {bpm_val}%. Insufficient logged "
+                f"readings for trend analysis at this time (requires at least 3 readings "
+                f"across 3 distinct days)."
+            )
+            return paragraphs
+
+        disp = spo2.get("dispersion")
+        if disp:
+            paragraphs.append(
+                f"Reading-to-reading variability: SD {disp['sd']:.1f} points, "
+                f"IQR {disp['iqr']:.1f} points (Q1 {disp['q1']:.1f}, Q3 {disp['q3']:.1f})."
+            )
+
+        trend = spo2.get("trend")
+        if trend:
+            sig_note = ""
+            if trend.get("p_value") is not None:
+                sig_note = (
+                    f", statistically significant (p={trend['p_value']:.3f})"
+                    if trend["p_value"] < 0.05 else
+                    f", not statistically significant (p={trend['p_value']:.3f})"
+                )
+            paragraphs.append(
+                f"Trend: {trend['trend_label'].replace('_', ' ')} at "
+                f"{trend['slope_pct_points_per_day']:+.2f} points/day over a "
+                f"{trend['span_days']:.0f}-day span{sig_note}."
+            )
+            # Only interpret consistency when the trend is actually rising
+            # or falling — see docstring.
+            if trend.get("trend_label") != "stable" and trend.get("r2") is not None:
+                paragraphs.append(
+                    f"Trend fit: R\u00b2={trend['r2']:.2f} "
+                    f"({trend.get('consistency') or 'n/a'} consistency)."
+                )
+
+        bd = spo2.get("baseline_deviation")
+        if bd:
+            direction = "higher" if bd["delta_pct_points"] >= 0 else "lower"
+            paragraphs.append(
+                f"The most recent 7 days (median {bd['recent_median']:.1f}%) are "
+                f"{direction} than the prior 30-day baseline (median "
+                f"{bd['baseline_median']:.1f}%) by {abs(bd['delta_pct_points']):.1f} points."
+            )
+
+        low = spo2.get("low_observations")
+        if low and low.get("count", 0) > 0:
+            pct_note = f" ({low['pct_of_logged_readings']:.0f}% of logged readings)" if low.get("pct_of_logged_readings") is not None else ""
+            paragraphs.append(
+                f"{low['count']} logged reading(s) were below {low['threshold']}%{pct_note}. "
+                "These are reading counts, not a measure of continuous time below target."
+            )
+
+            confirmed = spo2.get("confirmed_low_observations")
+            if confirmed and confirmed.get("episode_count", 0) > 0:
+                paragraphs.append(
+                    f"{confirmed['episode_count']} of these were repeat-confirmed episodes "
+                    f"\u2014 at least two below-target readings within "
+                    f"{confirmed['confirmation_rule_minutes']} minutes of each other."
+                )
+
+            marked = spo2.get("marked_low_observations")
+            if marked and marked.get("count", 0) > 0:
+                paragraphs.append(
+                    f"{marked['count']} reading(s) were below {marked['threshold']}% "
+                    "\u2014 symptoms occurring near these readings are important context "
+                    "for the care team."
+                )
+
+        tod = spo2.get("time_of_day")
+        if tod and tod.get("pattern_summary"):
+            ps = tod["pattern_summary"]
+            paragraphs.append(
+                f"Time-of-day pattern: readings tend to be highest during "
+                f"{ps['highest_period']} and lowest during {ps['lowest_period']}, "
+                f"a difference of about {ps['median_delta']:.1f} points."
+            )
+
+        corr = spo2.get("cross_vital_correlations")
+        if corr:
+            corr_parts = [f"{k.replace('_', ' ')} (r={v:.2f})" for k, v in corr.items()]
+            if corr_parts:
+                paragraphs.append(
+                    "Correlation with other same-window vitals (physician reference only, "
+                    "does not establish cause): " + ", ".join(corr_parts) + "."
+                )
+
+        ds = spo2.get("data_support")
         if ds:
             coverage_note = (
                 f", {ds['distinct_day_coverage_pct']:.0f}% of window days logged"
@@ -4079,6 +5299,214 @@ def export_medications_pdf(
             pdf.setStrokeColorRGB(0, 0, 0)
             y -= 14
 
+        # =====================================================
+        # SPO2 — CLINICAL ANALYSIS
+        # Mirrors the Heart Rate section above in structure, using
+        # spo2_analysis — the same run_spo2_analysis engine powering the
+        # app's Analysis tab — not the older analyze_vital_series output
+        # Temperature below still uses. Reference bands and low-
+        # observation counts are deliberately NOT framed as "time in
+        # range"/"time below target" — spot readings don't support that
+        # continuous-coverage assumption (see the methodology note drawn
+        # with that block below).
+        # =====================================================
+        if spo2_analysis is not None:
+            y = check_page_break(y, needed=200)
+            pdf.setFont("Helvetica-Bold", 13)
+            pdf.drawString(LEFT, y, "Oxygen Saturation (SpO2) Clinical Analysis")
+            y -= 20
+
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(LEFT, y, "Clinical Summary")
+            y -= 4
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 12
+
+            for para in build_spo2_clinical_summary(spo2_analysis):
+                y = check_page_break(y, needed=40)
+                y = draw_wrapped_line(y, para, fontsize=9, indent=0, line_spacing=13)
+                y -= 6
+
+            y -= 6
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+
+            ss = spo2_analysis.get("spot_summary")
+            if ss:
+                pdf.setFont("Helvetica-Bold", 11)
+                pdf.drawString(LEFT, y, "Detailed Metrics")
+                y -= 14
+
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Readings analyzed:")
+                pdf.setFont("Helvetica", 10)
+                pdf.drawString(LEFT + 130, y, f"{ss['n']} ({ss['distinct_days']} distinct days)")
+                y -= 14
+
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Mean / median:")
+                pdf.setFont("Helvetica", 10)
+                pdf.drawString(LEFT + 150, y,
+                    f"{ss['mean']:.1f}% / {ss['median']:.1f}%  (range {ss['min']}\u2013{ss['max']}%)")
+                y -= 20
+
+                disp = spo2_analysis.get("dispersion")
+                if disp:
+                    y = check_page_break(y, needed=50)
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Variability")
+                    y -= 14
+                    pdf.setFont("Helvetica", 9)
+                    pdf.drawString(LEFT + 10, y,
+                        f"SD: {disp['sd']:.1f} pts   |   IQR: {disp['iqr']:.1f} pts "
+                        f"(Q1={disp['q1']:.1f}, Q3={disp['q3']:.1f})")
+                    y -= 20
+
+                trend = spo2_analysis.get("trend")
+                if trend:
+                    y = check_page_break(y, needed=60)
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Trend")
+                    y -= 14
+                    pdf.setFont("Helvetica", 9)
+                    p_display = f"{trend['p_value']:.3f}" if trend.get("p_value") is not None else "n/a (insufficient span/n)"
+                    pdf.drawString(LEFT + 10, y,
+                        f"Trend: {trend['trend_label'].replace('_', ' ').title()}   |   "
+                        f"Rate: {trend['slope_pct_points_per_day']:+.2f} pts/day   |   "
+                        f"Span: {trend['span_days']:.0f} days")
+                    y -= 12
+                    # Only shown for an actual rising/falling trend — same
+                    # reasoning as the app and build_spo2_clinical_summary
+                    # above: R² against a flat/stable series isn't a
+                    # quality signal.
+                    if trend.get("trend_label") != "stable" and trend.get("r2") is not None:
+                        pdf.drawString(LEFT + 10, y,
+                            f"p-value: {p_display}   |   Trend fit: R\u00b2={trend['r2']:.2f}   |   "
+                            f"Consistency: {trend.get('consistency') or 'n/a'}")
+                        y -= 12
+                    y -= 8
+
+                bd = spo2_analysis.get("baseline_deviation")
+                if bd:
+                    y = check_page_break(y, needed=60)
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Personal Baseline Comparison")
+                    y -= 14
+                    pdf.setFont("Helvetica", 9)
+                    pdf.drawString(LEFT + 10, y,
+                        f"Prior 30-day baseline: {bd['baseline_median']:.1f}% (n={bd['baseline_n']})   |   "
+                        f"Recent 7 days: {bd['recent_median']:.1f}% (n={bd['recent_n']})")
+                    y -= 12
+                    pdf.drawString(LEFT + 10, y, f"Change: {bd['delta_pct_points']:+.1f} points")
+                    y -= 20
+
+                low = spo2_analysis.get("low_observations")
+                if low and low.get("count", 0) > 0:
+                    y = check_page_break(y, needed=70)
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Readings Below Target")
+                    y -= 14
+                    pdf.setFont("Helvetica", 9)
+                    pct_note = f", {low['pct_of_logged_readings']:.0f}%" if low.get("pct_of_logged_readings") is not None else ""
+                    pdf.drawString(LEFT + 10, y,
+                        f"Below {low['threshold']}%: {low['count']} reading(s){pct_note} of logged readings")
+                    y -= 12
+
+                    confirmed = spo2_analysis.get("confirmed_low_observations")
+                    if confirmed and confirmed.get("episode_count", 0) > 0:
+                        pdf.drawString(LEFT + 10, y,
+                            f"Repeat-confirmed episodes: {confirmed['episode_count']} "
+                            f"(>=2 readings within {confirmed['confirmation_rule_minutes']} min of each other)")
+                        y -= 12
+
+                    marked = spo2_analysis.get("marked_low_observations")
+                    if marked and marked.get("count", 0) > 0:
+                        pdf.drawString(LEFT + 10, y,
+                            f"Markedly low (below {marked['threshold']}%): {marked['count']} reading(s)")
+                        y -= 12
+
+                    pdf.setFont("Helvetica-Oblique", 8)
+                    pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                    pdf.drawString(LEFT + 10, y,
+                        "Methodology: discrete reading counts against fixed thresholds \u2014 "
+                        "not a measure of continuous time below target.")
+                    pdf.setFillColorRGB(0, 0, 0)
+                    y -= 20
+
+                bands = spo2_analysis.get("reference_bands")
+                if bands:
+                    y = check_page_break(y, needed=70)
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Reference Bands (Logged Readings)")
+                    y -= 14
+
+                    band_headers = ["Normal (>=95%)", "Mild (92-94%)", "Moderate (88-91%)", "Severe (<88%)"]
+                    band_keys    = ["at_or_above_95", "92_to_94", "88_to_91", "below_88"]
+                    col_w        = USABLE_WIDTH / len(band_headers)
+                    col_widths   = [col_w] * len(band_headers)
+                    y = draw_table_row(y, band_headers, col_widths, bold=True, fill_bg=True)
+                    values = [str(bands.get(k, {}).get("count", 0)) for k in band_keys]
+                    y = draw_table_row(y, values, col_widths)
+
+                    y -= 6
+                    pdf.setFont("Helvetica-Oblique", 8)
+                    pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                    pdf.drawString(LEFT + 10, y,
+                        "Counts of logged readings only \u2014 not a measure of time spent in each range.")
+                    pdf.setFillColorRGB(0, 0, 0)
+                    y -= 20
+
+                corr = spo2_analysis.get("cross_vital_correlations")
+                if corr:
+                    y = check_page_break(y, needed=40)
+                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                    pdf.line(LEFT, y, RIGHT, y)
+                    pdf.setStrokeColorRGB(0, 0, 0)
+                    y -= 14
+                    pdf.setFont("Helvetica-Bold", 10)
+                    pdf.drawString(LEFT, y, "Correlation with Other Vitals (Physician Reference Only)")
+                    y -= 14
+                    pdf.setFont("Helvetica", 9)
+                    corr_str = "   |   ".join(f"{k.replace('_', ' ')}: r={v:.2f}" for k, v in corr.items())
+                    pdf.drawString(LEFT + 10, y, corr_str)
+                    y -= 12
+                    pdf.setFont("Helvetica-Oblique", 8)
+                    pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                    pdf.drawString(LEFT + 10, y, "Correlation does not establish cause.")
+                    pdf.setFillColorRGB(0, 0, 0)
+                    y -= 20
+
+            y -= 6
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+
+
         def draw_secondary_section(y, title, data, class_tuple, unit, normal_range,
                                    burden_headers, burden_keys):
             y = check_page_break(y, needed=110)
@@ -4136,21 +5564,6 @@ def export_medications_pdf(
 
             y -= 14
             return y
-
-        y = draw_secondary_section(
-            y, "Oxygen Saturation (SpO2)", spo2_data,
-            spo2_class or ("Unknown", "#888888"),
-            "%", ">=95%",
-            burden_headers=["Normal (>=95%)", "Mild Hypoxemia (92-94%)",
-                            "Moderate (88-91%)", "Severe (<88%)"],
-            burden_keys=["normal_pct", "mild_hypoxemia_pct",
-                         "moderate_hypoxemia_pct", "severe_hypoxemia_pct"]
-        )
-
-        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-        pdf.line(LEFT, y, RIGHT, y)
-        pdf.setStrokeColorRGB(0, 0, 0)
-        y -= 14
 
         y = draw_secondary_section(
             y, "Temperature", temp_data, temp_class or ("Unknown", "#888888"),
@@ -4841,13 +6254,14 @@ def create_visit(
             cur.execute("""
                 INSERT INTO vitals (household_id, patient_id, recorded_at,
                                     systolic, diastolic, oxygen_saturation,
-                                    heart_rate, temperature, blood_glucose,
+                                    heart_rate, temperature, temperature_site, blood_glucose,
                                     weight, source, notes)
-                VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (household_id, visit.patient_id, visit.visit_date,
                   visit.systolic, visit.diastolic, visit.oxygen_saturation,
-                  visit.heart_rate, visit.temperature, visit.blood_glucose,
-                  visit.weight, "doctor_visit", visit.notes))
+                  visit.heart_rate, visit.temperature,
+                  (visit.temperature_site or "unknown") if visit.temperature is not None else None,
+                  visit.blood_glucose, visit.weight, "doctor_visit", visit.notes))
         conn.commit()
     except HTTPException:
         conn.rollback()
