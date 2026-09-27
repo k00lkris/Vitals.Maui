@@ -2427,6 +2427,9 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TempSummary">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tempSummary"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TempPcpLine">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tempPcpLine"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowDiastolicWarning">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showDiastolicWarning"/>
         </member>
@@ -2452,6 +2455,12 @@
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand`1"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectTab(System.String)"/>.</summary>
         </member>
         <member name="T:Vitals.Maui.ViewModels.VitalsEntryViewModel">
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
@@ -2543,6 +2552,27 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.StandingColor">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._standingColor"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.TemperatureSite">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._temperatureSite"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.TempOralColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._tempOralColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.TempTemporalColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._tempTemporalColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.TempTympanicColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._tempTympanicColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.TempAxillaryColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._tempAxillaryColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.TempRectalColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._tempRectalColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.TempOtherColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._tempOtherColor"/>
+        </member>
         <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectRestingCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectRestingCommand"/>.</summary>
         </member>
@@ -2578,6 +2608,42 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectStandingCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectStanding"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectTempOralCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempOralCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempOralCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempOral"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectTempTemporalCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempTemporalCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempTemporalCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempTemporal"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectTempTympanicCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempTympanicCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempTympanicCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempTympanic"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectTempAxillaryCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempAxillaryCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempAxillaryCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempAxillary"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectTempRectalCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempRectalCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempRectalCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempRectal"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectTempOtherCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempOtherCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempOtherCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempOther"/>.</summary>
         </member>
         <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.loadCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.LoadCommand"/>.</summary>
@@ -3387,6 +3453,9 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempSummary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempSummary" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempPcpLine">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempPcpLine" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowDiastolicWarning">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowDiastolicWarning" generated properties.</summary>
         </member>
@@ -3416,6 +3485,27 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.StandingColor">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "StandingColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TemperatureSite">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TemperatureSite" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempOralColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempOralColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempTemporalColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempTemporalColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempTympanicColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempTympanicColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempAxillaryColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempAxillaryColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempRectalColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempRectalColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempOtherColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempOtherColor" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Rows">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Rows" generated properties.</summary>
@@ -4047,6 +4137,9 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempSummary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempSummary" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempPcpLine">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempPcpLine" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowDiastolicWarning">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowDiastolicWarning" generated properties.</summary>
         </member>
@@ -4076,6 +4169,27 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.StandingColor">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "StandingColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TemperatureSite">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TemperatureSite" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempOralColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempOralColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempTemporalColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempTemporalColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempTympanicColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempTympanicColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempAxillaryColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempAxillaryColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempRectalColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempRectalColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempOtherColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempOtherColor" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Rows">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Rows" generated properties.</summary>

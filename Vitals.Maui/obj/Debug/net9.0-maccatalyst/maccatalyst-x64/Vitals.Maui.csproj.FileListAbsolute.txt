@@ -1,3 +1,6 @@
+D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\Microsoft.MacCatalyst.dll
+D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmono-component-debugger-static.a
+D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmonosgen-2.0.a
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\Vitals.Maui.runtimeconfig.json
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\Vitals.Maui.dll
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\Vitals.Maui.pdb
@@ -232,7 +235,6 @@ D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\S
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\WindowsBase.dll
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\mscorlib.dll
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\netstandard.dll
-D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\Microsoft.MacCatalyst.dll
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\System.Private.CoreLib.dll
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libSystem.Globalization.Native.a
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libSystem.Globalization.Native.dylib
@@ -244,7 +246,6 @@ D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\l
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libSystem.Net.Security.Native.dylib
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libSystem.Security.Cryptography.Native.Apple.a
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libSystem.Security.Cryptography.Native.Apple.dylib
-D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmono-component-debugger-static.a
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmono-component-debugger-stub-static.a
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmono-component-diagnostics_tracing-static.a
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmono-component-diagnostics_tracing-stub-static.a
@@ -252,7 +253,6 @@ D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\l
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmono-component-hot_reload-stub-static.a
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmono-component-marshal-ilgen-static.a
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmono-component-marshal-ilgen-stub-static.a
-D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmonosgen-2.0.a
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libmonosgen-2.0.dylib
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\Microsoft.MacCatalyst.registrar.a
 D:\GitHub\Vitals.Maui\Vitals.Maui\bin\Debug\net9.0-maccatalyst\maccatalyst-x64\libxamarin-dotnet-debug.a
@@ -270,6 +270,9 @@ D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\m
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\mauifont.inputs
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\mauisplash.inputs
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\mauisplash.stamp
+D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Resources\google_logo.png
+D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Resources\dotnet_bot.png
+D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Resources\vitals_logo.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Assets.xcassets\appicon.appiconset\appiconItunesArtwork.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Assets.xcassets\appicon.appiconset\appicon83.5x83.5@2x.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Assets.xcassets\appicon.appiconset\appicon76x76@2x.png
@@ -282,9 +285,6 @@ D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\r
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Assets.xcassets\appicon.appiconset\appicon20x20@3x.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Assets.xcassets\appicon.appiconset\appicon20x20@2x.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Assets.xcassets\appicon.appiconset\Contents.json
-D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Resources\google_logo.png
-D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Resources\dotnet_bot.png
-D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\r\Resources\vitals_logo.png
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\mauiimage.stamp
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\mauiimage.outputs
 D:\GitHub\Vitals.Maui\Vitals.Maui\obj\Debug\net9.0-maccatalyst\maccatalyst-x64\resizetizer\f\MauiInfo.plist

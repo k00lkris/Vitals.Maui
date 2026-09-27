@@ -108,6 +108,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     [ObservableProperty] private string _spo2Summary = string.Empty;
     [ObservableProperty] private string _spo2PcpLine = string.Empty;
     [ObservableProperty] private string _tempSummary = string.Empty;
+    [ObservableProperty] private string _tempPcpLine = string.Empty;
 
     [ObservableProperty] private bool _showDiastolicWarning = false;
     [ObservableProperty] private string _diastolicWarningText = string.Empty;
@@ -977,53 +978,266 @@ public partial class VitalsAnalysisViewModel : ObservableObject
 
     private void BuildTempSummary(VitalsAnalysis a)
     {
-        if (a.Temperature is null) { TempSummary = string.Empty; return; }
         var temp = a.Temperature;
-        var parts = new List<string>();
 
-        parts.Add(temp.Classification switch
+        if (temp?.Latest is not { } latest)
         {
-            "hypothermia" =>
-                $"Average temperature of {temp.Avg:F1}°F is below normal range. " +
-                "Temperatures below 96.8°F can indicate hypothermia and should be evaluated.",
-            "slightly_elevated" =>
-                $"Average temperature of {temp.Avg:F1}°F is slightly elevated. " +
-                "This may indicate early illness or mild inflammation.",
-            "fever" =>
-                $"Average temperature of {temp.Avg:F1}°F indicates a fever. " +
-                "Persistent fever above 100.4°F should be evaluated by your care team.",
-            "high_fever" =>
-                $"Average temperature of {temp.Avg:F1}°F indicates a high fever. " +
-                "Temperatures above 103°F require prompt medical attention.",
-            _ =>
-                $"Average temperature of {temp.Avg:F1}°F is within the normal range (96.8–98.9°F)."
-        });
-
-        parts.Add(temp.Trend switch
-        {
-            "rising_significant" => "Temperature has been rising significantly over this period.",
-            "rising" => "Temperature has been gradually rising.",
-            "falling_significant" => "Temperature has been falling significantly.",
-            "falling" => "Temperature has been gradually falling.",
-            _ => "Temperature has been stable over this period."
-        });
-
-        var burden = temp.TempBurden;
-        if (burden is not null)
-        {
-            if (burden.HighFeverPct >= 5)
-                parts.Add($"About {burden.HighFeverPct:F0}% of readings were above 103°F (high fever range).");
-            else if (burden.FeverPct >= 10)
-                parts.Add($"About {burden.FeverPct:F0}% of readings were in the fever range (100.4–103°F).");
-            else if (burden.ElevatedPct >= 15)
-                parts.Add($"About {burden.ElevatedPct:F0}% of readings were slightly elevated (99–100.3°F).");
-            else if (burden.HypothermiaPct >= 10)
-                parts.Add($"About {burden.HypothermiaPct:F0}% of readings were below 96.8°F (hypothermia range).");
-            else if (burden.NormalPct >= 80)
-                parts.Add($"{burden.NormalPct:F0}% of readings were in the normal range — temperature is well controlled.");
+            TempSummary = string.Empty;
+            TempPcpLine = string.Empty;
+            return;
         }
 
-        TempSummary = string.Join(" ", parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+        var range = temp.RangeEvents;
+        var parts = new List<string>();
+
+        // -----------------------------------------------------
+        // 1. Latest temperature + measurement context
+        // -----------------------------------------------------
+        if (latest.HasKnownSite)
+        {
+            parts.Add(
+                $"The latest {latest.SiteDisplay.ToLowerInvariant()} temperature was " +
+                $"{latest.ValueF:F1}°F ({latest.ValueC:F1}°C).");
+        }
+        else
+        {
+            parts.Add(
+                $"The latest temperature was {latest.ValueF:F1}°F ({latest.ValueC:F1}°C). " +
+                "The measurement site was not recorded, which limits direct comparison " +
+                "with site-specific temperature baselines.");
+        }
+
+        // -----------------------------------------------------
+        // 2. Personal same-site baseline
+        // -----------------------------------------------------
+        if (temp.Baseline is not null)
+        {
+            var baseline = temp.Baseline;
+            var delta = baseline.DeltaCurrentF;
+
+            var deltaText = Math.Abs(delta) < 0.05
+                ? "about the same as"
+                : delta > 0
+                    ? $"{Math.Abs(delta):F1}°F above"
+                    : $"{Math.Abs(delta):F1}°F below";
+
+            parts.Add(
+                $"The established {baseline.SiteDisplay.ToLowerInvariant()}-temperature " +
+                $"baseline is about {baseline.MedianF:F1}°F, based on {baseline.N} readings " +
+                $"across {baseline.DistinctDays} days. The latest reading is {deltaText} " +
+                "that personal baseline.");
+        }
+        else
+        {
+            var baselineReason = temp.DataSupport?.UnavailableAnalyses
+                .FirstOrDefault(x => x.AnalysisName == "personal_baseline");
+
+            parts.Add(baselineReason?.ReasonCode switch
+            {
+                "measurement_site_unknown" =>
+                    "A personal temperature baseline is not available because the measurement " +
+                    "site is unknown. Recording future temperatures with the same known method " +
+                    "will make comparisons more reliable.",
+
+                "mixed_measurement_sites" =>
+                    "A personal temperature baseline is not available because measurement sites " +
+                    "are mixed. Same-method readings are more comparable.",
+
+                "insufficient_same_site_baseline" =>
+                    "There are not enough same-site readings yet to establish a personal " +
+                    "temperature baseline.",
+
+                _ => string.Empty
+            });
+        }
+
+        // -----------------------------------------------------
+        // 3. Fever-range logged observations + febrile days
+        // -----------------------------------------------------
+        if (range is not null)
+        {
+            if (range.FeverCount > 0)
+            {
+                parts.Add(
+                    $"{range.FeverCount} of {temp.ReadingCount} logged " +
+                    $"{(temp.ReadingCount == 1 ? "reading" : "readings")} " +
+                    $"({range.FeverLoggedPct:F1}%) were in the fever range at or above the " +
+                    $"configured {range.FeverThresholdF:F1}°F reference. " +
+                    $"Fever-range readings were recorded on {range.FebrileDays} distinct " +
+                    $"{(range.FebrileDays == 1 ? "day" : "days")}.");
+            }
+            else
+            {
+                parts.Add(
+                    $"None of the {temp.ReadingCount} logged " +
+                    $"{(temp.ReadingCount == 1 ? "reading met" : "readings met")} the configured " +
+                    $"{range.FeverThresholdF:F1}°F fever-range reference.");
+            }
+        }
+
+        // -----------------------------------------------------
+        // 4. Recorded fever episodes + latest episode context
+        // -----------------------------------------------------
+        if (temp.Episodes.Count > 0)
+        {
+            parts.Add(
+                $"The fever-range measurements group into {temp.Episodes.Count} recorded " +
+                $"{(temp.Episodes.Count == 1 ? "episode" : "episodes")} in this selected window.");
+        }
+
+        if (temp.LatestEpisode is not null)
+        {
+            var episode = temp.LatestEpisode;
+
+            parts.Add(
+                $"The latest recorded fever episode includes {episode.FeverReadingCount} " +
+                $"fever-range {(episode.FeverReadingCount == 1 ? "reading" : "readings")}, " +
+                $"with a peak of {episode.PeakF:F1}°F " +
+                $"{(episode.PeakSite == "unknown" ? string.Empty : $"measured {episode.PeakSiteDisplay.ToLowerInvariant()} ")}" +
+                $"and an observed fever-range span of {episode.ObservedSpanHours:F1} hours.");
+
+            if (episode.DeltaLatestFromPeakF is not null)
+            {
+                var deltaFromPeak = episode.DeltaLatestFromPeakF.Value;
+
+                if (deltaFromPeak < 0)
+                {
+                    parts.Add(
+                        $"The latest same-site reading is {Math.Abs(deltaFromPeak):F1}°F below " +
+                        "the highest recorded reading in that episode.");
+                }
+                else if (deltaFromPeak > 0)
+                {
+                    parts.Add(
+                        $"The latest same-site reading is {deltaFromPeak:F1}°F above the " +
+                        "previously recorded episode peak.");
+                }
+                else
+                {
+                    parts.Add(
+                        "The latest same-site reading matches the recorded episode peak.");
+                }
+            }
+        }
+
+        // -----------------------------------------------------
+        // 5. Acute short-window trajectory
+        // -----------------------------------------------------
+        if (temp.AcuteTrend is not null)
+        {
+            var trend = temp.AcuteTrend;
+
+            parts.Add(trend.TrendLabel switch
+            {
+                "rising" =>
+                    $"Recent same-site temperatures in the latest episode have generally been " +
+                    $"rising across {trend.SpanHours:F1} hours.",
+
+                "falling" =>
+                    $"Recent same-site temperatures in the latest episode have generally been " +
+                    $"falling across {trend.SpanHours:F1} hours.",
+
+                _ =>
+                    $"Recent same-site temperatures in the latest episode have been generally " +
+                    $"stable across {trend.SpanHours:F1} hours."
+            });
+        }
+
+        // -----------------------------------------------------
+        // 6. Hypothermia-range observations
+        // -----------------------------------------------------
+        if (range is not null && range.HypothermiaRangeCount > 0)
+        {
+            parts.Add(
+                $"{range.HypothermiaRangeCount} " +
+                $"{(range.HypothermiaRangeCount == 1 ? "hypothermia-range reading was" : "hypothermia-range readings were")} " +
+                $"recorded below {range.HypothermiaThresholdF:F1}°F. The lowest recorded " +
+                $"temperature was {range.LowestF:F1}°F. A current or confirmed temperature " +
+                "below 95°F warrants urgent medical evaluation.");
+        }
+
+        // -----------------------------------------------------
+        // 7. Cross-vital context. Report pairing only; do not
+        //    infer that another vital caused the temperature.
+        // -----------------------------------------------------
+        if (temp.CrossVitalContext?.PairedCounts is not null &&
+            temp.CrossVitalContext.PairedCounts.HasAny)
+        {
+            var paired = temp.CrossVitalContext.PairedCounts;
+            var pairedParts = new List<string>();
+
+            if (paired.HeartRate > 0)
+                pairedParts.Add($"heart rate with {paired.HeartRate}");
+            if (paired.OxygenSaturation > 0)
+                pairedParts.Add($"oxygen saturation with {paired.OxygenSaturation}");
+            if (paired.BloodPressure > 0)
+                pairedParts.Add($"blood pressure with {paired.BloodPressure}");
+
+            parts.Add(
+                $"Other vitals were recorded alongside some fever-range observations: " +
+                $"{string.Join(", ", pairedParts)}. These pairings provide context but do " +
+                "not establish cause.");
+        }
+
+        // -----------------------------------------------------
+        // 8. Site consistency / data-confidence limitation
+        // -----------------------------------------------------
+        if (temp.DataSupport?.MixedMeasurementSites == true)
+        {
+            parts.Add(
+                "Multiple temperature measurement sites were used. Site differences limit " +
+                "direct comparison, so same-method readings are preferred.");
+        }
+        else if (temp.DataSupport is not null &&
+                 temp.DataSupport.KnownSitePct > 0 &&
+                 temp.DataSupport.KnownSitePct < 100)
+        {
+            parts.Add(
+                "Some readings do not have a recorded measurement site, which limits " +
+                "site-sensitive comparisons.");
+        }
+
+        TempSummary = string.Join(
+            " ",
+            parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+        BuildTempPcpLine(a);
+    }
+
+    private void BuildTempPcpLine(VitalsAnalysis a)
+    {
+        if (a.Temperature is null || string.IsNullOrWhiteSpace(a.PcpName))
+        {
+            TempPcpLine = string.Empty;
+            return;
+        }
+
+        var temp = a.Temperature;
+        var range = temp.RangeEvents;
+
+        bool hasFeverRangeReadings = (range?.FeverCount ?? 0) > 0;
+        bool hasHypothermiaRangeReadings = (range?.HypothermiaRangeCount ?? 0) > 0;
+        bool hasRecordedEpisode = temp.Episodes.Count > 0;
+        bool hasAcuteTrajectory = temp.AcuteTrend is not null;
+
+        var somethingToDiscuss =
+            hasFeverRangeReadings ||
+            hasHypothermiaRangeReadings ||
+            hasRecordedEpisode ||
+            hasAcuteTrajectory;
+
+        if (!somethingToDiscuss)
+        {
+            TempPcpLine = !string.IsNullOrWhiteSpace(a.NextFollowup)
+                ? $"Consider sharing this temperature summary with {a.PcpName} at the appointment on {a.NextFollowup}."
+                : $"Consider sharing this temperature summary with {a.PcpName} at the next visit.";
+
+            return;
+        }
+
+        TempPcpLine = !string.IsNullOrWhiteSpace(a.NextFollowup)
+            ? $"Consider discussing the recorded temperature findings highlighted above with {a.PcpName} at the appointment on {a.NextFollowup}."
+            : $"Consider discussing the recorded temperature findings highlighted above with {a.PcpName} at the next visit.";
     }
 
     private void BuildBurdenSummary(VitalsAnalysis a)

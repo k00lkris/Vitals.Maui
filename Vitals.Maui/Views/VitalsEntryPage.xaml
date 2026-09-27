@@ -126,19 +126,19 @@
                         <VerticalStackLayout Spacing="6">
                             <Label Text="What were they doing? (optional)" FontSize="12" TextColor="{DynamicResource TextMuted}" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="6">
-                                <Border Grid.Row="0" Grid.Column="0" Padding="10,8" StrokeShape="RoundRectangle 8" Stroke="{Binding RestingColor}" StrokeThickness="1.5">
+                                <Border Grid.Row="0" Grid.Column="0" Padding="10,8" BackgroundColor="{Binding RestingColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectRestingCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Resting" FontSize="13" TextColor="{DynamicResource TextPrimary}" HorizontalTextAlignment="Center" />
                                 </Border>
-                                <Border Grid.Row="0" Grid.Column="1" Padding="10,8" StrokeShape="RoundRectangle 8" Stroke="{Binding PostActivityColor}" StrokeThickness="1.5">
+                                <Border Grid.Row="0" Grid.Column="1" Padding="10,8" BackgroundColor="{Binding PostActivityColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectPostActivityCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="After activity" FontSize="13" TextColor="{DynamicResource TextPrimary}" HorizontalTextAlignment="Center" />
                                 </Border>
-                                <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="10,8" StrokeShape="RoundRectangle 8" Stroke="{Binding DuringActivityColor}" StrokeThickness="1.5">
+                                <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="10,8" BackgroundColor="{Binding DuringActivityColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectDuringActivityCommand}" />
                                     </Border.GestureRecognizers>
@@ -150,19 +150,19 @@
                         <VerticalStackLayout Spacing="6">
                             <Label Text="Position (optional)" FontSize="12" TextColor="{DynamicResource TextMuted}" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="6">
-                                <Border Grid.Row="0" Grid.Column="0" Padding="10,8" StrokeShape="RoundRectangle 8" Stroke="{Binding SeatedColor}" StrokeThickness="1.5">
+                                <Border Grid.Row="0" Grid.Column="0" Padding="10,8" BackgroundColor="{Binding SeatedColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectSeatedCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Seated" FontSize="13" TextColor="{DynamicResource TextPrimary}" HorizontalTextAlignment="Center" />
                                 </Border>
-                                <Border Grid.Row="0" Grid.Column="1" Padding="10,8" StrokeShape="RoundRectangle 8" Stroke="{Binding SupineColor}" StrokeThickness="1.5">
+                                <Border Grid.Row="0" Grid.Column="1" Padding="10,8" BackgroundColor="{Binding SupineColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectSupineCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Lying down" FontSize="13" TextColor="{DynamicResource TextPrimary}" HorizontalTextAlignment="Center" />
                                 </Border>
-                                <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="10,8" StrokeShape="RoundRectangle 8" Stroke="{Binding StandingColor}" StrokeThickness="1.5">
+                                <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="10,8" BackgroundColor="{Binding StandingColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectStandingCommand}" />
                                     </Border.GestureRecognizers>
@@ -233,13 +233,137 @@
                                        Converter={StaticResource InvertedBoolConverter}}" />
                         </Grid>
                     </toolkit:Expander.Header>
-                    <VerticalStackLayout Padding="16,0,16,16" Spacing="2">
-                        <Label Text="Degrees (°F)" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
-                        <Entry Text="{Binding Temperature}"
-                               Keyboard="Numeric"
-                               TextColor="{DynamicResource TextPrimary}"
-                               BackgroundColor="{DynamicResource PageBackground}"
-                               Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                    <VerticalStackLayout Padding="16,0,16,16" Spacing="14">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="Degrees (°F)" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                            <Entry Text="{Binding Temperature}"
+                                   Keyboard="Numeric"
+                                   TextColor="{DynamicResource TextPrimary}"
+                                   BackgroundColor="{DynamicResource PageBackground}"
+                                   Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                        </VerticalStackLayout>
+
+                        <!-- Temperature measurement site. The analysis engine
+                             compares temperatures within the same site when
+                             building a personal baseline; this context is
+                             optional so older/manual workflows still work. -->
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="Measurement site (optional)"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextMuted}" />
+                            <Label Text="Using the same method when possible makes temperature comparisons more reliable."
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextMuted}"
+                                   LineBreakMode="WordWrap" />
+
+                            <Grid ColumnDefinitions="*,*"
+                                  RowDefinitions="Auto,Auto,Auto"
+                                  ColumnSpacing="6"
+                                  RowSpacing="6">
+
+                                <Border Grid.Row="0" Grid.Column="0"
+                                        Padding="12,10"
+                                        MinimumHeightRequest="44"
+                                        BackgroundColor="{Binding TempOralColor}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="{DynamicResource CardStroke}"
+                                        StrokeThickness="1">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectTempOralCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Oral"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           HorizontalTextAlignment="Center"
+                                           VerticalTextAlignment="Center" />
+                                </Border>
+
+                                <Border Grid.Row="0" Grid.Column="1"
+                                        Padding="12,10"
+                                        MinimumHeightRequest="44"
+                                        BackgroundColor="{Binding TempTemporalColor}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="{DynamicResource CardStroke}"
+                                        StrokeThickness="1">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectTempTemporalCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Forehead / temporal"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           HorizontalTextAlignment="Center"
+                                           VerticalTextAlignment="Center" />
+                                </Border>
+
+                                <Border Grid.Row="1" Grid.Column="0"
+                                        Padding="12,10"
+                                        MinimumHeightRequest="44"
+                                        BackgroundColor="{Binding TempTympanicColor}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="{DynamicResource CardStroke}"
+                                        StrokeThickness="1">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectTempTympanicCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Ear / tympanic"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           HorizontalTextAlignment="Center"
+                                           VerticalTextAlignment="Center" />
+                                </Border>
+
+                                <Border Grid.Row="1" Grid.Column="1"
+                                        Padding="12,10"
+                                        MinimumHeightRequest="44"
+                                        BackgroundColor="{Binding TempAxillaryColor}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="{DynamicResource CardStroke}"
+                                        StrokeThickness="1">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectTempAxillaryCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Underarm / axillary"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           HorizontalTextAlignment="Center"
+                                           VerticalTextAlignment="Center" />
+                                </Border>
+
+                                <Border Grid.Row="2" Grid.Column="0"
+                                        Padding="12,10"
+                                        MinimumHeightRequest="44"
+                                        BackgroundColor="{Binding TempRectalColor}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="{DynamicResource CardStroke}"
+                                        StrokeThickness="1">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectTempRectalCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Rectal"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           HorizontalTextAlignment="Center"
+                                           VerticalTextAlignment="Center" />
+                                </Border>
+
+                                <Border Grid.Row="2" Grid.Column="1"
+                                        Padding="12,10"
+                                        MinimumHeightRequest="44"
+                                        BackgroundColor="{Binding TempOtherColor}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="{DynamicResource CardStroke}"
+                                        StrokeThickness="1">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectTempOtherCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Other"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           HorizontalTextAlignment="Center"
+                                           VerticalTextAlignment="Center" />
+                                </Border>
+                            </Grid>
+                        </VerticalStackLayout>
                     </VerticalStackLayout>
                 </toolkit:Expander>
             </Border>

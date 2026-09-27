@@ -4083,28 +4083,13 @@ def export_medications_pdf(
     """, (str(patient_id), household_id, days))
     secondary_rows = cur.fetchall()
 
-    temp_rows_pdf = [(r[0], float(r[3])) for r in secondary_rows if r[3] is not None]
-
-    # Heart Rate and SpO2 now both use the real engine (via the cache)
-    # — the same one powering the app's Analysis tab — instead of
-    # analyze_vital_series. Temperature's own analysis engine now exists
-    # too (see run_temperature_analysis), but the PDF section for it
-    # hasn't been built yet — that's its own separate task, same as
-    # SpO2's PDF section was.
+    # Heart Rate, SpO2, and Temperature all use the same dedicated
+    # analysis engines that power the app's Analysis view. Keeping the
+    # PDF on those contracts prevents the report from drifting back to
+    # the retired generic average/classification/interpolated-burden path.
     hr_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "heart_rate", days)
     spo2_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "spo2", days)
-    temp_data = analyze_vital_series(temp_rows_pdf, vital_type="temp")
-
-    temp_class = None
-    if temp_data:
-        c = temp_data["classification"]
-        temp_class = {
-            "hypothermia":       ("Hypothermia",       "#1976d2"),
-            "normal":            ("Normal",            "#388e3c"),
-            "slightly_elevated": ("Slightly Elevated", "#f57c00"),
-            "fever":             ("Fever",             "#d32f2f"),
-            "high_fever":        ("High Fever",        "#7b1fa2"),
-        }.get(c, ("Unknown", "#888888"))
+    temp_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "temperature", days)
 
     cur.close()
     conn.close()
@@ -4671,6 +4656,142 @@ def export_medications_pdf(
             paragraphs.append(
                 f"Data confidence: {ds['support_state'].replace('_', ' ')} "
                 f"({ds['n']} readings across {ds['distinct_days']} days{coverage_note})."
+            )
+
+        return paragraphs
+
+    def build_temperature_clinical_summary(temp) -> list:
+        """
+        Episode-centric, measurement-site-aware Temperature summary for
+        the clinician PDF. Mirrors run_temperature_analysis rather than
+        the retired generic temperature classifier. Sparse spot readings
+        are described as logged observations; no continuous fever duration
+        or time-in-range burden is inferred.
+        """
+        if temp is None:
+            return []
+
+        paragraphs = []
+        latest = temp.get("latest") or {}
+        if latest:
+            site = (latest.get("site") or "unknown").replace("_", " ").title()
+            source = (latest.get("source") or "unknown").replace("_", " ")
+            paragraphs.append(
+                f"Latest temperature: {latest.get('value_f', 0):.1f} F "
+                f"({latest.get('value_c', 0):.1f} C), site: {site}, "
+                f"source: {source}."
+            )
+
+        baseline = temp.get("baseline")
+        if baseline:
+            delta = baseline.get("delta_current_f", 0.0)
+            direction = "above" if delta > 0 else "below" if delta < 0 else "at"
+            delta_text = (
+                f"{abs(delta):.1f} F {direction}" if direction != "at"
+                else "approximately at"
+            )
+            paragraphs.append(
+                f"Same-site personal baseline ({baseline.get('site', 'unknown')}): median "
+                f"{baseline.get('median_f', 0):.1f} F across {baseline.get('n', 0)} readings "
+                f"on {baseline.get('distinct_days', 0)} distinct days spanning "
+                f"{baseline.get('span_days', 0):.1f} days. The latest reading is "
+                f"{delta_text} that baseline."
+            )
+
+        ranges = temp.get("range_events") or {}
+        fever_count = ranges.get("fever_count", 0) or 0
+        if fever_count > 0:
+            paragraphs.append(
+                f"Fever-range observations: {fever_count} logged reading(s) at or above "
+                f"{ranges.get('fever_threshold_f', 100.4):.1f} F "
+                f"({ranges.get('fever_logged_pct', 0):.1f}% of logged temperature readings), "
+                f"recorded on {ranges.get('febrile_days', 0)} distinct day(s). This is a count "
+                f"of logged observations, not an estimate of continuous time with fever."
+            )
+        else:
+            paragraphs.append(
+                f"No logged temperature readings met the configured "
+                f"{ranges.get('fever_threshold_f', 100.4):.1f} F fever-range reference "
+                f"during this report window."
+            )
+
+        episodes = temp.get("episodes") or []
+        if episodes:
+            latest_ep = temp.get("latest_episode") or episodes[-1]
+            paragraphs.append(
+                f"The fever-range readings group into {len(episodes)} recorded episode(s). "
+                f"The latest episode peaked at {latest_ep.get('peak_f', 0):.1f} F and had an "
+                f"observed fever-range span of {latest_ep.get('observed_span_hours', 0):.1f} "
+                f"hours. 'Observed span' describes the interval between logged fever-range "
+                f"measurements and does not establish continuous fever duration."
+            )
+            if latest_ep.get("delta_latest_from_peak_f") is not None:
+                d = latest_ep["delta_latest_from_peak_f"]
+                if d < 0:
+                    paragraphs.append(
+                        f"The latest comparable same-site reading is {abs(d):.1f} F below the "
+                        f"recorded episode peak."
+                    )
+                elif d > 0:
+                    paragraphs.append(
+                        f"The latest comparable same-site reading is {d:.1f} F above the "
+                        f"previously recorded episode peak."
+                    )
+                else:
+                    paragraphs.append(
+                        "The latest comparable same-site reading matches the recorded episode peak."
+                    )
+
+        acute = temp.get("acute_trend")
+        if acute:
+            paragraphs.append(
+                f"Acute same-site trajectory: {acute.get('trend_label', 'stable')} across "
+                f"{acute.get('span_hours', 0):.1f} hours ({acute.get('n', 0)} readings), "
+                f"modeled at {acute.get('slope_f_per_12_hours', 0):+.2f} F per 12 hours. "
+                f"This is a short-window episode model, not a long-term temperature trend."
+            )
+
+        hypo_count = ranges.get("hypothermia_range_count", 0) or 0
+        if hypo_count > 0:
+            paragraphs.append(
+                f"Low-temperature safety context: {hypo_count} reading(s) were below the "
+                f"{ranges.get('hypothermia_threshold_f', 95.0):.1f} F hypothermia-range "
+                f"reference; the lowest logged value was {ranges.get('lowest_f', 0):.1f} F."
+            )
+        elif ranges:
+            paragraphs.append(
+                f"Lowest logged temperature: {ranges.get('lowest_f', 0):.1f} F; no readings "
+                f"were below the {ranges.get('hypothermia_threshold_f', 95.0):.1f} F "
+                f"hypothermia-range reference."
+            )
+
+        cvc = temp.get("cross_vital_context") or {}
+        paired = cvc.get("paired_counts") or {}
+        paired_parts = []
+        if paired.get("heart_rate", 0):
+            paired_parts.append(f"heart rate with {paired['heart_rate']}")
+        if paired.get("oxygen_saturation", 0):
+            paired_parts.append(f"SpO2 with {paired['oxygen_saturation']}")
+        if paired.get("blood_pressure", 0):
+            paired_parts.append(f"blood pressure with {paired['blood_pressure']}")
+        if paired_parts:
+            paragraphs.append(
+                "Same-event context: " + "; ".join(paired_parts) +
+                " fever-range observation(s). These measurements occurred alongside one "
+                "another and do not establish causation."
+            )
+
+        ds = temp.get("data_support") or {}
+        if ds:
+            site_note = (
+                f", known measurement site on {ds.get('known_site_pct', 0):.1f}% of readings"
+            )
+            if ds.get("site_consistency_pct") is not None:
+                site_note += f", {ds['site_consistency_pct']:.1f}% same-site consistency"
+            paragraphs.append(
+                f"Data confidence: {ds.get('support_state', 'descriptive').replace('_', ' ')} "
+                f"({ds.get('n', 0)} readings across {ds.get('distinct_days', 0)} days, "
+                f"{ds.get('span_days', 0):.1f}-day span{site_note})."
             )
 
         return paragraphs
@@ -5507,89 +5628,340 @@ def export_medications_pdf(
             y -= 14
 
 
-        def draw_secondary_section(y, title, data, class_tuple, unit, normal_range,
-                                   burden_headers, burden_keys):
-            y = check_page_break(y, needed=110)
-            pdf.setFont("Helvetica-Bold", 10)
-            pdf.drawString(LEFT, y, title)
+        # =====================================================
+        # TEMPERATURE — CLINICAL ANALYSIS
+        # Uses run_temperature_analysis via the cache: episode-centric,
+        # measurement-site-aware, and based on discrete logged readings.
+        # No generic "normal/elevated" classification, 30-day global OLS,
+        # or interpolated fever burden is used here.
+        # =====================================================
+        if temp_analysis is not None:
+            y = check_page_break(y, needed=220)
+            pdf.setFont("Helvetica-Bold", 13)
+            pdf.drawString(LEFT, y, "Temperature Clinical Analysis")
+            y -= 20
+
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(LEFT, y, "Clinical Summary")
+            y -= 4
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 12
+
+            for para in build_temperature_clinical_summary(temp_analysis):
+                y = check_page_break(y, needed=42)
+                y = draw_wrapped_line(y, para, fontsize=9, indent=0, line_spacing=13)
+                y -= 6
+
+            y -= 6
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
             y -= 14
 
-            if data is None:
+            latest_t = temp_analysis.get("latest") or {}
+            ds_t = temp_analysis.get("data_support") or {}
+            ranges_t = temp_analysis.get("range_events") or {}
+            profile_t = temp_analysis.get("target_profile") or {}
+
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(LEFT, y, "Detailed Metrics")
+            y -= 16
+
+            # Latest / measurement context
+            y = check_page_break(y, needed=75)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Latest Temperature")
+            y -= 14
+            pdf.setFont("Helvetica", 9)
+            recorded_at = latest_t.get("recorded_at") or "n/a"
+            pdf.drawString(LEFT + 10, y,
+                f"Value: {latest_t.get('value_f', 0):.1f} F ({latest_t.get('value_c', 0):.1f} C)   |   "
+                f"Site: {(latest_t.get('site') or 'unknown').replace('_', ' ').title()}")
+            y -= 12
+            y = draw_wrapped_line(
+                y,
+                f"Recorded: {recorded_at}   |   Ingestion source: "
+                f"{(latest_t.get('source') or 'unknown').replace('_', ' ')}",
+                fontsize=9, indent=10, line_spacing=12
+            )
+            y -= 8
+
+            # Data support and site quality
+            y = check_page_break(y, needed=75)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Data Support / Measurement Site")
+            y -= 14
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(LEFT + 10, y,
+                f"Readings: {ds_t.get('n', temp_analysis.get('reading_count', 0))}   |   "
+                f"Distinct days: {ds_t.get('distinct_days', 0)}   |   "
+                f"Observed span: {ds_t.get('span_days', 0):.1f} days")
+            y -= 12
+            site_consistency = (
+                f"{ds_t['site_consistency_pct']:.1f}%"
+                if ds_t.get("site_consistency_pct") is not None else "n/a"
+            )
+            pdf.drawString(LEFT + 10, y,
+                f"Known-site coverage: {ds_t.get('known_site_pct', 0):.1f}%   |   "
+                f"Modal site: {ds_t.get('modal_site') or 'n/a'}   |   "
+                f"Same-site consistency: {site_consistency}")
+            y -= 20
+
+            # Personal baseline
+            baseline_t = temp_analysis.get("baseline")
+            if baseline_t:
+                y = check_page_break(y, needed=70)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Personal Same-Site Baseline")
+                y -= 14
                 pdf.setFont("Helvetica", 9)
-                pdf.setFillColorRGB(0.5, 0.5, 0.5)
                 pdf.drawString(LEFT + 10, y,
-                    "Insufficient data for analysis (minimum 7 readings required).")
+                    f"Site: {baseline_t.get('site', 'unknown')}   |   Median: "
+                    f"{baseline_t.get('median_f', 0):.1f} F ({baseline_t.get('median_c', 0):.1f} C)   |   "
+                    f"Latest delta: {baseline_t.get('delta_current_f', 0):+.1f} F")
+                y -= 12
+                pdf.drawString(LEFT + 10, y,
+                    f"Support: {baseline_t.get('n', 0)} readings on "
+                    f"{baseline_t.get('distinct_days', 0)} days spanning "
+                    f"{baseline_t.get('span_days', 0):.1f} days")
+                y -= 20
+
+            # Fever-range logged observations
+            y = check_page_break(y, needed=80)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Fever-Range Logged Observations")
+            y -= 14
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(LEFT + 10, y,
+                f"Configured fever reference: >= {profile_t.get('fever_threshold_f', ranges_t.get('fever_threshold_f', 100.4)):.1f} F "
+                f"({profile_t.get('fever_threshold_c', 38.0):.1f} C)")
+            y -= 12
+            pdf.drawString(LEFT + 10, y,
+                f"Fever-range readings: {ranges_t.get('fever_count', 0)}   |   "
+                f"Percent of logged readings: {ranges_t.get('fever_logged_pct', 0):.1f}%   |   "
+                f"Febrile days: {ranges_t.get('febrile_days', 0)}")
+            y -= 12
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            pdf.drawString(LEFT + 10, y,
+                "Discrete logged observations only - not an estimate of continuous time with fever.")
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 20
+
+            # Episode table
+            episodes_t = temp_analysis.get("episodes") or []
+            if episodes_t:
+                y = check_page_break(y, needed=90)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Recorded Fever Episodes")
+                y -= 14
+                ep_widths = [42, 92, 92, 94, 94, 98]
+                ep_headers = ["#", "First fever", "Last fever", "Peak", "Minimum", "Observed span"]
+                y = draw_table_row(y, ep_headers, ep_widths, fontsize=8, bold=True, fill_bg=True)
+                for ep in episodes_t:
+                    y = check_page_break(y, needed=55)
+                    peak_site = (ep.get("peak_site") or "unknown").replace("_", " ")
+                    min_site = (ep.get("minimum_site") or "unknown").replace("_", " ")
+                    y = draw_table_row(
+                        y,
+                        [
+                            str(ep.get("episode_id", "")),
+                            str(ep.get("first_fever_at", "")),
+                            str(ep.get("last_fever_at", "")),
+                            f"{ep.get('peak_f', 0):.1f} F ({peak_site})",
+                            f"{ep.get('minimum_f', 0):.1f} F ({min_site})",
+                            f"{ep.get('observed_span_hours', 0):.1f} h; "
+                            f"{ep.get('n_fever_readings', 0)} reading(s)",
+                        ],
+                        ep_widths, fontsize=8
+                    )
+                y -= 6
+                pdf.setFont("Helvetica-Oblique", 8)
+                pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                y = draw_wrapped_line(
+                    y,
+                    "Episode grouping uses a Vitals 24-hour gap rule. Observed span is the interval "
+                    "between logged fever-range readings, not confirmed continuous fever duration.",
+                    fontsize=8, indent=10, line_spacing=11
+                )
+                pdf.setFillColorRGB(0, 0, 0)
+                y -= 10
+
+            # Acute same-site trajectory
+            acute_t = temp_analysis.get("acute_trend")
+            if acute_t:
+                y = check_page_break(y, needed=80)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Acute Same-Site Episode Trend")
+                y -= 14
+                pdf.setFont("Helvetica", 9)
+                pdf.drawString(LEFT + 10, y,
+                    f"Direction: {acute_t.get('trend_label', 'stable').title()}   |   "
+                    f"Site: {acute_t.get('site', 'unknown')}   |   "
+                    f"Support: n={acute_t.get('n', 0)}, span {acute_t.get('span_hours', 0):.1f} h")
+                y -= 12
+                p_disp = (
+                    f"{acute_t['p_value']:.3f}" if acute_t.get("p_value") is not None else "n/a"
+                )
+                r2_disp = (
+                    f"{acute_t['r2']:.2f}" if acute_t.get("r2") is not None else "n/a"
+                )
+                pdf.drawString(LEFT + 10, y,
+                    f"Slope: {acute_t.get('slope_f_per_12_hours', 0):+.2f} F/12 h   |   "
+                    f"Modeled change: {acute_t.get('modeled_change_f', 0):+.1f} F   |   "
+                    f"R2: {r2_disp}   |   p: {p_disp}")
+                y -= 12
+                pdf.setFont("Helvetica-Oblique", 8)
+                pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                pdf.drawString(LEFT + 10, y,
+                    "Short-window same-site episode model; not a long-term temperature trend.")
+                pdf.setFillColorRGB(0, 0, 0)
+                y -= 20
+
+            # Low-temperature / hypothermia-range observations
+            y = check_page_break(y, needed=80)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Low-Temperature / Hypothermia-Range Observations")
+            y -= 14
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(LEFT + 10, y,
+                f"Lowest logged: {ranges_t.get('lowest_f', 0):.1f} F "
+                f"({ranges_t.get('lowest_c', 0):.1f} C), site: "
+                f"{(ranges_t.get('lowest_site') or 'unknown').replace('_', ' ').title()}")
+            y -= 12
+            pdf.drawString(LEFT + 10, y,
+                f"Hypothermia-range reference: < {ranges_t.get('hypothermia_threshold_f', 95.0):.1f} F   |   "
+                f"Count: {ranges_t.get('hypothermia_range_count', 0)}")
+            y -= 12
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            y = draw_wrapped_line(
+                y,
+                "A broader low-temperature product threshold is not configured. The recognized "
+                "hypothermia-range reference below 95 F is evaluated separately.",
+                fontsize=8, indent=10, line_spacing=11
+            )
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 8
+
+            hypo_readings = ranges_t.get("hypothermia_readings") or []
+            if hypo_readings:
+                low_widths = [155, 110, 110, 137]
+                y = draw_table_row(y, ["Recorded", "Temperature", "Site", "Context"], low_widths, fontsize=8, bold=True, fill_bg=True)
+                for r in hypo_readings:
+                    y = check_page_break(y, needed=45)
+                    y = draw_table_row(
+                        y,
+                        [
+                            str(r.get("recorded_at", "")),
+                            f"{r.get('value_f', 0):.1f} F",
+                            (r.get("site") or "unknown").replace("_", " ").title(),
+                            "Hypothermia-range",
+                        ],
+                        low_widths, fontsize=8
+                    )
+                y -= 8
+
+            # Same-event cross-vital context
+            cvc_t = temp_analysis.get("cross_vital_context") or {}
+            paired_t = cvc_t.get("paired_counts") or {}
+            fever_obs_t = cvc_t.get("fever_observations") or []
+            if any((paired_t.get("heart_rate", 0), paired_t.get("oxygen_saturation", 0), paired_t.get("blood_pressure", 0))):
+                y = check_page_break(y, needed=80)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Same-Event Cross-Vital Context")
+                y -= 14
+                pdf.setFont("Helvetica", 9)
+                pdf.drawString(LEFT + 10, y,
+                    f"Paired fever observations - HR: {paired_t.get('heart_rate', 0)}   |   "
+                    f"SpO2: {paired_t.get('oxygen_saturation', 0)}   |   "
+                    f"BP: {paired_t.get('blood_pressure', 0)}")
+                y -= 14
+                cv_widths = [110, 65, 70, 65, 65, 137]
+                y = draw_table_row(y, ["Recorded", "Temp", "Site", "HR", "SpO2", "Blood pressure"], cv_widths, fontsize=8, bold=True, fill_bg=True)
+                for obs in fever_obs_t:
+                    ctx = obs.get("context") or {}
+                    bp_ctx = ctx.get("blood_pressure") or {}
+                    bp_text = (
+                        f"{bp_ctx.get('systolic')}/{bp_ctx.get('diastolic')} mmHg"
+                        if bp_ctx else "-"
+                    )
+                    y = check_page_break(y, needed=45)
+                    y = draw_table_row(
+                        y,
+                        [
+                            str(obs.get("recorded_at", "")),
+                            f"{obs.get('temperature_f', 0):.1f} F",
+                            (obs.get("site") or "unknown").replace("_", " ").title(),
+                            str(ctx.get("heart_rate") or "-"),
+                            str(ctx.get("oxygen_saturation") or "-"),
+                            bp_text,
+                        ],
+                        cv_widths, fontsize=8
+                    )
+                y -= 6
+                pdf.setFont("Helvetica-Oblique", 8)
+                pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                pdf.drawString(LEFT + 10, y,
+                    "Measurements occurred alongside one another; temporal pairing does not establish causation.")
                 pdf.setFillColorRGB(0, 0, 0)
                 y -= 18
-                return y
 
-            label, _ = class_tuple
-            slope_str = f"+{data['slope']}" if data['slope'] >= 0 else str(data['slope'])
-            sig_str   = " (significant)" if data['significant'] else " (not significant)"
-            consist   = data['consistency'].title()
-            trend_str = data['trend'].replace('_', ' ').title()
+            # Unavailable capabilities / confidence notes
+            unavailable_t = ds_t.get("unavailable_analyses") or []
+            if unavailable_t:
+                y = check_page_break(y, needed=60)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Unavailable / Limited Analyses")
+                y -= 14
+                for item in unavailable_t:
+                    y = check_page_break(y, needed=35)
+                    name = (item.get("analysis") or "analysis").replace("_", " ").title()
+                    reason = item.get("reason") or item.get("reason_code") or "not available"
+                    y = draw_wrapped_line(
+                        y, f"- {name}: {reason}", fontsize=8, indent=10, line_spacing=11
+                    )
+                    y -= 2
 
-            pdf.setFont("Helvetica-Bold", 9)
-            pdf.drawString(LEFT + 10, y, "Classification:")
-            pdf.setFont("Helvetica", 9)
-            pdf.drawString(LEFT + 90, y, label)
-            y -= 12
-
-            pdf.setFont("Helvetica-Bold", 9)
-            pdf.drawString(LEFT + 10, y, "Average:")
-            pdf.setFont("Helvetica", 9)
-            pdf.drawString(LEFT + 90, y, f"{data['avg']:,.1f} {unit}   (normal: {normal_range})")
-            y -= 12
-
-            pdf.setFont("Helvetica-Bold", 9)
-            pdf.drawString(LEFT + 10, y, "Trend:")
-            pdf.setFont("Helvetica", 9)
-            pdf.drawString(LEFT + 90, y, f"{trend_str}  \u2014  {slope_str} {unit}/day{sig_str}")
-            y -= 12
-
-            pdf.setFont("Helvetica-Bold", 9)
-            pdf.drawString(LEFT + 10, y, "Consistency:")
-            pdf.setFont("Helvetica", 9)
-            pdf.drawString(LEFT + 90, y,
-                f"{consist} (R\u00b2={data['r2']:.2f})   |   "
-                f"p-value: {data['p_value']:.3f}   |   n={data['reading_count']}")
+            y -= 6
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
             y -= 14
-
-            if data.get("burden") and burden_headers and burden_keys:
-                col_w      = USABLE_WIDTH / len(burden_headers)
-                col_widths = [col_w] * len(burden_headers)
-                y = draw_table_row(y, burden_headers, col_widths, bold=True, fill_bg=True)
-                values = [f"{data['burden'].get(k, 0.0):.1f}%" for k in burden_keys]
-                y = draw_table_row(y, values, col_widths)
-
-            y -= 14
-            return y
-
-        y = draw_secondary_section(
-            y, "Temperature", temp_data, temp_class or ("Unknown", "#888888"),
-            "F", "96.8-98.9F",
-            burden_headers=["Hypothermia (<96.8)", "Normal (96.8-98.9)",
-                            "Elevated (99-100.3)", "Fever (100.4-103)", "High Fever (>103)"],
-            burden_keys=["hypothermia_pct", "normal_pct", "elevated_pct",
-                         "fever_pct", "high_fever_pct"]
-        )
-
-        y -= 10
-        y = check_page_break(y, needed=40)
-        pdf.setFont("Helvetica-Oblique", 8)
-        pdf.setFillColorRGB(0.4, 0.4, 0.4)
-        pdf.drawString(LEFT, y,
-            "Note: Trend analysis uses OLS linear regression. "
-            "R\u00b2 indicates consistency of readings (0=variable, 1=consistent).")
-        y -= 10
-        pdf.drawString(LEFT, y,
-            "p<0.05 indicates the trend is statistically significant. "
-            "Burden calculated via linear interpolation (Rosendaal method approximation).")
-        y -= 10
-        pdf.drawString(LEFT, y,
-            "SBP Burden: Wang et al./SPRINT supplementary materials. "
-            "DBP Burden: Cho et al. Hypertension 2024;81:273\u2013281.")
-        pdf.setFillColorRGB(0, 0, 0)
 
     # =====================================================
     # PAGE 4 — HISTORICAL VITALS TABLE
