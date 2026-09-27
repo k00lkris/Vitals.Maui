@@ -3522,7 +3522,7 @@ def get_latest_vitals(
     # the newest row." A user may log weight today and BP yesterday; the
     # dashboard should still show yesterday's BP as the latest BP instead
     # of replacing it with an em dash just because today's row has no BP.
-    cur.execute("""
+    cur.execute(f"""
         SELECT
             (SELECT recorded_at FROM vitals
              WHERE patient_id = %s AND household_id = %s
@@ -4264,6 +4264,21 @@ def export_medications_pdf(
                     bool(v) for v in pref_row
                 ]
 
+    tracked_conditions = [
+        "(systolic IS NOT NULL AND diastolic IS NOT NULL)"
+    ]
+    if show_hr:
+        tracked_conditions.append("heart_rate IS NOT NULL")
+    if show_spo2:
+        tracked_conditions.append("oxygen_saturation IS NOT NULL")
+    if show_temp:
+        tracked_conditions.append("temperature IS NOT NULL")
+    if show_weight:
+        tracked_conditions.append("weight IS NOT NULL")
+    if show_glucose:
+        tracked_conditions.append("blood_glucose IS NOT NULL")
+    tracked_where = " OR ".join(tracked_conditions)
+
     cur.execute("""
         SELECT first_name, last_name, dob
         FROM patients WHERE patient_id = %s AND household_id = %s;
@@ -4276,6 +4291,7 @@ def export_medications_pdf(
         SELECT
             (SELECT recorded_at FROM vitals
              WHERE patient_id = %s AND household_id = %s
+               AND ({tracked_where})
              ORDER BY recorded_at DESC LIMIT 1),
             (SELECT systolic FROM vitals
              WHERE patient_id = %s AND household_id = %s
@@ -4317,11 +4333,12 @@ def export_medications_pdf(
     ))
     latest = cur.fetchone()
 
-    cur.execute("""
+    cur.execute(f"""
         SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation,
                temperature, weight, blood_glucose
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
+          AND ({tracked_where})
         ORDER BY recorded_at DESC;
     """, (str(patient_id), household_id, days))
     history = cur.fetchall()
@@ -4351,11 +4368,12 @@ def export_medications_pdf(
     """, (str(patient_id), household_id))
     allergies = cur.fetchall()
 
-    cur.execute("""
+    cur.execute(f"""
         SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation,
                temperature, weight, blood_glucose
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
+          AND ({tracked_where})
         ORDER BY recorded_at;
     """, (str(patient_id), household_id, days))
     chart_data = cur.fetchall()
