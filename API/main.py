@@ -242,6 +242,9 @@ class VitalCreate(BaseModel):
     oxygen_saturation: Optional[int] = Field(None, ge=50, le=100)
     heart_rate: Optional[int] = Field(None, ge=30, le=220)
     temperature: Optional[float] = Field(None, ge=90, le=110)
+    temperature_site: Optional[Literal[
+        "oral", "rectal", "axillary", "tympanic", "temporal", "other", "unknown"
+    ]] = None
     blood_glucose: Optional[int] = Field(None, ge=30, le=600)
     weight: Optional[float] = Field(None, ge=50, le=700)
     source: Optional[str] = "home_assistant"
@@ -391,6 +394,9 @@ class VisitCreate(BaseModel):
     oxygen_saturation: Optional[int] = Field(None, ge=50, le=100)
     heart_rate: Optional[int] = Field(None, ge=30, le=220)
     temperature: Optional[float] = Field(None, ge=90, le=110)
+    temperature_site: Optional[Literal[
+        "oral", "rectal", "axillary", "tympanic", "temporal", "other", "unknown"
+    ]] = None
     blood_glucose: Optional[int] = Field(None, ge=30, le=600)
     weight: Optional[float] = Field(None, ge=50, le=700)
 
@@ -2112,6 +2118,478 @@ def run_spo2_analysis(rows: list, baseline_rows: list | None = None) -> dict | N
 
     return result
 
+
+def _temperature_local_datetime(row: dict) -> datetime:
+    """
+    Convert recorded_at to the reading's local wall-clock time. Prefer the
+    per-reading UTC offset captured by the client; use the same
+    America/Chicago fallback as the other analysis engines for legacy rows.
+    """
+    if row["local_offset_minutes"] is not None:
+        return row["recorded_at"] + timedelta(minutes=row["local_offset_minutes"])
+    return row["recorded_at"].astimezone(ZoneInfo("America/Chicago"))
+
+
+def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> dict | None:
+    """
+    Dedicated Temperature Analysis Engine.
+
+    Temperature is treated as an episode-centric, site-aware vital. Sparse
+    manual readings support observed counts, peaks, distinct febrile days,
+    episode grouping, and same-site baseline comparisons. They DO NOT support
+    inferred continuous fever duration or interpolated "time in fever."
+
+    Current product storage is Fahrenheit. The engine normalizes to Celsius
+    internally/output-side for deterministic dual-unit representation while
+    preserving the original Fahrenheit value. temperature_site may be
+    'unknown' for pre-migration rows.
+
+    baseline_rows is a fixed 60-day implementation lookback used only to give
+    the same-site baseline enough history. The clinical/data-sufficiency gate
+    remains >=7 eligible readings on >=7 distinct days spanning >=14 days.
+    The 60-day fetch window is a Vitals engineering implementation choice, not
+    a clinical threshold.
+    """
+    if not rows:
+        return None
+
+    FEVER_F = 100.4
+    HYPOTHERMIA_F = 95.0
+    EPISODE_GAP_HOURS = 24.0
+
+    def _to_c(value_f: float) -> float:
+        return (value_f - 32.0) * 5.0 / 9.0
+
+    def _site(value) -> str:
+        value = (value or "unknown").strip().lower()
+        return value if value in {
+            "oral", "rectal", "axillary", "tympanic",
+            "temporal", "other", "unknown"
+        } else "unknown"
+
+    def _row_dict(r):
+        return {
+            "recorded_at":          r[0],
+            "local_offset_minutes": r[1],
+            "temperature_f":        float(r[2]),
+            "temperature_site":     _site(r[3]),
+            "source_type":          r[4] or "unknown",
+            "heart_rate":           r[5],
+            "oxygen_saturation":    r[6],
+            "systolic":             r[7],
+            "diastolic":            r[8],
+            "blood_glucose":        r[9],
+            "weight":               float(r[10]) if r[10] is not None else None,
+        }
+
+    rows_d = [_row_dict(r) for r in rows]
+    latest = rows_d[-1]
+
+    latest_context = {}
+    if latest["heart_rate"] is not None:
+        latest_context["heart_rate"] = latest["heart_rate"]
+    if latest["oxygen_saturation"] is not None:
+        latest_context["oxygen_saturation"] = latest["oxygen_saturation"]
+    if latest["systolic"] is not None and latest["diastolic"] is not None:
+        latest_context["blood_pressure"] = {
+            "systolic": latest["systolic"],
+            "diastolic": latest["diastolic"],
+        }
+    if latest["blood_glucose"] is not None:
+        latest_context["blood_glucose"] = latest["blood_glucose"]
+    if latest["weight"] is not None:
+        latest_context["weight"] = latest["weight"]
+
+    distinct_days = len({_temperature_local_datetime(r).date() for r in rows_d})
+    span_days = (
+        (rows_d[-1]["recorded_at"] - rows_d[0]["recorded_at"]).total_seconds() / 86400
+        if len(rows_d) > 1 else 0.0
+    )
+
+    # Measurement-site consistency. Unknown-site rows remain valid history,
+    # but do not participate in same-site baseline/trend claims.
+    known_sites = [
+        r["temperature_site"]
+        for r in rows_d
+        if r["temperature_site"] != "unknown"
+    ]
+    unique_known_sites = sorted(set(known_sites))
+    modal_site = None
+    site_consistency_pct = None
+    if known_sites:
+        modal_site = statistics.multimode(known_sites)[0]
+        site_consistency_pct = round(
+            100.0 * sum(1 for s in known_sites if s == modal_site) / len(known_sites),
+            1,
+        )
+
+    known_site_pct = round(100.0 * len(known_sites) / len(rows_d), 1)
+
+    # Range observations. These are logged-reading counts only.
+    fever_rows = [r for r in rows_d if r["temperature_f"] >= FEVER_F]
+    hypothermia_rows = [r for r in rows_d if r["temperature_f"] < HYPOTHERMIA_F]
+    febrile_days = len({_temperature_local_datetime(r).date() for r in fever_rows})
+
+    lowest = min(rows_d, key=lambda r: r["temperature_f"])
+
+    # Fever episode grouping: a new episode begins when the gap from the
+    # prior fever-range observation exceeds 24 hours. This is a Vitals
+    # grouping rule, not a medical definition.
+    episode_groups = []
+    if fever_rows:
+        ordered_fever = sorted(fever_rows, key=lambda r: r["recorded_at"])
+        group = [ordered_fever[0]]
+        for r in ordered_fever[1:]:
+            gap_hours = (
+                r["recorded_at"] - group[-1]["recorded_at"]
+            ).total_seconds() / 3600.0
+            if gap_hours <= EPISODE_GAP_HOURS:
+                group.append(r)
+            else:
+                episode_groups.append(group)
+                group = [r]
+        episode_groups.append(group)
+
+    episodes = []
+    for idx, group in enumerate(episode_groups, start=1):
+        peak = max(group, key=lambda r: r["temperature_f"])
+        sites = sorted(set(r["temperature_site"] for r in group))
+        span_hours = (
+            (group[-1]["recorded_at"] - group[0]["recorded_at"]).total_seconds() / 3600.0
+            if len(group) > 1 else 0.0
+        )
+        delta_latest = None
+        hours_since_peak = None
+
+        # Only compare latest vs peak when the measurement site matches;
+        # fixed cross-site offsets are intentionally not used.
+        if (
+            idx == len(episode_groups)
+            and latest["recorded_at"] >= peak["recorded_at"]
+            and latest["temperature_site"] != "unknown"
+            and latest["temperature_site"] == peak["temperature_site"]
+        ):
+            delta_latest = round(
+                latest["temperature_f"] - peak["temperature_f"], 1
+            )
+            hours_since_peak = round(
+                (latest["recorded_at"] - peak["recorded_at"]).total_seconds() / 3600.0,
+                1,
+            )
+
+        episodes.append({
+            "episode_id":                 idx,
+            "first_fever_at":             group[0]["recorded_at"].isoformat(),
+            "last_fever_at":              group[-1]["recorded_at"].isoformat(),
+            "observed_span_hours":        round(span_hours, 1),
+            "peak_f":                     round(peak["temperature_f"], 1),
+            "peak_c":                     round(_to_c(peak["temperature_f"]), 1),
+            "peak_at":                    peak["recorded_at"].isoformat(),
+            "peak_site":                  peak["temperature_site"],
+            "n_fever_readings":           len(group),
+            "febrile_days":               len({_temperature_local_datetime(r).date() for r in group}),
+            "sites":                      sites,
+            "mixed_sites":                len([s for s in sites if s != "unknown"]) > 1,
+            "delta_latest_from_peak_f":   delta_latest,
+            "hours_since_peak":           hours_since_peak,
+        })
+
+    latest_episode_group = episode_groups[-1] if episode_groups else None
+    latest_episode = episodes[-1] if episodes else None
+
+    # Same-site personal baseline. Eligible readings are non-fever,
+    # non-hypothermia-range values from the latest reading's known site.
+    # When the selected data contain a fever episode, baseline candidates
+    # on/after the latest episode start are excluded so the acute episode
+    # does not define the patient's "usual" temperature.
+    baseline = None
+    baseline_failure_reason = None
+    latest_site = latest["temperature_site"]
+
+    if latest_site == "unknown":
+        baseline_failure_reason = "measurement_site_unknown"
+    else:
+        source_rows = [_row_dict(r) for r in baseline_rows] if baseline_rows else rows_d
+        cutoff = (
+            latest_episode_group[0]["recorded_at"]
+            if latest_episode_group else latest["recorded_at"]
+        )
+
+        candidates = [
+            r for r in source_rows
+            if r["temperature_site"] == latest_site
+            and HYPOTHERMIA_F <= r["temperature_f"] < FEVER_F
+            and r["recorded_at"] < cutoff
+        ]
+
+        baseline_days = len({_temperature_local_datetime(r).date() for r in candidates})
+        baseline_span_days = (
+            (candidates[-1]["recorded_at"] - candidates[0]["recorded_at"]).total_seconds() / 86400.0
+            if len(candidates) > 1 else 0.0
+        )
+
+        if len(candidates) >= 7 and baseline_days >= 7 and baseline_span_days >= 14:
+            baseline_median_f = float(statistics.median(
+                [r["temperature_f"] for r in candidates]
+            ))
+            baseline = {
+                "site":            latest_site,
+                "median_f":        round(baseline_median_f, 1),
+                "median_c":        round(_to_c(baseline_median_f), 1),
+                "n":               len(candidates),
+                "distinct_days":   baseline_days,
+                "span_days":       round(baseline_span_days, 1),
+                "delta_current_f": round(latest["temperature_f"] - baseline_median_f, 1),
+                "delta_current_c": round(
+                    _to_c(latest["temperature_f"]) - _to_c(baseline_median_f), 1
+                ),
+            }
+        else:
+            baseline_failure_reason = "insufficient_same_site_baseline"
+
+    # Acute OLS trajectory for the latest fever episode only. The spec gate
+    # is >=3 same-site episode readings spanning >=6 hours. Patient-facing
+    # interpretation should use rising/stable/falling; R²/p are retained for
+    # physician/debug layers.
+    acute_trend = None
+    acute_trend_failure_reason = None
+    if latest_episode_group:
+        episode_known_sites = {
+            r["temperature_site"]
+            for r in latest_episode_group
+            if r["temperature_site"] != "unknown"
+        }
+        episode_span_hours = (
+            (latest_episode_group[-1]["recorded_at"] - latest_episode_group[0]["recorded_at"]).total_seconds() / 3600.0
+            if len(latest_episode_group) > 1 else 0.0
+        )
+
+        if len(latest_episode_group) >= 3 and len(episode_known_sites) == 1 and episode_span_hours >= 6:
+            origin = latest_episode_group[0]["recorded_at"]
+            x_hours = np.array([
+                (r["recorded_at"] - origin).total_seconds() / 3600.0
+                for r in latest_episode_group
+            ])
+            y_f = np.array([r["temperature_f"] for r in latest_episode_group])
+
+            if np.std(y_f) == 0:
+                slope = 0.0
+                r2 = None
+                p_value = None
+            else:
+                slope, _, r_value, p_value_raw, _ = stats.linregress(x_hours, y_f)
+                slope = float(slope)
+                r2 = float(r_value ** 2)
+                p_value = float(p_value_raw)
+
+            modeled_change = slope * episode_span_hours
+
+            # 0.5°F total modeled change is a Vitals presentation gate only,
+            # not a clinical threshold.
+            if abs(modeled_change) < 0.5:
+                label = "stable"
+            elif slope > 0:
+                label = "rising"
+            else:
+                label = "falling"
+
+            acute_trend = {
+                "site":                  next(iter(episode_known_sites)),
+                "n":                     len(latest_episode_group),
+                "span_hours":            round(episode_span_hours, 1),
+                "slope_f_per_hour":      round(slope, 3),
+                "slope_f_per_12_hours":  round(slope * 12.0, 2),
+                "modeled_change_f":      round(modeled_change, 1),
+                "r2":                    round(r2, 2) if r2 is not None else None,
+                "p_value":               round(p_value, 3) if p_value is not None else None,
+                "trend_label":           label,
+            }
+        else:
+            if len(episode_known_sites) != 1:
+                acute_trend_failure_reason = "mixed_measurement_sites"
+            else:
+                acute_trend_failure_reason = "insufficient_episode_density"
+    else:
+        acute_trend_failure_reason = "no_fever_range_readings"
+
+    # Same-event paired-vital context for fever-range observations. No
+    # causation is inferred and no temperature-specific threshold is
+    # invented for the paired vital.
+    fever_context = []
+    paired_counts = {
+        "heart_rate": 0,
+        "oxygen_saturation": 0,
+        "blood_pressure": 0,
+    }
+
+    for r in fever_rows:
+        context = {}
+        if r["heart_rate"] is not None:
+            context["heart_rate"] = r["heart_rate"]
+            paired_counts["heart_rate"] += 1
+        if r["oxygen_saturation"] is not None:
+            context["oxygen_saturation"] = r["oxygen_saturation"]
+            paired_counts["oxygen_saturation"] += 1
+        if r["systolic"] is not None and r["diastolic"] is not None:
+            context["blood_pressure"] = {
+                "systolic": r["systolic"],
+                "diastolic": r["diastolic"],
+            }
+            paired_counts["blood_pressure"] += 1
+
+        fever_context.append({
+            "recorded_at":   r["recorded_at"].isoformat(),
+            "temperature_f": round(r["temperature_f"], 1),
+            "site":          r["temperature_site"],
+            "context":       context,
+        })
+
+    cross_vital_context = {
+        "fever_observations": fever_context,
+        "paired_counts":      paired_counts,
+    }
+
+    unavailable = []
+
+    if latest_site == "unknown":
+        unavailable.append({
+            "analysis": "personal_baseline",
+            "reason_code": "measurement_site_unknown",
+            "reason": "measurement site is unknown; same-site baseline comparison is unavailable",
+        })
+    elif baseline is None:
+        unavailable.append({
+            "analysis": "personal_baseline",
+            "reason_code": baseline_failure_reason or "insufficient_same_site_baseline",
+            "reason": "needs >=7 eligible same-site readings on >=7 distinct days spanning >=14 days",
+        })
+
+    if not fever_rows:
+        unavailable.append({
+            "analysis": "fever_episode",
+            "reason_code": "no_fever_range_readings",
+            "reason": "no logged readings met the configured fever-range reference",
+        })
+
+    if acute_trend is None:
+        unavailable.append({
+            "analysis": "acute_trend",
+            "reason_code": acute_trend_failure_reason or "insufficient_episode_density",
+            "reason": (
+                "needs >=3 same-site fever-range readings spanning >=6 hours "
+                "inside the latest recorded episode"
+            ),
+        })
+
+    if len(unique_known_sites) > 1:
+        unavailable.append({
+            "analysis": "site_sensitive_comparison",
+            "reason_code": "mixed_measurement_sites",
+            "reason": "mixed measurement sites limit direct comparison; same-method readings are more comparable",
+        })
+
+    if not any(paired_counts.values()):
+        unavailable.append({
+            "analysis": "cross_vital_context",
+            "reason_code": "no_paired_vitals",
+            "reason": "no fever-range readings had paired HR, SpO2, or blood-pressure data",
+        })
+
+    # P1 capabilities are intentionally not inferred from fields Vitals does
+    # not collect yet.
+    unavailable.extend([
+        {
+            "analysis": "symptom_association",
+            "reason_code": "no_symptom_data",
+            "reason": "structured temperature symptom tags are not collected yet",
+        },
+        {
+            "analysis": "antipyretic_association",
+            "reason_code": "no_medication_administration_events",
+            "reason": "actual antipyretic dose-administration events are not collected yet",
+        },
+        {
+            "analysis": "pediatric_flags",
+            "reason_code": "not_implemented",
+            "reason": "age-aware pediatric temperature rules are a separate P1 capability",
+        },
+    ])
+
+    if acute_trend is not None:
+        support_state = "acute_trend"
+    elif fever_rows:
+        support_state = "episode"
+    elif baseline is not None:
+        support_state = "baseline"
+    elif len(rows_d) >= 3 and distinct_days >= 3:
+        support_state = "descriptive"
+    else:
+        support_state = "snapshot"
+
+    result = {
+        "latest": {
+            "value_f":        round(latest["temperature_f"], 1),
+            "value_c":        round(_to_c(latest["temperature_f"]), 1),
+            "recorded_at":    latest["recorded_at"].isoformat(),
+            "site":           latest_site,
+            "source_type":    latest["source_type"],
+            "linked_context": latest_context,
+        },
+        "reading_count": len(rows_d),
+        "target_profile": {
+            "fever_threshold_f":       FEVER_F,
+            "fever_threshold_c":       38.0,
+            "hypothermia_threshold_f": HYPOTHERMIA_F,
+            "hypothermia_threshold_c": 35.0,
+            "source":                  "reference_default",
+            "patient_specific":        False,
+        },
+        "baseline": baseline,
+        "range_events": {
+            "fever_threshold_f":       FEVER_F,
+            "fever_count":             len(fever_rows),
+            "fever_logged_pct":        round(100.0 * len(fever_rows) / len(rows_d), 1),
+            "febrile_days":            febrile_days,
+            "hypothermia_threshold_f": HYPOTHERMIA_F,
+            "hypothermia_range_count": len(hypothermia_rows),
+            "hypothermia_readings": [
+                {
+                    "recorded_at": r["recorded_at"].isoformat(),
+                    "value_f":     round(r["temperature_f"], 1),
+                    "site":        r["temperature_site"],
+                }
+                for r in hypothermia_rows
+            ],
+            "lowest_f":                round(lowest["temperature_f"], 1),
+            "lowest_c":                round(_to_c(lowest["temperature_f"]), 1),
+            "lowest_at":               lowest["recorded_at"].isoformat(),
+            "lowest_site":             lowest["temperature_site"],
+        },
+        "episodes":            episodes,
+        "latest_episode":      latest_episode,
+        "acute_trend":         acute_trend,
+        "cross_vital_context": cross_vital_context,
+        "time_of_day_baseline": None,
+        "symptom_associations": None,
+        "antipyretic_associations": None,
+        "pediatric_flags": None,
+        "data_support": {
+            "n":                         len(rows_d),
+            "distinct_days":             distinct_days,
+            "span_days":                 round(span_days, 1),
+            "known_site_pct":            known_site_pct,
+            "modal_site":                modal_site,
+            "site_consistency_pct":      site_consistency_pct,
+            "mixed_measurement_sites":   len(unique_known_sites) > 1,
+            "support_state":             support_state,
+            "unavailable_analyses":      unavailable,
+        },
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    return result
+
+
 # --------------------
 # Vitals analysis cache — eager, per-vital-type
 # --------------------
@@ -2196,6 +2674,21 @@ VITAL_ANALYSIS_REGISTRY = {
         "analysis_fn": run_spo2_analysis,
         # Fixed personal-baseline window: recent 7 days vs days 8-37.
         "baseline_lookback_days": 37,
+    },
+    "temperature": {
+        "from_clause": "vitals",
+        "columns": (
+            "vitals.recorded_at, vitals.local_offset_minutes, vitals.temperature, "
+            "vitals.temperature_site, vitals.source, vitals.heart_rate, "
+            "vitals.oxygen_saturation, vitals.systolic, vitals.diastolic, "
+            "vitals.blood_glucose, vitals.weight"
+        ),
+        "where_clause": "vitals.temperature IS NOT NULL",
+        "analysis_fn": run_temperature_analysis,
+        # Implementation lookback only. The baseline eligibility gate itself
+        # is defined inside run_temperature_analysis and is independent of
+        # this fetch window.
+        "baseline_lookback_days": 60,
     },
     # "weight":  {...},   # TODO once the Weight spec is implemented
     # "glucose": {...},   # TODO once the Glucose spec is implemented
@@ -2724,16 +3217,17 @@ def record_vitals(
         INSERT INTO vitals (
             household_id, patient_id, recorded_at, local_offset_minutes,
             systolic, diastolic, oxygen_saturation,
-            heart_rate, temperature, blood_glucose,
+            heart_rate, temperature, temperature_site, blood_glucose,
             weight, source, notes
         )
-        VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING vital_id;
     """, (
         household_id, vital.patient_id, vital.recorded_at, vital.local_offset_minutes,
         vital.systolic, vital.diastolic, vital.oxygen_saturation,
-        vital.heart_rate, vital.temperature, vital.blood_glucose,
-        vital.weight, vital.source, vital.notes
+        vital.heart_rate, vital.temperature,
+        (vital.temperature_site or "unknown") if vital.temperature is not None else None,
+        vital.blood_glucose, vital.weight, vital.source, vital.notes
     ))
     vital_id = cur.fetchone()[0]
 
@@ -2773,6 +3267,8 @@ def record_vitals(
         background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "heart_rate")
     if vital.oxygen_saturation is not None:
         background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "spo2")
+    if vital.temperature is not None:
+        background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "temperature")
     # Uncomment each block below as its analysis function is implemented:
     # if vital.weight is not None:
     #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "weight")
@@ -2797,7 +3293,7 @@ def get_latest_vitals(
     verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT recorded_at, systolic, diastolic, oxygen_saturation,
-               heart_rate, temperature, weight, blood_glucose
+               heart_rate, temperature, temperature_site, weight, blood_glucose
         FROM vitals
         WHERE patient_id = %s
         ORDER BY recorded_at DESC
@@ -2815,8 +3311,9 @@ def get_latest_vitals(
         "oxygen_saturation": row[3],
         "heart_rate": row[4],
         "temperature": row[5],
-        "weight": float(row[6]) if row[6] else None,
-        "blood_glucose": row[7]
+        "temperature_site": row[6],
+        "weight": float(row[7]) if row[7] else None,
+        "blood_glucose": row[8]
     }
 
 @app.get("/api/vitals/history")
@@ -2836,7 +3333,7 @@ def get_vitals_history(
     verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
         SELECT recorded_at, systolic, diastolic, oxygen_saturation,
-               heart_rate, round(temperature, 1), weight, blood_glucose
+               heart_rate, round(temperature, 1), temperature_site, weight, blood_glucose
         FROM vitals
         WHERE patient_id = %s
           AND recorded_at >= now() - interval '%s days'
@@ -2854,8 +3351,9 @@ def get_vitals_history(
                 "spo2": r[3],
                 "heart_rate": r[4],
                 "temperature": float(r[5]) if r[5] else None,
-                "weight": float(r[6]) if r[6] else None,
-                "blood_glucose": r[7]
+                "temperature_site": r[6],
+                "weight": float(r[7]) if r[7] else None,
+                "blood_glucose": r[8]
             }
             for r in rows
         ]
@@ -2951,16 +3449,6 @@ def get_vitals_analysis(
     bp_row_count = len(cur.fetchall())
 
     cur.execute("""
-        SELECT recorded_at, temperature
-        FROM vitals
-        WHERE patient_id = %s AND household_id = %s
-          AND temperature IS NOT NULL
-          AND recorded_at >= now() - interval '%s days'
-        ORDER BY recorded_at ASC;
-    """, (patient_id, household_id, days))
-    temp_rows = cur.fetchall()
-
-    cur.execute("""
         SELECT d.name, v.follow_up_date
         FROM patient_doctors pd
         JOIN doctors d ON pd.doctor_id = d.doctor_id
@@ -2985,14 +3473,12 @@ def get_vitals_analysis(
     cur.close()
     conn.close()
 
-    # Heart Rate and SpO2 now use their dedicated engines through the
-    # shared registry/cache path. Each is independently computed and gated
-    # on its OWN data, not on BP being present in the same row.
-    # Temperature remains on analyze_vital_series until its dedicated
-    # engine is implemented.
+    # Heart Rate, SpO2, and Temperature use dedicated engines through
+    # the shared registry/cache path. Each is independently computed and
+    # gated on its OWN observations.
     hr_analysis   = get_cached_or_compute_analysis(patient_id, household_id, "heart_rate", days)
     spo2_analysis = get_cached_or_compute_analysis(patient_id, household_id, "spo2", days)
-    temp_analysis = analyze_vital_series(list(temp_rows), vital_type="temp")
+    temp_analysis = get_cached_or_compute_analysis(patient_id, household_id, "temperature", days)
 
     pcp_name      = pcp[0] if pcp else None
     next_followup = pcp[1].strftime("%b %-d, %Y") if pcp and pcp[1] else None
@@ -5398,13 +5884,14 @@ def create_visit(
             cur.execute("""
                 INSERT INTO vitals (household_id, patient_id, recorded_at,
                                     systolic, diastolic, oxygen_saturation,
-                                    heart_rate, temperature, blood_glucose,
+                                    heart_rate, temperature, temperature_site, blood_glucose,
                                     weight, source, notes)
-                VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,COALESCE(%s, now()),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (household_id, visit.patient_id, visit.visit_date,
                   visit.systolic, visit.diastolic, visit.oxygen_saturation,
-                  visit.heart_rate, visit.temperature, visit.blood_glucose,
-                  visit.weight, "doctor_visit", visit.notes))
+                  visit.heart_rate, visit.temperature,
+                  (visit.temperature_site or "unknown") if visit.temperature is not None else None,
+                  visit.blood_glucose, visit.weight, "doctor_visit", visit.notes))
         conn.commit()
     except HTTPException:
         conn.rollback()
