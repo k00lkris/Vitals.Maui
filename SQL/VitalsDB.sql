@@ -656,6 +656,7 @@ CREATE TABLE IF NOT EXISTS public.vitals
     diastolic integer,
     heart_rate integer,
     temperature numeric(4,1),
+    temperature_site text COLLATE pg_catalog."default",
     oxygen_saturation integer,
     blood_glucose integer,
     notes text COLLATE pg_catalog."default",
@@ -678,6 +679,12 @@ CREATE TABLE IF NOT EXISTS public.vitals
     CONSTRAINT chk_hr CHECK (heart_rate IS NULL OR heart_rate >= 30 AND heart_rate <= 220),
     CONSTRAINT chk_spo2 CHECK (oxygen_saturation IS NULL OR oxygen_saturation >= 50 AND oxygen_saturation <= 100),
     CONSTRAINT chk_temp CHECK (temperature IS NULL OR temperature >= 90::numeric AND temperature <= 110::numeric),
+    CONSTRAINT chk_temperature_site CHECK (
+        temperature_site IS NULL OR temperature_site = ANY (
+            ARRAY['oral'::text, 'rectal'::text, 'axillary'::text, 'tympanic'::text,
+                  'temporal'::text, 'other'::text, 'unknown'::text]
+        )
+    ),
     CONSTRAINT chk_weight CHECK (weight IS NULL OR weight >= 50::numeric AND weight <= 700::numeric)
 )
 
@@ -689,6 +696,10 @@ ALTER TABLE IF EXISTS public.vitals
 GRANT ALL ON TABLE public.vitals TO postgres;
 
 GRANT ALL ON TABLE public.vitals TO vitals_user;
+
+COMMENT ON COLUMN public.vitals.temperature_site IS
+    'Temperature measurement site: oral, rectal, axillary, tympanic, temporal, other, or unknown. NULL means no temperature/site was supplied.';
+
 -- Index: idx_vitals_patient_recorded
 
 -- DROP INDEX IF EXISTS public.idx_vitals_patient_recorded;
