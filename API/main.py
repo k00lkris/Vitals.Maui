@@ -5117,14 +5117,16 @@ def export_medications_pdf(
     y -= 30
 
     pdf.setFont("Helvetica-Bold", 13)
-    pdf.drawString(LEFT, y, "Most Recent Vitals")
+    pdf.drawString(LEFT, y, "Most Recent Vitals & Period Averages")
     y -= 18
 
     conn2 = get_conn()
     cur2 = conn2.cursor()
     cur2.execute("""
-        SELECT round(avg(systolic),1), round(avg(diastolic),1), round(avg(heart_rate),1),
-               round(avg(oxygen_saturation),1), round(avg(temperature),1)
+        SELECT round(avg(systolic),1), round(avg(diastolic),1),
+               round(avg(heart_rate),1), round(avg(oxygen_saturation),1),
+               round(avg(temperature),1), round(avg(weight),1),
+               round(avg(blood_glucose),1)
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
     """, (str(patient_id), household_id, days))
@@ -5132,30 +5134,74 @@ def export_medications_pdf(
     cur2.close()
     conn2.close()
 
-    DIVIDER_X = 310
+    if latest and latest[0] is not None:
+        taken, sys, dia, hr, spo2, temp, weight, glucose = latest
+        avg_sys, avg_dia, avg_hr, avg_spo2, avg_temp, avg_weight, avg_glucose = (
+            avg if avg else (None,) * 7
+        )
 
-    if latest:
-        taken, sys, dia, hr, spo2, temp = latest
-        avg_sys, avg_dia, avg_hr, avg_spo2, avg_temp = avg if avg else (None,)*5
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(LEFT, y, f"Last vital entry: {taken.strftime('%m/%d/%Y %I:%M %p')}")
+        y -= 16
 
-        pdf.setFont("Helvetica-Bold", 9)
-        pdf.drawString(LEFT, y, "Latest")
-        pdf.drawString(DIVIDER_X + 10, y, f"{days}-Day Average")
-        y -= 14
+        summary_rows = [
+            (
+                "Blood Pressure",
+                f"{sys}/{dia} mmHg" if sys is not None and dia is not None else "n/a",
+                f"{avg_sys:.0f}/{avg_dia:.0f} mmHg"
+                if avg_sys is not None and avg_dia is not None else "n/a",
+            )
+        ]
 
-        pdf.setFont("Helvetica", 10)
-        pdf.drawString(LEFT, y, f"Taken: {taken.strftime('%m/%d/%Y %I:%M %p')}")
-        y -= 14
-        pdf.drawString(LEFT,           y, f"BP: {sys}/{dia} mmHg")
-        pdf.drawString(220,            y, f"Heart Rate: {hr} BPM")
-        pdf.drawString(DIVIDER_X + 10, y, f"BP: {avg_sys}/{avg_dia} mmHg")
-        pdf.drawString(460,            y, f"HR: {avg_hr} BPM")
-        y -= 14
-        pdf.drawString(LEFT,           y, f"O2 Saturation: {spo2}%")
-        pdf.drawString(220,            y, f"Temperature: {temp} F")
-        pdf.drawString(DIVIDER_X + 10, y, f"O2 Saturation: {avg_spo2}%")
-        pdf.drawString(460,            y, f"Temp: {avg_temp} F")
-        y -= 25
+        if show_hr:
+            summary_rows.append((
+                "Heart Rate",
+                f"{hr} BPM" if hr is not None else "n/a",
+                f"{avg_hr:.0f} BPM" if avg_hr is not None else "n/a",
+            ))
+        if show_spo2:
+            summary_rows.append((
+                "Oxygen Saturation",
+                f"{spo2}%" if spo2 is not None else "n/a",
+                f"{avg_spo2:.1f}%" if avg_spo2 is not None else "n/a",
+            ))
+        if show_temp:
+            summary_rows.append((
+                "Temperature",
+                f"{float(temp):.1f} F" if temp is not None else "n/a",
+                f"{avg_temp:.1f} F" if avg_temp is not None else "n/a",
+            ))
+        if show_weight:
+            summary_rows.append((
+                "Weight",
+                f"{float(weight):.1f} lb" if weight is not None else "n/a",
+                f"{avg_weight:.1f} lb" if avg_weight is not None else "n/a",
+            ))
+        if show_glucose:
+            summary_rows.append((
+                "Blood Glucose",
+                f"{glucose} mg/dL" if glucose is not None else "n/a",
+                f"{avg_glucose:.0f} mg/dL" if avg_glucose is not None else "n/a",
+            ))
+
+        summary_widths = [170, 160, 182]
+        y = draw_table_row(
+            y,
+            ["Vital", "Latest", f"{days}-Day Logged Average"],
+            summary_widths,
+            fontsize=8,
+            bold=True,
+            fill_bg=True,
+        )
+        for label, latest_display, avg_display in summary_rows:
+            y = check_page_break(y, needed=35)
+            y = draw_table_row(
+                y,
+                [label, latest_display, avg_display],
+                summary_widths,
+                fontsize=8,
+            )
+        y -= 12
     else:
         pdf.setFont("Helvetica", 10)
         pdf.drawString(LEFT, y, "No vitals recorded.")
@@ -5277,39 +5323,71 @@ def export_medications_pdf(
     # PAGE 2 — VITAL TREND CHARTS
     # =====================================================
     if chart_data:
-        pdf.showPage()
-        y = height - 50
-        pdf.setFont("Helvetica-Bold", 13)
-        pdf.drawString(LEFT, y, f"Vital Trends (Last {days} Days)")
-        y -= 20
+        dates        = [r[0] for r in chart_data]
+        sys_vals     = [r[1] for r in chart_data]
+        dia_vals     = [r[2] for r in chart_data]
+        hr_vals      = [r[3] for r in chart_data]
+        spo2_vals    = [r[4] for r in chart_data]
+        temp_vals    = [float(r[5]) if r[5] is not None else None for r in chart_data]
+        weight_vals  = [float(r[6]) if r[6] is not None else None for r in chart_data]
+        glucose_vals = [float(r[7]) if r[7] is not None else None for r in chart_data]
 
-        dates     = [r[0] for r in chart_data]
-        sys_vals  = [r[1] for r in chart_data]
-        dia_vals  = [r[2] for r in chart_data]
-        hr_vals   = [r[3] for r in chart_data]
-        spo2_vals = [r[4] for r in chart_data]
-        temp_vals = [float(r[5]) if r[5] else None for r in chart_data]
+        def has_values(values):
+            return any(v is not None for v in values)
 
-        def make_chart(title, datasets, ylabel, chart_width=480, chart_height=160):
+        def make_chart(
+            title,
+            datasets,
+            ylabel,
+            chart_width=480,
+            chart_height=160,
+            smooth=True,
+        ):
             fig, ax = plt.subplots(figsize=(chart_width/72, chart_height/72))
             for label, values, color in datasets:
                 paired = [(d, v) for d, v in zip(dates, values) if v is not None]
                 if not paired:
                     continue
+
                 d_clean, v_clean = zip(*paired)
                 d_clean = list(d_clean)
                 v_clean = list(v_clean)
-                ax.scatter(d_clean, v_clean, color=color, alpha=0.25, s=14, zorder=2)
-                if len(v_clean) >= 4:
+
+                ax.scatter(
+                    d_clean,
+                    v_clean,
+                    color=color,
+                    alpha=0.45 if not smooth else 0.25,
+                    s=18 if not smooth else 14,
+                    zorder=2,
+                    label=label if not smooth else None,
+                )
+
+                if smooth and len(v_clean) >= 4:
                     x_ord = np.array([d.toordinal() for d in d_clean], dtype=float)
                     y_arr = np.array(v_clean, dtype=float)
                     sort_idx = np.argsort(x_ord)
                     y_loess = loess_smooth(x_ord[sort_idx], y_arr[sort_idx], frac=0.4)
-                    ax.plot([d_clean[i] for i in sort_idx], y_loess,
-                            color=color, linewidth=2.0, zorder=3, label=label)
-                else:
-                    ax.plot(d_clean, v_clean, color=color, linewidth=1.5,
-                            marker='o', markersize=3, zorder=3, label=label)
+                    ax.plot(
+                        [d_clean[i] for i in sort_idx],
+                        y_loess,
+                        color=color,
+                        linewidth=2.0,
+                        zorder=3,
+                        label=label,
+                    )
+                elif smooth:
+                    ax.plot(
+                        d_clean,
+                        v_clean,
+                        color=color,
+                        linewidth=1.5,
+                        marker='o',
+                        markersize=3,
+                        zorder=3,
+                        label=label,
+                    )
+
             ax.set_title(title, fontsize=10, fontweight='bold')
             ax.set_ylabel(ylabel, fontsize=8)
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
@@ -5325,30 +5403,93 @@ def export_medications_pdf(
             buf.seek(0)
             return buf
 
-        chart_w = 480
-        chart_h = 160
+        chart_specs = []
+        if has_values(sys_vals) or has_values(dia_vals):
+            chart_specs.append((
+                "Blood Pressure (mmHg)",
+                [("Systolic", sys_vals, "#d32f2f"), ("Diastolic", dia_vals, "#1976d2")],
+                "mmHg",
+                True,
+            ))
+        if show_hr and has_values(hr_vals):
+            chart_specs.append((
+                "Heart Rate (BPM)",
+                [("Heart Rate", hr_vals, "#388e3c")],
+                "BPM",
+                True,
+            ))
+        if show_spo2 and has_values(spo2_vals):
+            chart_specs.append((
+                "Oxygen Saturation (%)",
+                [("SpO2", spo2_vals, "#7b1fa2")],
+                "%",
+                True,
+            ))
+        if show_temp and has_values(temp_vals):
+            chart_specs.append((
+                "Temperature (F)",
+                [("Temperature", temp_vals, "#f57c00")],
+                "F",
+                True,
+            ))
+        if show_weight and has_values(weight_vals):
+            chart_specs.append((
+                "Weight (lb)",
+                [("Weight", weight_vals, "#00897b")],
+                "lb",
+                True,
+            ))
+        if show_glucose and has_values(glucose_vals):
+            chart_specs.append((
+                "Blood Glucose (mg/dL)",
+                [("Blood Glucose", glucose_vals, "#8e24aa")],
+                "mg/dL",
+                False,
+            ))
 
-        bp_buf = make_chart(
-            "Blood Pressure (mmHg)",
-            [("Systolic", sys_vals, "#d32f2f"), ("Diastolic", dia_vals, "#1976d2")],
-            "mmHg"
-        )
-        pdf.drawImage(ImageReader(bp_buf), LEFT, y - chart_h, width=chart_w, height=chart_h)
-        y -= chart_h + 20
+        if chart_specs:
+            pdf.showPage()
+            y = height - 50
+            pdf.setFont("Helvetica-Bold", 13)
+            pdf.drawString(LEFT, y, f"Vital Trends (Last {days} Days)")
+            y -= 20
 
-        y = check_page_break(y, needed=chart_h + 20)
-        hr_buf = make_chart("Heart Rate (BPM)", [("Heart Rate", hr_vals, "#388e3c")], "BPM")
-        pdf.drawImage(ImageReader(hr_buf), LEFT, y - chart_h, width=chart_w, height=chart_h)
-        y -= chart_h + 20
+            chart_w = 480
+            chart_h = 160
 
-        y = check_page_break(y, needed=chart_h + 20)
-        spo2_buf = make_chart("Oxygen Saturation (%)", [("SpO2", spo2_vals, "#7b1fa2")], "%")
-        pdf.drawImage(ImageReader(spo2_buf), LEFT, y - chart_h, width=chart_w, height=chart_h)
-        y -= chart_h + 20
+            for title, datasets, ylabel, smooth in chart_specs:
+                y = check_page_break(y, needed=chart_h + 22)
+                chart_buf = make_chart(
+                    title,
+                    datasets,
+                    ylabel,
+                    chart_width=chart_w,
+                    chart_height=chart_h,
+                    smooth=smooth,
+                )
+                pdf.drawImage(
+                    ImageReader(chart_buf),
+                    LEFT,
+                    y - chart_h,
+                    width=chart_w,
+                    height=chart_h,
+                )
+                y -= chart_h + 20
 
-        y = check_page_break(y, needed=chart_h + 20)
-        temp_buf = make_chart("Temperature (F)", [("Temp", temp_vals, "#f57c00")], "F")
-        pdf.drawImage(ImageReader(temp_buf), LEFT, y - chart_h, width=chart_w, height=chart_h)
+                if not smooth:
+                    pdf.setFont("Helvetica-Oblique", 7)
+                    pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                    y = draw_wrapped_line(
+                        y,
+                        "Glucose values are shown as logged observations only. "
+                        "Fasting/post-meal/random context is not collected, so no "
+                        "single smoothed clinical trajectory is inferred.",
+                        fontsize=7,
+                        indent=6,
+                        line_spacing=9,
+                    )
+                    pdf.setFillColorRGB(0, 0, 0)
+                    y -= 6
 
     # =====================================================
     # PAGE 3 — VITALS ANALYSIS
@@ -6268,7 +6409,7 @@ def export_medications_pdf(
             y -= 14
 
     # =====================================================
-    # PAGE 4 — HISTORICAL VITALS TABLE
+    # HISTORICAL VITALS TABLE
     # =====================================================
     pdf.showPage()
     y = height - 50
@@ -6276,24 +6417,58 @@ def export_medications_pdf(
     pdf.drawString(LEFT, y, f"Historical Vitals (Last {days} Days)")
     y -= 25
 
-    v_widths  = [80, 88, 88, 88, 80, 88]
-    v_headers = ["Date", "Systolic", "Diastolic", "Heart Rate", "SpO2", "Temp (F)"]
-    y = draw_table_row(y, v_headers, v_widths, bold=True, fill_bg=True)
+    history_columns = [
+        ("Date", lambda v: v[0].strftime("%m/%d/%Y")),
+        (
+            "BP (mmHg)",
+            lambda v: (
+                f"{v[1]}/{v[2]}"
+                if v[1] is not None and v[2] is not None
+                else ""
+            ),
+        ),
+    ]
+
+    if show_hr:
+        history_columns.append(("HR (BPM)", lambda v: str(v[3]) if v[3] is not None else ""))
+    if show_spo2:
+        history_columns.append(("SpO2 (%)", lambda v: str(v[4]) if v[4] is not None else ""))
+    if show_temp:
+        history_columns.append(("Temp (F)", lambda v: f"{float(v[5]):.1f}" if v[5] is not None else ""))
+    if show_weight:
+        history_columns.append(("Weight (lb)", lambda v: f"{float(v[6]):.1f}" if v[6] is not None else ""))
+    if show_glucose:
+        history_columns.append(("Glucose", lambda v: str(v[7]) if v[7] is not None else ""))
+
+    date_width = 74
+    remaining_width = USABLE_WIDTH - date_width
+    other_count = max(1, len(history_columns) - 1)
+    other_width = remaining_width / other_count
+    history_widths = [date_width] + [other_width] * (len(history_columns) - 1)
+    history_headers = [name for name, _ in history_columns]
+
+    y = draw_table_row(
+        y,
+        history_headers,
+        history_widths,
+        fontsize=7,
+        bold=True,
+        fill_bg=True,
+    )
 
     if history:
         for v in history:
-            taken, sys, dia, hr, spo2, temp = v
-            y = check_page_break(y, needed=80)
+            y = check_page_break(y, needed=40)
             y = draw_table_row(
                 y,
-                [taken.strftime("%m/%d/%Y"), str(sys), str(dia),
-                 f"{hr} BPM", f"{spo2}%", str(temp)],
-                v_widths
+                [formatter(v) for _, formatter in history_columns],
+                history_widths,
+                fontsize=7,
             )
     else:
         y -= 5
         pdf.setFont("Helvetica", 9)
-        pdf.drawString(LEFT, y, "No vitals recorded in the last 15 days.")
+        pdf.drawString(LEFT, y, f"No vitals recorded in the last {days} days.")
 
     pdf.save()
     buffer.seek(0)
