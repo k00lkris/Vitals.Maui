@@ -9,6 +9,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
 {
     private readonly ApiService _api;
     private readonly PatientStateService _patientState;
+    private readonly UserPreferencesService _preferences;
 
     public Patient? SelectedPatient => _patientState.SelectedPatient;
 
@@ -102,6 +103,14 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     [ObservableProperty] private bool _showSpo2 = false;
     [ObservableProperty] private bool _showTemp = false;
 
+    // Which optional analysis tabs the signed-in user chose to track.
+    // These come from the users table through UserPreferencesService.
+    [ObservableProperty] private bool _trackHeartRate = true;
+    [ObservableProperty] private bool _trackSpo2 = true;
+    [ObservableProperty] private bool _trackTemperature = true;
+    [ObservableProperty] private bool _trackWeight;
+    [ObservableProperty] private bool _trackGlucose;
+
     // Secondary plain English
     [ObservableProperty] private string _hrSummary = string.Empty;
     [ObservableProperty] private string _hrPcpLine = string.Empty;
@@ -113,18 +122,32 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     [ObservableProperty] private bool _showDiastolicWarning = false;
     [ObservableProperty] private string _diastolicWarningText = string.Empty;
 
-    public VitalsAnalysisViewModel(ApiService api, PatientStateService patientState)
+    public VitalsAnalysisViewModel(
+        ApiService api,
+        PatientStateService patientState,
+        UserPreferencesService preferences)
     {
         _api = api;
         _patientState = patientState;
+        _preferences = preferences;
     }
 
     public async Task LoadAsync(int days = 30)
     {
         SelectedDays = days;
         UpdateButtonColors(days);
+        ApplyPreferences(await _preferences.RefreshAsync());
         SelectTab("bp");
         await RunAnalysisAsync();
+    }
+
+    private void ApplyPreferences(UserPreferences preferences)
+    {
+        TrackHeartRate = preferences.ShowHeartRate;
+        TrackSpo2 = preferences.ShowSpo2;
+        TrackTemperature = preferences.ShowTemperature;
+        TrackWeight = preferences.ShowWeight;
+        TrackGlucose = preferences.ShowGlucose;
     }
 
     [RelayCommand]
@@ -230,6 +253,15 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         var inactive = res.TryGetValue("ButtonSecondary", out var i) ? (Color)i : Color.FromArgb("#b2dff2");
         var activeTxt = res.TryGetValue("TextPrimary", out var at) ? (Color)at : Colors.White;
         var inactiveTxt = res.TryGetValue("ButtonSecondaryText", out var it) ? (Color)it : Color.FromArgb("#0d2137");
+
+        // Ignore stale/programmatic requests for a tab the user no longer
+        // tracks. BP is always available and is the safe fallback.
+        if ((tab == "hr" && !TrackHeartRate) ||
+            (tab == "spo2" && !TrackSpo2) ||
+            (tab == "temp" && !TrackTemperature))
+        {
+            tab = "bp";
+        }
 
         ShowBp = tab == "bp";
         ShowHr = tab == "hr";
