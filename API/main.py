@@ -4223,6 +4223,7 @@ def export_medications_pdf(
     patient_id: UUID,
     days: int = Query(default=15),
     x_api_key: str = Header(..., alias="X-API-KEY"),
+    auth: dict = Depends(get_auth),
     household_id: str = Depends(get_household_id)
 ):
     check_key(x_api_key)
@@ -4238,6 +4239,31 @@ def export_medications_pdf(
     cur = conn.cursor()
     verify_patient_household(cur, str(patient_id), household_id)
 
+    # The PDF is generated for the signed-in user's chosen vital set.
+    # Blood pressure is always tracked. Legacy API-key callers have no
+    # per-user preference row, so preserve the pre-mobile default set and
+    # leave the newer Weight/Glucose sections off for that path.
+    show_hr = True
+    show_spo2 = True
+    show_temp = True
+    show_weight = False
+    show_glucose = False
+
+    if auth.get("type") != "api_key":
+        user_id = auth.get("sub")
+        if user_id:
+            cur.execute("""
+                SELECT show_heart_rate, show_spo2, show_temperature,
+                       show_weight, show_glucose
+                FROM users
+                WHERE user_id = %s AND household_id = %s;
+            """, (user_id, household_id))
+            pref_row = cur.fetchone()
+            if pref_row:
+                show_hr, show_spo2, show_temp, show_weight, show_glucose = [
+                    bool(v) for v in pref_row
+                ]
+
     cur.execute("""
         SELECT first_name, last_name, dob
         FROM patients WHERE patient_id = %s AND household_id = %s;
@@ -4247,14 +4273,53 @@ def export_medications_pdf(
     patient_dob  = p[2].strftime("%m/%d/%Y") if p and p[2] else "Unknown DOB"
 
     cur.execute("""
-        SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation, temperature
-        FROM vitals WHERE patient_id = %s AND household_id = %s
-        ORDER BY recorded_at DESC LIMIT 1;
-    """, (str(patient_id), household_id))
+        SELECT
+            (SELECT recorded_at FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT systolic FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND systolic IS NOT NULL AND diastolic IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT diastolic FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND systolic IS NOT NULL AND diastolic IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT heart_rate FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND heart_rate IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT oxygen_saturation FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND oxygen_saturation IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT temperature FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND temperature IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT weight FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND weight IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT blood_glucose FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND blood_glucose IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1);
+    """, (
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+    ))
     latest = cur.fetchone()
 
     cur.execute("""
-        SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation, temperature
+        SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation,
+               temperature, weight, blood_glucose
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
         ORDER BY recorded_at DESC;
@@ -4287,7 +4352,8 @@ def export_medications_pdf(
     allergies = cur.fetchall()
 
     cur.execute("""
-        SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation, temperature
+        SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation,
+               temperature, weight, blood_glucose
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
         ORDER BY recorded_at;
@@ -4304,22 +4370,30 @@ def export_medications_pdf(
     bp_analysis_rows = cur.fetchall()
     bp = run_bp_analysis(bp_analysis_rows)
 
-    cur.execute("""
-        SELECT recorded_at, heart_rate, oxygen_saturation, temperature
-        FROM vitals WHERE patient_id = %s AND household_id = %s
-          AND recorded_at >= now() - interval '%s days'
-          AND (heart_rate IS NOT NULL OR oxygen_saturation IS NOT NULL OR temperature IS NOT NULL)
-        ORDER BY recorded_at ASC;
-    """, (str(patient_id), household_id, days))
-    secondary_rows = cur.fetchall()
-
     # Heart Rate, SpO2, and Temperature all use the same dedicated
     # analysis engines that power the app's Analysis view. Keeping the
     # PDF on those contracts prevents the report from drifting back to
     # the retired generic average/classification/interpolated-burden path.
-    hr_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "heart_rate", days)
-    spo2_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "spo2", days)
-    temp_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "temperature", days)
+    hr_analysis = (
+        get_cached_or_compute_analysis(str(patient_id), household_id, "heart_rate", days)
+        if show_hr else None
+    )
+    spo2_analysis = (
+        get_cached_or_compute_analysis(str(patient_id), household_id, "spo2", days)
+        if show_spo2 else None
+    )
+    temp_analysis = (
+        get_cached_or_compute_analysis(str(patient_id), household_id, "temperature", days)
+        if show_temp else None
+    )
+    weight_analysis = (
+        get_cached_or_compute_analysis(str(patient_id), household_id, "weight", days)
+        if show_weight else None
+    )
+    glucose_analysis = (
+        get_cached_or_compute_analysis(str(patient_id), household_id, "glucose", days)
+        if show_glucose else None
+    )
 
     cur.close()
     conn.close()
