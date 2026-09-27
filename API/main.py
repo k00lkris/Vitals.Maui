@@ -2698,7 +2698,11 @@ def _run_descriptive_scalar_analysis(
     }
 
     change = None
-    if len(points) >= 2:
+    # First-to-latest change is meaningful for longitudinal Weight tracking.
+    # Do not expose it for glucose while fasting/meal context is unknown:
+    # two values from different measurement states are not directly
+    # comparable as one continuous trajectory.
+    if len(points) >= 2 and allow_longitudinal_trend:
         absolute_change = float(latest["value"] - first["value"])
         pct_change = (
             absolute_change / float(first["value"]) * 100.0
