@@ -978,15 +978,15 @@ public partial class VitalsAnalysisViewModel : ObservableObject
 
     private void BuildTempSummary(VitalsAnalysis a)
     {
-        if (a.Temperature?.Latest is null)
+        var temp = a.Temperature;
+
+        if (temp?.Latest is not { } latest)
         {
             TempSummary = string.Empty;
             TempPcpLine = string.Empty;
             return;
         }
 
-        var temp = a.Temperature;
-        var latest = temp.Latest;
         var range = temp.RangeEvents;
         var parts = new List<string>();
 
@@ -1076,8 +1076,15 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         }
 
         // -----------------------------------------------------
-        // 4. Latest recorded fever episode + change from peak
+        // 4. Recorded fever episodes + latest episode context
         // -----------------------------------------------------
+        if (temp.Episodes.Count > 0)
+        {
+            parts.Add(
+                $"The fever-range measurements group into {temp.Episodes.Count} recorded " +
+                $"{(temp.Episodes.Count == 1 ? "episode" : "episodes")} in this selected window.");
+        }
+
         if (temp.LatestEpisode is not null)
         {
             var episode = temp.LatestEpisode;
