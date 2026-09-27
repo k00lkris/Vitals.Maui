@@ -61,12 +61,13 @@ public partial class VitalsEntryViewModel : ObservableObject
     [ObservableProperty]
     private bool _showGlucose = false;
 
-    // Heart Rate Analysis Spec §4 — Activity Context and Posture. Nothing
-    // selected (both null) means "unknown", same as any reading logged
-    // before this UI existed — not an error state, just excluded from
-    // resting-specific analysis until the user actually picks one.
-    private static readonly Color SelectedColor = Color.FromArgb("#1976d2");
-    private static readonly Color UnselectedColor = Color.FromArgb("#2a3a5c");
+    // Shared selection fill for the optional context controls below.
+    // Selected uses a translucent blue fill so the active choice is much
+    // easier to see than a border-only state while remaining readable in
+    // both light and dark themes. Unselected stays transparent and relies
+    // on the XAML card stroke for its outline.
+    private static readonly Color SelectedColor = Color.FromArgb("#661976D2");
+    private static readonly Color UnselectedColor = Colors.Transparent;
 
     [ObservableProperty] private string? _hrActivityContext;
     [ObservableProperty] private Color _restingColor = UnselectedColor;
