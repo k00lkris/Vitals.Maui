@@ -2173,7 +2173,11 @@ def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> d
             "local_offset_minutes": r[1],
             "temperature_f":        float(r[2]),
             "temperature_site":     _site(r[3]),
-            "source_type":          r[4] or "unknown",
+            # vitals.source is the ingestion/application source (for example
+            # "maui_app"), not thermometer/device provenance. Keep it
+            # separate from the future temperature source_type field defined
+            # by the engineering spec.
+            "source":               r[4] or "unknown",
             "heart_rate":           r[5],
             "oxygen_saturation":    r[6],
             "systolic":             r[7],
@@ -2253,6 +2257,7 @@ def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> d
     episodes = []
     for idx, group in enumerate(episode_groups, start=1):
         peak = max(group, key=lambda r: r["temperature_f"])
+        minimum = min(group, key=lambda r: r["temperature_f"])
         sites = sorted(set(r["temperature_site"] for r in group))
         span_hours = (
             (group[-1]["recorded_at"] - group[0]["recorded_at"]).total_seconds() / 3600.0
@@ -2286,6 +2291,10 @@ def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> d
             "peak_c":                     round(_to_c(peak["temperature_f"]), 1),
             "peak_at":                    peak["recorded_at"].isoformat(),
             "peak_site":                  peak["temperature_site"],
+            "minimum_f":                  round(minimum["temperature_f"], 1),
+            "minimum_c":                  round(_to_c(minimum["temperature_f"]), 1),
+            "minimum_at":                 minimum["recorded_at"].isoformat(),
+            "minimum_site":               minimum["temperature_site"],
             "n_fever_readings":           len(group),
             "febrile_days":               len({_temperature_local_datetime(r).date() for r in group}),
             "sites":                      sites,
@@ -2347,66 +2356,92 @@ def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> d
         else:
             baseline_failure_reason = "insufficient_same_site_baseline"
 
-    # Acute OLS trajectory for the latest fever episode only. The spec gate
-    # is >=3 same-site episode readings spanning >=6 hours. Patient-facing
-    # interpretation should use rising/stable/falling; R²/p are retained for
-    # physician/debug layers.
+    # Acute OLS trajectory for the latest recorded fever episode.
+    #
+    # Important: this is NOT restricted to fever-range points. Once an
+    # episode has started, same-site temperatures below the fever reference
+    # can be the most informative evidence of a downward/recovery pattern.
+    # We therefore include same-site readings from the first fever
+    # observation through at most 24 hours after the last fever observation.
+    # The 24-hour association window mirrors the episode-gap engineering rule
+    # and is not a medical definition of episode duration.
     acute_trend = None
     acute_trend_failure_reason = None
+    acute_trend_rows = []
+
     if latest_episode_group:
         episode_known_sites = {
             r["temperature_site"]
             for r in latest_episode_group
             if r["temperature_site"] != "unknown"
         }
-        episode_span_hours = (
-            (latest_episode_group[-1]["recorded_at"] - latest_episode_group[0]["recorded_at"]).total_seconds() / 3600.0
-            if len(latest_episode_group) > 1 else 0.0
-        )
 
-        if len(latest_episode_group) >= 3 and len(episode_known_sites) == 1 and episode_span_hours >= 6:
-            origin = latest_episode_group[0]["recorded_at"]
-            x_hours = np.array([
-                (r["recorded_at"] - origin).total_seconds() / 3600.0
-                for r in latest_episode_group
-            ])
-            y_f = np.array([r["temperature_f"] for r in latest_episode_group])
-
-            if np.std(y_f) == 0:
-                slope = 0.0
-                r2 = None
-                p_value = None
-            else:
-                slope, _, r_value, p_value_raw, _ = stats.linregress(x_hours, y_f)
-                slope = float(slope)
-                r2 = float(r_value ** 2)
-                p_value = float(p_value_raw)
-
-            modeled_change = slope * episode_span_hours
-
-            # 0.5°F total modeled change is a Vitals presentation gate only,
-            # not a clinical threshold.
-            if abs(modeled_change) < 0.5:
-                label = "stable"
-            elif slope > 0:
-                label = "rising"
-            else:
-                label = "falling"
-
-            acute_trend = {
-                "site":                  next(iter(episode_known_sites)),
-                "n":                     len(latest_episode_group),
-                "span_hours":            round(episode_span_hours, 1),
-                "slope_f_per_hour":      round(slope, 3),
-                "slope_f_per_12_hours":  round(slope * 12.0, 2),
-                "modeled_change_f":      round(modeled_change, 1),
-                "r2":                    round(r2, 2) if r2 is not None else None,
-                "p_value":               round(p_value, 3) if p_value is not None else None,
-                "trend_label":           label,
-            }
+        if len(episode_known_sites) == 0:
+            acute_trend_failure_reason = "measurement_site_unknown"
+        elif len(episode_known_sites) > 1:
+            acute_trend_failure_reason = "mixed_measurement_sites"
         else:
-            if len(episode_known_sites) != 1:
-                acute_trend_failure_reason = "mixed_measurement_sites"
+            acute_site = next(iter(episode_known_sites))
+            first_fever_at = latest_episode_group[0]["recorded_at"]
+            last_fever_at = latest_episode_group[-1]["recorded_at"]
+            association_end = last_fever_at + timedelta(hours=EPISODE_GAP_HOURS)
+
+            acute_trend_rows = [
+                r for r in rows_d
+                if r["temperature_site"] == acute_site
+                and first_fever_at <= r["recorded_at"] <= association_end
+            ]
+
+            acute_span_hours = (
+                (acute_trend_rows[-1]["recorded_at"] - acute_trend_rows[0]["recorded_at"]).total_seconds() / 3600.0
+                if len(acute_trend_rows) > 1 else 0.0
+            )
+
+            if len(acute_trend_rows) >= 3 and acute_span_hours >= 6:
+                origin = acute_trend_rows[0]["recorded_at"]
+                x_hours = np.array([
+                    (r["recorded_at"] - origin).total_seconds() / 3600.0
+                    for r in acute_trend_rows
+                ])
+                y_f = np.array([r["temperature_f"] for r in acute_trend_rows])
+
+                if np.std(y_f) == 0:
+                    slope = 0.0
+                    r2 = None
+                    p_value = None
+                else:
+                    slope, _, r_value, p_value_raw, _ = stats.linregress(x_hours, y_f)
+                    slope = float(slope)
+                    r2 = float(r_value ** 2)
+                    p_value = float(p_value_raw)
+
+                modeled_change = slope * acute_span_hours
+
+                # 0.5°F total modeled change is a Vitals presentation gate
+                # only, not a clinical threshold.
+                if abs(modeled_change) < 0.5:
+                    label = "stable"
+                elif slope > 0:
+                    label = "rising"
+                else:
+                    label = "falling"
+
+                acute_trend = {
+                    "site":                  acute_site,
+                    "n":                     len(acute_trend_rows),
+                    "span_hours":            round(acute_span_hours, 1),
+                    "slope_f_per_hour":      round(slope, 3),
+                    "slope_f_per_12_hours":  round(slope * 12.0, 2),
+                    "modeled_change_f":      round(modeled_change, 1),
+                    "r2":                    round(r2, 2) if r2 is not None else None,
+                    "p_value":               round(p_value, 3) if p_value is not None else None,
+                    "trend_label":           label,
+                    "first_reading_at":      acute_trend_rows[0]["recorded_at"].isoformat(),
+                    "last_reading_at":       acute_trend_rows[-1]["recorded_at"].isoformat(),
+                    "includes_post_fever_readings": any(
+                        r["temperature_f"] < FEVER_F for r in acute_trend_rows
+                    ),
+                }
             else:
                 acute_trend_failure_reason = "insufficient_episode_density"
     else:
@@ -2476,10 +2511,20 @@ def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> d
             "analysis": "acute_trend",
             "reason_code": acute_trend_failure_reason or "insufficient_episode_density",
             "reason": (
-                "needs >=3 same-site fever-range readings spanning >=6 hours "
-                "inside the latest recorded episode"
+                "needs >=3 same-site temperature readings spanning >=6 hours "
+                "from the start of the latest fever episode through its 24-hour association window"
             ),
         })
+
+    # Broader "low temperature" analysis remains capability-gated until
+    # Vitals defines a configurable product threshold. Do not invent a
+    # universal cutoff. The recognized <95°F hypothermia-range safety
+    # context remains implemented independently.
+    unavailable.append({
+        "analysis": "low_temperature",
+        "reason_code": "low_temperature_threshold_not_configured",
+        "reason": "a broader low-temperature reference has not been configured; hypothermia-range observations below 95°F are still evaluated separately",
+    })
 
     if len(unique_known_sites) > 1:
         unavailable.append({
@@ -2508,11 +2553,6 @@ def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> d
             "reason_code": "no_medication_administration_events",
             "reason": "actual antipyretic dose-administration events are not collected yet",
         },
-        {
-            "analysis": "pediatric_flags",
-            "reason_code": "not_implemented",
-            "reason": "age-aware pediatric temperature rules are a separate P1 capability",
-        },
     ])
 
     if acute_trend is not None:
@@ -2532,14 +2572,20 @@ def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> d
             "value_c":        round(_to_c(latest["temperature_f"]), 1),
             "recorded_at":    latest["recorded_at"].isoformat(),
             "site":           latest_site,
-            "source_type":    latest["source_type"],
+            "source":         latest["source"],
+            # Reserved for true measurement provenance (manual,
+            # thermometer, HealthKit/HealthConnect, etc.). The current
+            # vitals table does not collect this separately yet.
+            "source_type":    None,
             "linked_context": latest_context,
         },
         "reading_count": len(rows_d),
         "target_profile": {
-            "fever_threshold_f":       FEVER_F,
-            "fever_threshold_c":       38.0,
-            "hypothermia_threshold_f": HYPOTHERMIA_F,
+            "fever_threshold_f":          FEVER_F,
+            "fever_threshold_c":          38.0,
+            "low_temperature_threshold_f": None,
+            "low_temperature_threshold_c": None,
+            "hypothermia_threshold_f":    HYPOTHERMIA_F,
             "hypothermia_threshold_c": 35.0,
             "source":                  "reference_default",
             "patient_specific":        False,
@@ -2549,9 +2595,12 @@ def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> d
             "fever_threshold_f":       FEVER_F,
             "fever_count":             len(fever_rows),
             "fever_logged_pct":        round(100.0 * len(fever_rows) / len(rows_d), 1),
-            "febrile_days":            febrile_days,
-            "hypothermia_threshold_f": HYPOTHERMIA_F,
-            "hypothermia_range_count": len(hypothermia_rows),
+            "febrile_days":               febrile_days,
+            "low_temperature_threshold_f": None,
+            "low_temperature_count":       None,
+            "low_temperature_readings":    None,
+            "hypothermia_threshold_f":    HYPOTHERMIA_F,
+            "hypothermia_range_count":    len(hypothermia_rows),
             "hypothermia_readings": [
                 {
                     "recorded_at": r["recorded_at"].isoformat(),
