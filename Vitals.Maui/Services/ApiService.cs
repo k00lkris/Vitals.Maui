@@ -765,6 +765,27 @@ public class ApiService
         return "Something went wrong. Please try again.";
     }
 
+    public async Task<UserPreferences?> GetUserPreferencesAsync(string userId)
+    {
+        try
+        {
+            var response = await _http.GetAsync(
+                $"/api/user/preferences?user_id={Uri.EscapeDataString(userId)}");
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine($"=== USER PREFS STATUS: {response.StatusCode}");
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            return JsonSerializer.Deserialize<UserPreferences>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== USER PREFS ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
     public async Task<bool> UpdateUserPreferencesAsync(string userId, object payload)
     {
         try
