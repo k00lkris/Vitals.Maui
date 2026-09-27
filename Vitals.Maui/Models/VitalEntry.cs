@@ -34,6 +34,16 @@ public class VitalEntry
     [JsonPropertyName("temperature")]
     public double? Temperature { get; set; }
 
+    // Measurement site for temperature readings. This is optional at
+    // entry time for backwards compatibility, but the dedicated
+    // Temperature analysis engine uses known same-site readings for
+    // personal-baseline and site-sensitive comparisons.
+    //
+    // API values:
+    // oral | rectal | axillary | tympanic | temporal | other | unknown
+    [JsonPropertyName("temperature_site")]
+    public string? TemperatureSite { get; set; }
+
     [JsonPropertyName("blood_glucose")]
     public int? BloodGlucose { get; set; }
 
