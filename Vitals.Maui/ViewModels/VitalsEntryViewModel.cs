@@ -105,6 +105,38 @@ public partial class VitalsEntryViewModel : ObservableObject
         StandingColor = HrPosture == "standing" ? SelectedColor : UnselectedColor;
     }
 
+    // Temperature Analysis Spec — measurement site is optional at entry
+    // time, but known same-site readings are what allow Vitals to build a
+    // personal baseline and make site-sensitive comparisons. As with the
+    // HR context selectors, tapping the selected option again clears it
+    // back to unknown rather than forcing a choice.
+    [ObservableProperty] private string? _temperatureSite;
+    [ObservableProperty] private Color _tempOralColor = UnselectedColor;
+    [ObservableProperty] private Color _tempTemporalColor = UnselectedColor;
+    [ObservableProperty] private Color _tempTympanicColor = UnselectedColor;
+    [ObservableProperty] private Color _tempAxillaryColor = UnselectedColor;
+    [ObservableProperty] private Color _tempRectalColor = UnselectedColor;
+    [ObservableProperty] private Color _tempOtherColor = UnselectedColor;
+
+    [RelayCommand] private void SelectTempOral() => SetTemperatureSite("oral");
+    [RelayCommand] private void SelectTempTemporal() => SetTemperatureSite("temporal");
+    [RelayCommand] private void SelectTempTympanic() => SetTemperatureSite("tympanic");
+    [RelayCommand] private void SelectTempAxillary() => SetTemperatureSite("axillary");
+    [RelayCommand] private void SelectTempRectal() => SetTemperatureSite("rectal");
+    [RelayCommand] private void SelectTempOther() => SetTemperatureSite("other");
+
+    private void SetTemperatureSite(string value)
+    {
+        TemperatureSite = TemperatureSite == value ? null : value;
+
+        TempOralColor = TemperatureSite == "oral" ? SelectedColor : UnselectedColor;
+        TempTemporalColor = TemperatureSite == "temporal" ? SelectedColor : UnselectedColor;
+        TempTympanicColor = TemperatureSite == "tympanic" ? SelectedColor : UnselectedColor;
+        TempAxillaryColor = TemperatureSite == "axillary" ? SelectedColor : UnselectedColor;
+        TempRectalColor = TemperatureSite == "rectal" ? SelectedColor : UnselectedColor;
+        TempOtherColor = TemperatureSite == "other" ? SelectedColor : UnselectedColor;
+    }
+
     // Delegate to shared state
     public System.Collections.ObjectModel.ObservableCollection<Patient> Patients =>
         new(_patientState.Patients);
@@ -209,6 +241,13 @@ public partial class VitalsEntryViewModel : ObservableObject
                 HeartRate = TryParseInt(heartRate),
                 OxygenSaturation = TryParseInt(oxygenSaturation),
                 Temperature = TryParseDouble(temperature),
+                // Temperature site is meaningful only when an actual
+                // temperature was entered. If the user leaves the optional
+                // selector untouched, send "unknown" explicitly so the
+                // stored reading accurately reflects missing site context.
+                TemperatureSite = string.IsNullOrWhiteSpace(temperature)
+                    ? null
+                    : TemperatureSite ?? "unknown",
                 BloodGlucose = TryParseInt(bloodGlucose),
                 Weight = TryParseDouble(weight),
                 Notes = Notes,
@@ -250,6 +289,13 @@ public partial class VitalsEntryViewModel : ObservableObject
         HeartRate = string.Empty;
         OxygenSaturation = string.Empty;
         Temperature = string.Empty;
+        TemperatureSite = null;
+        TempOralColor = UnselectedColor;
+        TempTemporalColor = UnselectedColor;
+        TempTympanicColor = UnselectedColor;
+        TempAxillaryColor = UnselectedColor;
+        TempRectalColor = UnselectedColor;
+        TempOtherColor = UnselectedColor;
         BloodGlucose = string.Empty;
         Weight = string.Empty;
         Notes = string.Empty;
