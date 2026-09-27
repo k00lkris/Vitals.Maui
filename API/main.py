@@ -5334,64 +5334,72 @@ def export_medications_pdf(
         pdf.drawString(LEFT, y, f"Last vital entry: {taken.strftime('%m/%d/%Y %I:%M %p')}")
         y -= 16
 
-        summary_rows = [
-            (
+        summary_rows = []
+        if (
+            (sys is not None and dia is not None) or
+            (avg_sys is not None and avg_dia is not None)
+        ):
+            summary_rows.append((
                 "Blood Pressure",
                 f"{sys}/{dia} mmHg" if sys is not None and dia is not None else "n/a",
                 f"{avg_sys:.0f}/{avg_dia:.0f} mmHg"
                 if avg_sys is not None and avg_dia is not None else "n/a",
-            )
-        ]
+            ))
 
-        if show_hr:
+        if show_hr and (hr is not None or avg_hr is not None):
             summary_rows.append((
                 "Heart Rate",
                 f"{hr} BPM" if hr is not None else "n/a",
                 f"{avg_hr:.0f} BPM" if avg_hr is not None else "n/a",
             ))
-        if show_spo2:
+        if show_spo2 and (spo2 is not None or avg_spo2 is not None):
             summary_rows.append((
                 "Oxygen Saturation",
                 f"{spo2}%" if spo2 is not None else "n/a",
                 f"{avg_spo2:.1f}%" if avg_spo2 is not None else "n/a",
             ))
-        if show_temp:
+        if show_temp and (temp is not None or avg_temp is not None):
             summary_rows.append((
                 "Temperature",
                 f"{float(temp):.1f} F" if temp is not None else "n/a",
                 f"{avg_temp:.1f} F" if avg_temp is not None else "n/a",
             ))
-        if show_weight:
+        if show_weight and (weight is not None or avg_weight is not None):
             summary_rows.append((
                 "Weight",
                 f"{float(weight):.1f} lb" if weight is not None else "n/a",
                 f"{avg_weight:.1f} lb" if avg_weight is not None else "n/a",
             ))
-        if show_glucose:
+        if show_glucose and (glucose is not None or avg_glucose is not None):
             summary_rows.append((
                 "Blood Glucose",
                 f"{glucose} mg/dL" if glucose is not None else "n/a",
                 f"{avg_glucose:.0f} mg/dL" if avg_glucose is not None else "n/a",
             ))
 
-        summary_widths = [170, 160, 182]
-        y = draw_table_row(
-            y,
-            ["Vital", "Latest", f"{days}-Day Logged Average"],
-            summary_widths,
-            fontsize=8,
-            bold=True,
-            fill_bg=True,
-        )
-        for label, latest_display, avg_display in summary_rows:
-            y = check_page_break(y, needed=35)
+        if summary_rows:
+            summary_widths = [170, 160, 182]
             y = draw_table_row(
                 y,
-                [label, latest_display, avg_display],
+                ["Vital", "Latest", f"{days}-Day Logged Average"],
                 summary_widths,
                 fontsize=8,
+                bold=True,
+                fill_bg=True,
             )
-        y -= 12
+            for label, latest_display, avg_display in summary_rows:
+                y = check_page_break(y, needed=35)
+                y = draw_table_row(
+                    y,
+                    [label, latest_display, avg_display],
+                    summary_widths,
+                    fontsize=8,
+                )
+            y -= 12
+        else:
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(LEFT, y, "No tracked vital values are available in this period.")
+            y -= 20
     else:
         pdf.setFont("Helvetica", 10)
         pdf.drawString(LEFT, y, "No vitals recorded.")
