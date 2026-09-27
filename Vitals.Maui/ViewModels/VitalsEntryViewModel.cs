@@ -9,6 +9,7 @@ public partial class VitalsEntryViewModel : ObservableObject
 {
     private readonly ApiService _api;
     private readonly PatientStateService _patientState;
+    private readonly UserPreferencesService _preferences;
 
     [ObservableProperty]
     private string _systolic = string.Empty;
@@ -148,10 +149,14 @@ public partial class VitalsEntryViewModel : ObservableObject
         set => _patientState.SelectedPatient = value;
     }
 
-    public VitalsEntryViewModel(ApiService api, PatientStateService patientState)
+    public VitalsEntryViewModel(
+        ApiService api,
+        PatientStateService patientState,
+        UserPreferencesService preferences)
     {
         _api = api;
         _patientState = patientState;
+        _preferences = preferences;
 
         _patientState.PropertyChanged += (s, e) =>
         {
@@ -173,17 +178,22 @@ public partial class VitalsEntryViewModel : ObservableObject
     /// </summary>
     private void LoadDisplayPreferences()
     {
-        ShowHeartRate = Preferences.Get("show_heart_rate", true);
-        ShowSpo2 = Preferences.Get("show_spo2", true);
-        ShowTemperature = Preferences.Get("show_temperature", true);
-        ShowWeight = Preferences.Get("show_weight", false);
-        ShowGlucose = Preferences.Get("show_glucose", false);
+        ApplyPreferences(_preferences.LocalSnapshot());
+    }
+
+    private void ApplyPreferences(UserPreferences preferences)
+    {
+        ShowHeartRate = preferences.ShowHeartRate;
+        ShowSpo2 = preferences.ShowSpo2;
+        ShowTemperature = preferences.ShowTemperature;
+        ShowWeight = preferences.ShowWeight;
+        ShowGlucose = preferences.ShowGlucose;
     }
 
     [RelayCommand]
     public async Task LoadAsync()
     {
-        LoadDisplayPreferences();
+        ApplyPreferences(await _preferences.RefreshAsync());
         await _patientState.InitializeAsync();
         OnPropertyChanged(nameof(Patients));
         OnPropertyChanged(nameof(SelectedPatient));
