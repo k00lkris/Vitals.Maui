@@ -572,6 +572,7 @@ CREATE TABLE IF NOT EXISTS public.users
     subscription_status text COLLATE pg_catalog."default" DEFAULT 'trial'::text,
     subscription_ends_at timestamp with time zone,
     theme text COLLATE pg_catalog."default" DEFAULT 'dark'::text,
+    show_blood_pressure boolean NOT NULL DEFAULT true,
     show_heart_rate boolean DEFAULT true,
     show_spo2 boolean DEFAULT true,
     show_temperature boolean DEFAULT true,
