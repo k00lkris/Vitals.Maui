@@ -40,7 +40,7 @@ public partial class LoginViewModel : ObservableObject
 
             if (success)
             {
-                AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
+                await AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
             }
             else
             {
@@ -85,7 +85,7 @@ public partial class LoginViewModel : ObservableObject
 
             if (result.Success)
             {
-                AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
+                await AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
             }
             else
             {

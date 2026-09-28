@@ -43,9 +43,10 @@ public partial class VitalsEntryViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSuccess;
 
-    // Field visibility, driven by the same Preferences keys SettingsViewModel
-    // writes to. Systolic/Diastolic have no corresponding setting — blood
-    // pressure is always shown — so there's no visibility flag for them.
+    // Field visibility, driven by the same Preferences keys SettingsViewModel writes to.
+    [ObservableProperty]
+    private bool _showBloodPressure = true;
+
     [ObservableProperty]
     private bool _showHeartRate = true;
 
@@ -173,6 +174,7 @@ public partial class VitalsEntryViewModel : ObservableObject
     /// </summary>
     private void LoadDisplayPreferences()
     {
+        ShowBloodPressure = Preferences.Get("show_blood_pressure", true);
         ShowHeartRate = Preferences.Get("show_heart_rate", true);
         ShowSpo2 = Preferences.Get("show_spo2", true);
         ShowTemperature = Preferences.Get("show_temperature", true);
@@ -201,8 +203,8 @@ public partial class VitalsEntryViewModel : ObservableObject
         // Only require/submit fields that are actually visible. A hidden
         // field left with stale text (from before it was toggled off)
         // should never be treated as "entered" or sent to the API.
-        var systolic = Systolic;
-        var diastolic = Diastolic;
+        var systolic = ShowBloodPressure ? Systolic : string.Empty;
+        var diastolic = ShowBloodPressure ? Diastolic : string.Empty;
         var heartRate = ShowHeartRate ? HeartRate : string.Empty;
         var oxygenSaturation = ShowSpo2 ? OxygenSaturation : string.Empty;
         var temperature = ShowTemperature ? Temperature : string.Empty;

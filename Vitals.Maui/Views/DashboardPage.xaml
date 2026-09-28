@@ -59,7 +59,7 @@
                     </Grid>
 
                     <!-- BP -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4" IsVisible="{Binding ShowBloodPressure}">
                         <Label Grid.Column="0" Text="🫀" FontSize="18"
                                VerticalOptions="Center" Margin="0,0,12,0"/>
                         <Label Grid.Column="1" Text="Blood Pressure"
@@ -72,7 +72,7 @@
                     <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
 
                     <!-- HR -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4" IsVisible="{Binding ShowHeartRate}">
                         <Label Grid.Column="0" Text="💓" FontSize="18"
                                VerticalOptions="Center" Margin="0,0,12,0"/>
                         <Label Grid.Column="1" Text="Heart Rate"
@@ -82,10 +82,10 @@
                                FontSize="16" FontAttributes="Bold"
                                TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center"/>
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" IsVisible="{Binding ShowHeartRate}" />
 
                     <!-- SpO2 -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4" IsVisible="{Binding ShowSpo2}">
                         <Label Grid.Column="0" Text="🫁" FontSize="18"
                                VerticalOptions="Center" Margin="0,0,12,0"/>
                         <Label Grid.Column="1" Text="SpO₂"
@@ -95,10 +95,10 @@
                                FontSize="16" FontAttributes="Bold"
                                TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center"/>
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" IsVisible="{Binding ShowSpo2}" />
 
                     <!-- Temperature -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4" IsVisible="{Binding ShowTemperature}">
                         <Label Grid.Column="0" Text="🌡️" FontSize="18"
                                VerticalOptions="Center" Margin="0,0,12,0"/>
                         <Label Grid.Column="1" Text="Temperature"
@@ -107,6 +107,20 @@
                         <Label Grid.Column="2" Text="{Binding LatestTemperature}"
                                FontSize="16" FontAttributes="Bold"
                                TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center"/>
+                    </Grid>
+
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" IsVisible="{Binding ShowWeight}" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4" IsVisible="{Binding ShowWeight}">
+                        <Label Grid.Column="0" Text="⚖️" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0"/>
+                        <Label Grid.Column="1" Text="Weight" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center"/>
+                        <Label Grid.Column="2" Text="{Binding LatestWeight}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center"/>
+                    </Grid>
+
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" IsVisible="{Binding ShowGlucose}" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4" IsVisible="{Binding ShowGlucose}">
+                        <Label Grid.Column="0" Text="🩸" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0"/>
+                        <Label Grid.Column="1" Text="Blood Glucose" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center"/>
+                        <Label Grid.Column="2" Text="{Binding LatestGlucose}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center"/>
                     </Grid>
 
                 </VerticalStackLayout>
@@ -157,7 +171,7 @@
                     </Grid>
 
                     <!-- BP -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4" IsVisible="{Binding ShowBloodPressure}">
                         <Label Grid.Column="0" Text="🫀" FontSize="18"
                                VerticalOptions="Center" Margin="0,0,12,0"/>
                         <Label Grid.Column="1" Text="Blood Pressure"
@@ -180,7 +194,7 @@
                                FontSize="16" FontAttributes="Bold"
                                TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center"/>
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" IsVisible="{Binding ShowHeartRate}" />
 
                     <!-- SpO2 -->
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
@@ -193,7 +207,7 @@
                                FontSize="16" FontAttributes="Bold"
                                TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center"/>
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" IsVisible="{Binding ShowSpo2}" />
 
                     <!-- Temperature -->
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
@@ -205,6 +219,20 @@
                         <Label Grid.Column="2" Text="{Binding AvgTemperature}"
                                FontSize="16" FontAttributes="Bold"
                                TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center"/>
+                    </Grid>
+
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" IsVisible="{Binding ShowWeight}" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4" IsVisible="{Binding ShowWeight}">
+                        <Label Grid.Column="0" Text="⚖️" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0"/>
+                        <Label Grid.Column="1" Text="Weight" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center"/>
+                        <Label Grid.Column="2" Text="{Binding AvgWeight}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center"/>
+                    </Grid>
+
+                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" IsVisible="{Binding ShowGlucose}" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4" IsVisible="{Binding ShowGlucose}">
+                        <Label Grid.Column="0" Text="🩸" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0"/>
+                        <Label Grid.Column="1" Text="Blood Glucose" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center"/>
+                        <Label Grid.Column="2" Text="{Binding AvgGlucose}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center"/>
                     </Grid>
 
                 </VerticalStackLayout>
@@ -253,7 +281,7 @@
                     <VerticalStackLayout IsVisible="{Binding ChartsExpanded}"
                                          Spacing="16">
 
-                        <VerticalStackLayout Spacing="4">
+                        <VerticalStackLayout Spacing="4" IsVisible="{Binding ShowBloodPressure}">
                             <Label Text="Blood Pressure (mmHg)"
                                    FontSize="13" FontAttributes="Bold"
                                    TextColor="{DynamicResource PrimaryAccent}" />
@@ -266,7 +294,7 @@
 
                         <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
 
-                        <VerticalStackLayout Spacing="4">
+                        <VerticalStackLayout Spacing="4" IsVisible="{Binding ShowHeartRate}">
                             <Label Text="Heart Rate (bpm)"
                                    FontSize="13" FontAttributes="Bold"
                                    TextColor="{DynamicResource PrimaryAccent}" />
@@ -279,7 +307,7 @@
 
                         <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
 
-                        <VerticalStackLayout Spacing="4">
+                        <VerticalStackLayout Spacing="4" IsVisible="{Binding ShowSpo2}">
                             <Label Text="SpO₂ (%)"
                                    FontSize="13" FontAttributes="Bold"
                                    TextColor="{DynamicResource PrimaryAccent}" />
@@ -292,7 +320,7 @@
 
                         <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
 
-                        <VerticalStackLayout Spacing="4">
+                        <VerticalStackLayout Spacing="4" IsVisible="{Binding ShowTemperature}">
                             <Label Text="Temperature (°F)"
                                    FontSize="13" FontAttributes="Bold"
                                    TextColor="{DynamicResource PrimaryAccent}" />
@@ -301,6 +329,18 @@
                                 XAxes="{Binding DateAxes}"
                                 HeightRequest="200"
                                 BackgroundColor="Transparent" />
+                        </VerticalStackLayout>
+
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" IsVisible="{Binding ShowWeight}" />
+                        <VerticalStackLayout Spacing="4" IsVisible="{Binding ShowWeight}">
+                            <Label Text="Weight (lb)" FontSize="13" FontAttributes="Bold" TextColor="{DynamicResource PrimaryAccent}" />
+                            <lvc:CartesianChart Series="{Binding WeightSeries}" XAxes="{Binding DateAxes}" HeightRequest="200" BackgroundColor="Transparent" />
+                        </VerticalStackLayout>
+
+                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" IsVisible="{Binding ShowGlucose}" />
+                        <VerticalStackLayout Spacing="4" IsVisible="{Binding ShowGlucose}">
+                            <Label Text="Blood Glucose (mg/dL)" FontSize="13" FontAttributes="Bold" TextColor="{DynamicResource PrimaryAccent}" />
+                            <lvc:CartesianChart Series="{Binding GlucoseSeries}" XAxes="{Binding DateAxes}" HeightRequest="200" BackgroundColor="Transparent" />
                         </VerticalStackLayout>
 
                     </VerticalStackLayout>

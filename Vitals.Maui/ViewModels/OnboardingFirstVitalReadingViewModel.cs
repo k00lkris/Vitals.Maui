@@ -22,6 +22,7 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
     }
 
     // Same show/hide preferences just set on the previous screen.
+    [ObservableProperty] private bool _showBloodPressure = true;
     [ObservableProperty] private bool _showHeartRate = true;
     [ObservableProperty] private bool _showSpo2 = true;
     [ObservableProperty] private bool _showTemperature = true;
@@ -64,6 +65,7 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
     /// </summary>
     public async Task LoadAsync()
     {
+        ShowBloodPressure = Preferences.Get("show_blood_pressure", true);
         ShowHeartRate = Preferences.Get("show_heart_rate", true);
         ShowSpo2 = Preferences.Get("show_spo2", true);
         ShowTemperature = Preferences.Get("show_temperature", true);
@@ -86,14 +88,16 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
             return;
         }
 
+        var systolic = ShowBloodPressure ? Systolic : string.Empty;
+        var diastolic = ShowBloodPressure ? Diastolic : string.Empty;
         var heartRate = ShowHeartRate ? HeartRate : string.Empty;
         var oxygenSaturation = ShowSpo2 ? OxygenSaturation : string.Empty;
         var temperature = ShowTemperature ? Temperature : string.Empty;
         var bloodGlucose = ShowGlucose ? BloodGlucose : string.Empty;
         var weight = ShowWeight ? Weight : string.Empty;
 
-        if (string.IsNullOrWhiteSpace(Systolic) &&
-            string.IsNullOrWhiteSpace(Diastolic) &&
+        if (string.IsNullOrWhiteSpace(systolic) &&
+            string.IsNullOrWhiteSpace(diastolic) &&
             string.IsNullOrWhiteSpace(heartRate) &&
             string.IsNullOrWhiteSpace(oxygenSaturation) &&
             string.IsNullOrWhiteSpace(temperature) &&
@@ -113,8 +117,8 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
             {
                 PatientId = SelectedPatient.PatientId,
                 RecordedAt = null,
-                Systolic = TryParseInt(Systolic),
-                Diastolic = TryParseInt(Diastolic),
+                Systolic = TryParseInt(systolic),
+                Diastolic = TryParseInt(diastolic),
                 HeartRate = TryParseInt(heartRate),
                 OxygenSaturation = TryParseInt(oxygenSaturation),
                 Temperature = TryParseDouble(temperature),

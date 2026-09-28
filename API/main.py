@@ -6908,7 +6908,7 @@ def get_user_preferences(
     cur = conn.cursor()
     cur.execute("""
         SELECT user_id, display_name, theme,
-               show_heart_rate, show_spo2, show_temperature,
+               show_blood_pressure, show_heart_rate, show_spo2, show_temperature,
                show_weight, show_glucose
         FROM users WHERE user_id = %s AND household_id = %s;
     """, (user_id, household_id))
@@ -6920,12 +6920,13 @@ def get_user_preferences(
     return {
         "user_id":          str(row[0]),
         "display_name":     row[1],
-        "theme":            row[2],
-        "show_heart_rate":  row[3],
-        "show_spo2":        row[4],
-        "show_temperature": row[5],
-        "show_weight":      row[6],
-        "show_glucose":     row[7],
+        "theme":               row[2],
+        "show_blood_pressure": row[3],
+        "show_heart_rate":     row[4],
+        "show_spo2":           row[5],
+        "show_temperature":    row[6],
+        "show_weight":         row[7],
+        "show_glucose":        row[8],
     }
 
 @app.patch("/api/user/preferences")
@@ -6938,11 +6939,41 @@ def update_user_preferences(
     if caller_user_id is not None and caller_user_id != user_id:
         raise HTTPException(status_code=403, detail="Cannot modify another user's preferences")
 
-    allowed = {"theme", "show_heart_rate", "show_spo2",
+    allowed = {"theme", "show_blood_pressure", "show_heart_rate", "show_spo2",
                "show_temperature", "show_weight", "show_glucose"}
     updates = {k: v for k, v in payload.items() if k in allowed}
     if not updates:
         raise HTTPException(status_code=400, detail="No valid fields to update")
+
+    # Vital preferences are independently optional, but the account must
+    # always track at least one vital. Merge partial PATCH values with the
+    # current row before accepting the update so this invariant is enforced
+    # server-side as well as in the mobile UI.
+    vital_keys = {
+        "show_blood_pressure", "show_heart_rate", "show_spo2",
+        "show_temperature", "show_weight", "show_glucose"
+    }
+    if vital_keys.intersection(updates):
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT show_blood_pressure, show_heart_rate, show_spo2,
+                   show_temperature, show_weight, show_glucose
+            FROM users WHERE user_id = %s AND household_id = %s;
+        """, (user_id, household_id))
+        current = cur.fetchone()
+        cur.close()
+        conn.close()
+        if not current:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        effective = dict(zip([
+            "show_blood_pressure", "show_heart_rate", "show_spo2",
+            "show_temperature", "show_weight", "show_glucose"
+        ], current))
+        effective.update({k: v for k, v in updates.items() if k in vital_keys})
+        if not any(effective.values()):
+            raise HTTPException(status_code=400, detail="At least one vital must be enabled")
 
     fields = ", ".join(f"{k} = %s" for k in updates)
     values = list(updates.values()) + [user_id, household_id]

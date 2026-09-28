@@ -50,7 +50,9 @@
                     Stroke="{DynamicResource CardStroke}">
                 <VerticalStackLayout Spacing="0">
 
-                    <!-- Systolic — always shown -->
+                    <!-- Blood Pressure -->
+                    <VerticalStackLayout Spacing="0" IsVisible="{Binding ShowBloodPressure}">
+                    <!-- Systolic -->
                     <Grid Padding="4,12" ColumnDefinitions="*,Auto">
                         <Label Grid.Column="0" Text="Systolic (mmHg)" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
                         <Entry Grid.Column="1" Text="{Binding Systolic}" Keyboard="Numeric"
@@ -60,7 +62,7 @@
                     </Grid>
                     <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
 
-                    <!-- Diastolic — always shown -->
+                    <!-- Diastolic -->
                     <Grid Padding="4,12" ColumnDefinitions="*,Auto">
                         <Label Grid.Column="0" Text="Diastolic (mmHg)" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
                         <Entry Grid.Column="1" Text="{Binding Diastolic}" Keyboard="Numeric"
@@ -68,6 +70,7 @@
                                BackgroundColor="Transparent" PlaceholderColor="{DynamicResource TextMuted}"
                                Placeholder="—" WidthRequest="80" />
                     </Grid>
+                    </VerticalStackLayout>
 
                     <!-- Heart Rate -->
                     <VerticalStackLayout Spacing="0" IsVisible="{Binding ShowHeartRate}">

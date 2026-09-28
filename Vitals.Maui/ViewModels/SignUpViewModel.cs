@@ -158,7 +158,7 @@ public partial class SignUpViewModel : ObservableObject
             var success = await signInTask;
             if (success)
             {
-                AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
+                await AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
             }
             else
             {
