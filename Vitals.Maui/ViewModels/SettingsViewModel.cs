@@ -10,6 +10,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly ApiService _apiService;
     private readonly AuthService _auth;
     private readonly PatientStateService _patientState;
+    private bool _isHydratingPreferences;
 
     [ObservableProperty] string _currentTheme = "vitals_blue";
     [ObservableProperty] bool _showBloodPressure = true;
@@ -45,6 +46,40 @@ public partial class SettingsViewModel : ObservableObject
         _auth = auth;
         _patientState = patientState;
         LoadPreferences();
+    }
+
+    public async Task RefreshPreferencesFromServerAsync()
+    {
+        var userId = _auth.UserId;
+        if (string.IsNullOrEmpty(userId)) return;
+
+        var prefs = await _apiService.GetUserPreferencesAsync(userId);
+        if (prefs is null) return;
+
+        _isHydratingPreferences = true;
+        try
+        {
+            CurrentTheme = prefs.Theme;
+            ShowBloodPressure = prefs.ShowBloodPressure;
+            ShowHeartRate = prefs.ShowHeartRate;
+            ShowSpo2 = prefs.ShowSpo2;
+            ShowTemperature = prefs.ShowTemperature;
+            ShowWeight = prefs.ShowWeight;
+            ShowGlucose = prefs.ShowGlucose;
+
+            Preferences.Set("theme", CurrentTheme);
+            Preferences.Set("show_blood_pressure", ShowBloodPressure);
+            Preferences.Set("show_heart_rate", ShowHeartRate);
+            Preferences.Set("show_spo2", ShowSpo2);
+            Preferences.Set("show_temperature", ShowTemperature);
+            Preferences.Set("show_weight", ShowWeight);
+            Preferences.Set("show_glucose", ShowGlucose);
+            ThemeService.Apply(CurrentTheme);
+        }
+        finally
+        {
+            _isHydratingPreferences = false;
+        }
     }
 
     /// <summary>
@@ -146,6 +181,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnShowBloodPressureChanged(bool value)
     {
+        if (_isHydratingPreferences) return;
         Preferences.Set("show_blood_pressure", value);
         if (!value && !HasAnyVitalEnabled())
         {
@@ -157,6 +193,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnShowHeartRateChanged(bool value)
     {
+        if (_isHydratingPreferences) return;
         Preferences.Set("show_heart_rate", value);
         if (!value && !HasAnyVitalEnabled())
         {
@@ -168,6 +205,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnShowSpo2Changed(bool value)
     {
+        if (_isHydratingPreferences) return;
         Preferences.Set("show_spo2", value);
         if (!value && !HasAnyVitalEnabled())
         {
@@ -179,6 +217,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnShowTemperatureChanged(bool value)
     {
+        if (_isHydratingPreferences) return;
         Preferences.Set("show_temperature", value);
         if (!value && !HasAnyVitalEnabled())
         {
@@ -190,6 +229,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnShowWeightChanged(bool value)
     {
+        if (_isHydratingPreferences) return;
         Preferences.Set("show_weight", value);
         if (!value && !HasAnyVitalEnabled())
         {
@@ -201,6 +241,7 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnShowGlucoseChanged(bool value)
     {
+        if (_isHydratingPreferences) return;
         Preferences.Set("show_glucose", value);
         if (!value && !HasAnyVitalEnabled())
         {
