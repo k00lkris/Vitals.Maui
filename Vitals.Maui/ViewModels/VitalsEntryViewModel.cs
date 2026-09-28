@@ -203,8 +203,6 @@ public partial class VitalsEntryViewModel : ObservableObject
         // Only require/submit fields that are actually visible. A hidden
         // field left with stale text (from before it was toggled off)
         // should never be treated as "entered" or sent to the API.
-        var systolic = Systolic;
-        var diastolic = Diastolic;
         var systolic = ShowBloodPressure ? Systolic : string.Empty;
         var diastolic = ShowBloodPressure ? Diastolic : string.Empty;
         var heartRate = ShowHeartRate ? HeartRate : string.Empty;
