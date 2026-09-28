@@ -38,8 +38,9 @@
                  A vital disabled in Preferences shows no card at all,
                  same as before. -->
 
-            <!-- Blood Pressure — no Settings toggle; always shown -->
+            <!-- Blood Pressure — toggled by ShowBloodPressure -->
             <Border Padding="0"
+                    IsVisible="{Binding ShowBloodPressure}"
                     BackgroundColor="{DynamicResource CardBackground}"
                     StrokeShape="RoundRectangle 12"
                     Stroke="{DynamicResource CardStroke}">
