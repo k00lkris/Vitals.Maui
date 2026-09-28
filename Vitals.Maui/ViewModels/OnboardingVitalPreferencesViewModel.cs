@@ -13,8 +13,7 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     // use — setting these here means Settings and the real Vitals Entry
     // screen are immediately consistent with whatever's chosen during
     // onboarding, not a separate onboarding-only preference.
-    // Blood pressure has no toggle here either, matching VitalsEntryPage —
-    // it's always tracked.
+    [ObservableProperty] private bool _showBloodPressure = true;
     [ObservableProperty] private bool _showHeartRate = true;
     [ObservableProperty] private bool _showSpo2 = true;
     [ObservableProperty] private bool _showTemperature = true;
@@ -23,6 +22,7 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
 
     public OnboardingVitalPreferencesViewModel()
     {
+        ShowBloodPressure = Preferences.Get("show_blood_pressure", true);
         ShowHeartRate = Preferences.Get("show_heart_rate", true);
         ShowSpo2 = Preferences.Get("show_spo2", true);
         ShowTemperature = Preferences.Get("show_temperature", true);
@@ -30,6 +30,7 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
         ShowGlucose = Preferences.Get("show_glucose", false);
     }
 
+    partial void OnShowBloodPressureChanged(bool value) => Preferences.Set("show_blood_pressure", value);
     partial void OnShowHeartRateChanged(bool value) => Preferences.Set("show_heart_rate", value);
     partial void OnShowSpo2Changed(bool value) => Preferences.Set("show_spo2", value);
     partial void OnShowTemperatureChanged(bool value) => Preferences.Set("show_temperature", value);
@@ -37,8 +38,17 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     partial void OnShowGlucoseChanged(bool value) => Preferences.Set("show_glucose", value);
 
     [RelayCommand]
-    public void Continue()
+    public async void Continue()
     {
+        if (!(ShowBloodPressure || ShowHeartRate || ShowSpo2 || ShowTemperature || ShowWeight || ShowGlucose))
+        {
+            await Shell.Current.DisplayAlert(
+                "Choose at least one vital",
+                "Select at least one vital to track before continuing.",
+                "OK");
+            return;
+        }
+
         OnContinue?.Invoke();
     }
 
