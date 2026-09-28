@@ -86,6 +86,8 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private ISeries[] _tempSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _weightSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _glucoseSeries = Array.Empty<ISeries>();
+    [ObservableProperty] private ISeries[] _weightSeries = Array.Empty<ISeries>();
+    [ObservableProperty] private ISeries[] _glucoseSeries = Array.Empty<ISeries>();
 
     // Chart axes
     [ObservableProperty] private Axis[] _dateAxes = Array.Empty<Axis>();
@@ -396,6 +398,18 @@ public partial class DashboardViewModel : ObservableObject
         {
             RawSeries(tempRaw,           "Temp \u00b0F", "#f57c00"),
             SmoothedSeries(tempSmoothed, "Temp Trend",   "#ffad42"),
+        };
+
+        WeightSeries = new ISeries[]
+        {
+            RawSeries(weightRaw, "Weight", "#455a64"),
+            SmoothedSeries(weightSmoothed, "Weight Trend", "#78909c"),
+        };
+
+        GlucoseSeries = new ISeries[]
+        {
+            RawSeries(glucoseRaw, "Glucose", "#00897b"),
+            SmoothedSeries(glucoseSmoothed, "Glucose Trend", "#4db6ac"),
         };
 
         DateAxes = new Axis[]
