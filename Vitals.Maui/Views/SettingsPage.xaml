@@ -153,10 +153,21 @@
                     <Label Text="VITAL FIELDS"
                            FontSize="11" FontAttributes="Bold"
                            TextColor="{DynamicResource PrimaryAccent}" />
-                    <Label Text="Choose which vitals appear on the entry form."
+                    <Label Text="Choose which vitals you track across Vitals. At least one must remain enabled."
                            FontSize="12"
                            TextColor="{DynamicResource TextSecondary}"
                            LineBreakMode="WordWrap" />
+
+                    <!-- Blood Pressure -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Grid.Column="0" Spacing="2">
+                            <Label Text="Blood Pressure" FontSize="13" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                            <Label Text="mmHg — systolic and diastolic" FontSize="11" TextColor="{DynamicResource TextSecondary}" />
+                        </VerticalStackLayout>
+                        <Switch Grid.Column="1" IsToggled="{Binding ShowBloodPressure}" OnColor="{DynamicResource PrimaryAccent}" VerticalOptions="Center" />
+                    </Grid>
+
+                    <BoxView HeightRequest="0.5" BackgroundColor="{DynamicResource DividerColor}" />
 
                     <!-- Heart Rate -->
                     <Grid ColumnDefinitions="*,Auto">
