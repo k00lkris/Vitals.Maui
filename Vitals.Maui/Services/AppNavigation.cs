@@ -50,7 +50,7 @@ public static class AppNavigation
     /// turns out to be the same account; not resetting risks showing one
     /// household's data under a different one's identity.
     /// </summary>
-    public static void RouteAfterGoogleAuth(bool isNewUser, PatientStateService patientState)
+    public static async Task RouteAfterGoogleAuth(bool isNewUser, PatientStateService patientState)
     {
         patientState.Reset();
 
@@ -79,19 +79,17 @@ public static class AppNavigation
             // Singleton page being re-parented into a brand-new Shell.
             // Force the reload explicitly here instead of depending on
             // that page-lifecycle timing.
-            var dashboardVm = Application.Current!.Handler.MauiContext!
-                .Services.GetService<Vitals.Maui.ViewModels.DashboardViewModel>()!;
-            _ = dashboardVm.LoadAsync();
-
-            // Same underlying issue as Dashboard — SettingsViewModel is
-            // also a Singleton, and its DisplayName/Email are computed
-            // pass-throughs to AuthService with no automatic change
-            // notification. Without this, Settings would keep showing
-            // whichever account first used this device, indefinitely,
-            // regardless of who's actually signed in now.
+            // The users table is the canonical source for vital preferences.
+            // Hydrate the device cache before any singleton page reloads so an
+            // account switch/fresh device cannot inherit another user's choices.
             var settingsVm = Application.Current!.Handler.MauiContext!
                 .Services.GetService<Vitals.Maui.ViewModels.SettingsViewModel>()!;
             settingsVm.RefreshAccountInfo();
+            await settingsVm.RefreshPreferencesFromServerAsync();
+
+            var dashboardVm = Application.Current!.Handler.MauiContext!
+                .Services.GetService<Vitals.Maui.ViewModels.DashboardViewModel>()!;
+            await dashboardVm.LoadAsync();
 
             SetRootPage(new Vitals.Maui.AppShell(patientState));
         }
