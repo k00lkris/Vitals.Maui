@@ -37,6 +37,8 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private string _latestHeartRate = "—";
     [ObservableProperty] private string _latestSpo2 = "—";
     [ObservableProperty] private string _latestTemperature = "—";
+    [ObservableProperty] private string _latestWeight = "—";
+    [ObservableProperty] private string _latestGlucose = "—";
     [ObservableProperty] private string _latestRecordedAt = "—";
 
     // Averages
@@ -44,6 +46,17 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private string _avgHeartRate = "—";
     [ObservableProperty] private string _avgSpo2 = "—";
     [ObservableProperty] private string _avgTemperature = "—";
+    [ObservableProperty] private string _avgWeight = "—";
+    [ObservableProperty] private string _avgGlucose = "—";
+
+    // Vital visibility. Blood pressure remains the always-on core vital.
+    // These keys mirror SettingsViewModel/VitalsEntryViewModel so the
+    // dashboard reflects the user's persisted vital preferences.
+    [ObservableProperty] private bool _showHeartRate = true;
+    [ObservableProperty] private bool _showSpo2 = true;
+    [ObservableProperty] private bool _showTemperature = true;
+    [ObservableProperty] private bool _showWeight = false;
+    [ObservableProperty] private bool _showGlucose = false;
 
     // Selected days button
     [ObservableProperty] private int _selectedDays = 15;
@@ -71,6 +84,8 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private ISeries[] _heartRateSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _spo2Series = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _tempSeries = Array.Empty<ISeries>();
+    [ObservableProperty] private ISeries[] _weightSeries = Array.Empty<ISeries>();
+    [ObservableProperty] private ISeries[] _glucoseSeries = Array.Empty<ISeries>();
 
     // Chart axes
     [ObservableProperty] private Axis[] _dateAxes = Array.Empty<Axis>();
@@ -93,9 +108,21 @@ public partial class DashboardViewModel : ObservableObject
         };
     }
 
+    private void LoadDisplayPreferences()
+    {
+        ShowHeartRate = Preferences.Get("show_heart_rate", true);
+        ShowSpo2 = Preferences.Get("show_spo2", true);
+        ShowTemperature = Preferences.Get("show_temperature", true);
+        ShowWeight = Preferences.Get("show_weight", false);
+        ShowGlucose = Preferences.Get("show_glucose", false);
+    }
+
     [RelayCommand]
     public async Task LoadAsync()
     {
+        // Re-read on every appearance so changes made in Settings are
+        // reflected immediately even though DashboardViewModel is a singleton.
+        LoadDisplayPreferences();
         await _patientState.InitializeAsync();
         OnPropertyChanged(nameof(Patients));
         OnPropertyChanged(nameof(SelectedPatient));
@@ -183,6 +210,8 @@ public partial class DashboardViewModel : ObservableObject
             LatestHeartRate = "—";
             LatestSpo2 = "—";
             LatestTemperature = "—";
+            LatestWeight = "—";
+            LatestGlucose = "—";
             LatestRecordedAt = "No readings yet";
             return;
         }
@@ -198,6 +227,12 @@ public partial class DashboardViewModel : ObservableObject
             : "—";
         LatestTemperature = latest.Temperature.HasValue
             ? $"{latest.Temperature:F1} °F"
+            : "—";
+        LatestWeight = latest.Weight.HasValue
+            ? $"{latest.Weight:F1} lb"
+            : "—";
+        LatestGlucose = latest.BloodGlucose.HasValue
+            ? $"{latest.BloodGlucose:F0} mg/dL"
             : "—";
         LatestRecordedAt = latest.RecordedAt.HasValue
             ? latest.RecordedAt.Value.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
@@ -217,6 +252,8 @@ public partial class DashboardViewModel : ObservableObject
             AvgHeartRate = "—";
             AvgSpo2 = "—";
             AvgTemperature = "—";
+            AvgWeight = "—";
+            AvgGlucose = "—";
             return;
         }
 
@@ -231,6 +268,12 @@ public partial class DashboardViewModel : ObservableObject
             : "—";
         AvgTemperature = avg.Temperature.HasValue
             ? $"{avg.Temperature:F1} °F"
+            : "—";
+        AvgWeight = avg.Weight.HasValue
+            ? $"{avg.Weight:F1} lb"
+            : "—";
+        AvgGlucose = avg.BloodGlucose.HasValue
+            ? $"{avg.BloodGlucose:F0} mg/dL"
             : "—";
     }
 
@@ -270,6 +313,8 @@ public partial class DashboardViewModel : ObservableObject
         var hrRaw = history.Select(r => r.HeartRate.HasValue ? (double)r.HeartRate.Value : double.NaN).ToArray();
         var spo2Raw = history.Select(r => r.Spo2.HasValue ? (double)r.Spo2.Value : double.NaN).ToArray();
         var tempRaw = history.Select(r => r.Temperature.HasValue ? (double)r.Temperature.Value : double.NaN).ToArray();
+        var weightRaw = history.Select(r => r.Weight.HasValue ? r.Weight.Value : double.NaN).ToArray();
+        var glucoseRaw = history.Select(r => r.BloodGlucose.HasValue ? (double)r.BloodGlucose.Value : double.NaN).ToArray();
 
         // Filter out NaN before LOESS
         double[] LoessFiltered(double[] xAll, double[] yAll)
@@ -294,6 +339,8 @@ public partial class DashboardViewModel : ObservableObject
         var hrSmoothed = LoessFiltered(xDays, hrRaw);
         var spo2Smoothed = LoessFiltered(xDays, spo2Raw);
         var tempSmoothed = LoessFiltered(xDays, tempRaw);
+        var weightSmoothed = LoessFiltered(xDays, weightRaw);
+        var glucoseSmoothed = LoessFiltered(xDays, glucoseRaw);
 
         static LineSeries<double?> RawSeries(double[] raw, string name, string hex) =>
             new LineSeries<double?>
