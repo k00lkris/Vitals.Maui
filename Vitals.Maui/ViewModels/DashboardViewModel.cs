@@ -49,9 +49,10 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private string _avgWeight = "—";
     [ObservableProperty] private string _avgGlucose = "—";
 
-    // Vital visibility. Blood pressure remains the always-on core vital.
+    // Vital visibility. Every vital is optional, but Settings/API enforce at least one enabled vital.
     // These keys mirror SettingsViewModel/VitalsEntryViewModel so the
     // dashboard reflects the user's persisted vital preferences.
+    [ObservableProperty] private bool _showBloodPressure = true;
     [ObservableProperty] private bool _showHeartRate = true;
     [ObservableProperty] private bool _showSpo2 = true;
     [ObservableProperty] private bool _showTemperature = true;
@@ -112,6 +113,7 @@ public partial class DashboardViewModel : ObservableObject
 
     private void LoadDisplayPreferences()
     {
+        ShowBloodPressure = Preferences.Get("show_blood_pressure", true);
         ShowHeartRate = Preferences.Get("show_heart_rate", true);
         ShowSpo2 = Preferences.Get("show_spo2", true);
         ShowTemperature = Preferences.Get("show_temperature", true);
