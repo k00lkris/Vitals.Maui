@@ -28,7 +28,7 @@
                    HorizontalOptions="Center"
                    HorizontalTextAlignment="Center" />
 
-            <Label Text="Blood pressure is always tracked. Choose anything else that's relevant — you can change this anytime in Settings."
+            <Label Text="Choose the vitals that matter to you. Select at least one — you can change this anytime in Settings."
                    FontSize="14"
                    TextColor="{DynamicResource TextSecondary}"
                    HorizontalOptions="Center"
@@ -41,14 +41,10 @@
                     Stroke="{DynamicResource CardStroke}">
                 <VerticalStackLayout Spacing="0">
 
-                    <!-- Blood Pressure — always on, no toggle -->
+                    <!-- Blood Pressure -->
                     <Grid Padding="4,12" ColumnDefinitions="*,Auto">
-                        <VerticalStackLayout Grid.Column="0" VerticalOptions="Center">
-                            <Label Text="Blood Pressure" FontSize="15" TextColor="{DynamicResource TextPrimary}" />
-                            <Label Text="Always tracked" FontSize="12" TextColor="{DynamicResource TextMuted}" />
-                        </VerticalStackLayout>
-                        <Label Grid.Column="1" Text="✓" FontSize="18" FontAttributes="Bold"
-                               TextColor="{DynamicResource PrimaryAccent}" VerticalOptions="Center" />
+                        <Label Grid.Column="0" Text="Blood Pressure" FontSize="15" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center" />
+                        <Switch Grid.Column="1" IsToggled="{Binding ShowBloodPressure}" OnColor="{DynamicResource PrimaryAccent}" />
                     </Grid>
                     <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
 
