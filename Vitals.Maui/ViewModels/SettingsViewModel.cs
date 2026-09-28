@@ -12,6 +12,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly PatientStateService _patientState;
 
     [ObservableProperty] string _currentTheme = "vitals_blue";
+    [ObservableProperty] bool _showBloodPressure = true;
     [ObservableProperty] bool _showHeartRate = true;
     [ObservableProperty] bool _showSpo2 = true;
     [ObservableProperty] bool _showTemperature = true;
@@ -66,6 +67,7 @@ public partial class SettingsViewModel : ObservableObject
     private void LoadPreferences()
     {
         CurrentTheme = Preferences.Get("theme", "vitals_blue");
+        ShowBloodPressure = Preferences.Get("show_blood_pressure", true);
         ShowHeartRate = Preferences.Get("show_heart_rate", true);
         ShowSpo2 = Preferences.Get("show_spo2", true);
         ShowTemperature = Preferences.Get("show_temperature", true);
@@ -127,33 +129,84 @@ public partial class SettingsViewModel : ObservableObject
         AppNavigation.SetRootPage(new LoginPage(loginVm));
     }
 
+    private bool HasAnyVitalEnabled() =>
+        ShowBloodPressure || ShowHeartRate || ShowSpo2 || ShowTemperature || ShowWeight || ShowGlucose;
+
+    private async void RejectIfLastVitalDisabled(string preferenceKey, Action restore)
+    {
+        if (HasAnyVitalEnabled()) return;
+
+        restore();
+        Preferences.Set(preferenceKey, true);
+        await Shell.Current.DisplayAlert(
+            "At least one vital required",
+            "Vitals needs at least one vital enabled. Enable another vital before turning this one off.",
+            "OK");
+    }
+
+    partial void OnShowBloodPressureChanged(bool value)
+    {
+        Preferences.Set("show_blood_pressure", value);
+        if (!value && !HasAnyVitalEnabled())
+        {
+            RejectIfLastVitalDisabled("show_blood_pressure", () => ShowBloodPressure = true);
+            return;
+        }
+        _ = SavePreferencesAsync();
+    }
+
     partial void OnShowHeartRateChanged(bool value)
     {
         Preferences.Set("show_heart_rate", value);
+        if (!value && !HasAnyVitalEnabled())
+        {
+            RejectIfLastVitalDisabled("show_heart_rate", () => ShowHeartRate = true);
+            return;
+        }
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowSpo2Changed(bool value)
     {
         Preferences.Set("show_spo2", value);
+        if (!value && !HasAnyVitalEnabled())
+        {
+            RejectIfLastVitalDisabled("show_spo2", () => ShowSpo2 = true);
+            return;
+        }
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowTemperatureChanged(bool value)
     {
         Preferences.Set("show_temperature", value);
+        if (!value && !HasAnyVitalEnabled())
+        {
+            RejectIfLastVitalDisabled("show_temperature", () => ShowTemperature = true);
+            return;
+        }
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowWeightChanged(bool value)
     {
         Preferences.Set("show_weight", value);
+        if (!value && !HasAnyVitalEnabled())
+        {
+            RejectIfLastVitalDisabled("show_weight", () => ShowWeight = true);
+            return;
+        }
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowGlucoseChanged(bool value)
     {
         Preferences.Set("show_glucose", value);
+        if (!value && !HasAnyVitalEnabled())
+        {
+            RejectIfLastVitalDisabled("show_glucose", () => ShowGlucose = true);
+            return;
+        }
         _ = SavePreferencesAsync();
     }
 
@@ -169,6 +222,7 @@ public partial class SettingsViewModel : ObservableObject
                 new
                 {
                     theme = CurrentTheme,
+                    show_blood_pressure = ShowBloodPressure,
                     show_heart_rate = ShowHeartRate,
                     show_spo2 = ShowSpo2,
                     show_temperature = ShowTemperature,
