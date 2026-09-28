@@ -1,10 +1,13 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Vitals.Maui.Services;
 
 namespace Vitals.Maui.ViewModels;
 
 public partial class OnboardingVitalPreferencesViewModel : ObservableObject
 {
+    private readonly ApiService _api;
+    private readonly AuthService _auth;
     // Wired by the page's code-behind, same pattern as the other onboarding VMs.
     public Action? OnContinue { get; set; }
     public Action? OnBack { get; set; }
@@ -20,8 +23,10 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     [ObservableProperty] private bool _showWeight = false;
     [ObservableProperty] private bool _showGlucose = false;
 
-    public OnboardingVitalPreferencesViewModel()
+    public OnboardingVitalPreferencesViewModel(ApiService api, AuthService auth)
     {
+        _api = api;
+        _auth = auth;
         ShowBloodPressure = Preferences.Get("show_blood_pressure", true);
         ShowHeartRate = Preferences.Get("show_heart_rate", true);
         ShowSpo2 = Preferences.Get("show_spo2", true);
@@ -38,7 +43,7 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     partial void OnShowGlucoseChanged(bool value) => Preferences.Set("show_glucose", value);
 
     [RelayCommand]
-    public async void Continue()
+    public async Task Continue()
     {
         if (!(ShowBloodPressure || ShowHeartRate || ShowSpo2 || ShowTemperature || ShowWeight || ShowGlucose))
         {
@@ -47,6 +52,29 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
                 "Select at least one vital to track before continuing.",
                 "OK");
             return;
+        }
+
+        var userId = _auth.UserId;
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var saved = await _api.UpdateUserPreferencesAsync(userId, new
+            {
+                show_blood_pressure = ShowBloodPressure,
+                show_heart_rate = ShowHeartRate,
+                show_spo2 = ShowSpo2,
+                show_temperature = ShowTemperature,
+                show_weight = ShowWeight,
+                show_glucose = ShowGlucose,
+            });
+
+            if (!saved)
+            {
+                await Shell.Current.DisplayAlert(
+                    "Couldn't save preferences",
+                    "Your vital preferences couldn't be saved. Please try again.",
+                    "OK");
+                return;
+            }
         }
 
         OnContinue?.Invoke();
