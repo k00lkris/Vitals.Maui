@@ -25,12 +25,7 @@ public partial class DashboardViewModel : ObservableObject
     public Patient? SelectedPatient
     {
         get => _patientState.SelectedPatient;
-        set
-        {
-            _patientState.SelectedPatient = value;
-            OnPropertyChanged();
-            _ = LoadDashboardDataAsync();
-        }
+        set => _patientState.SelectedPatient = value;
     }
 
     // User-selected vital visibility. Blood pressure remains always on.
@@ -107,7 +102,7 @@ public partial class DashboardViewModel : ObservableObject
             if (e.PropertyName == nameof(PatientStateService.SelectedPatient))
             {
                 OnPropertyChanged(nameof(SelectedPatient));
-                await LoadDashboardDataAsync();
+                await LoadSelectedPatientAsync();
             }
         };
     }
@@ -119,10 +114,8 @@ public partial class DashboardViewModel : ObservableObject
         OnPropertyChanged(nameof(Patients));
         OnPropertyChanged(nameof(SelectedPatient));
 
-        ApplyPreferences(await _preferences.RefreshAsync());
-
         UpdateButtonColors();
-        await LoadDashboardDataAsync();
+        await LoadSelectedPatientAsync();
 
         // One-time reminder if the user skipped the rest of onboarding
         // (see OnboardingResumePromptViewModel.SkipOnboarding) — shown once,
@@ -135,6 +128,23 @@ public partial class DashboardViewModel : ObservableObject
                 "You can finish setting your vital preferences anytime from Settings.",
                 "Got it");
         }
+    }
+
+    private async Task LoadSelectedPatientAsync()
+    {
+        var patientId = _patientState.SelectedPatient?.PatientId;
+        if (string.IsNullOrWhiteSpace(patientId))
+            return;
+
+        var preferences = await _preferences.RefreshAsync(patientId);
+
+        // A quick patient switch can finish requests out of order. Never
+        // apply Patient A's visibility settings after Patient B became active.
+        if (_patientState.SelectedPatient?.PatientId != patientId)
+            return;
+
+        ApplyPreferences(preferences);
+        await LoadDashboardDataAsync();
     }
 
     private void ApplyPreferences(UserPreferences preferences)
