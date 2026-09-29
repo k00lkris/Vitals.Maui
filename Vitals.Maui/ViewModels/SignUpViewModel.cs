@@ -9,6 +9,7 @@ public partial class SignUpViewModel : ObservableObject
 {
     private readonly AuthService _auth;
     private readonly PatientStateService _patientState;
+    private readonly VitalPreferencesService _preferences;
 
     [ObservableProperty] private string _displayName = string.Empty;
     [ObservableProperty] private string _email = string.Empty;
@@ -33,10 +34,14 @@ public partial class SignUpViewModel : ObservableObject
     // whatever screen the user is actually looking at by then.
     private int _signUpOperationId;
 
-    public SignUpViewModel(AuthService auth, PatientStateService patientState)
+    public SignUpViewModel(
+        AuthService auth,
+        PatientStateService patientState,
+        VitalPreferencesService preferences)
     {
         _auth = auth;
         _patientState = patientState;
+        _preferences = preferences;
     }
 
     /// <summary>
@@ -158,6 +163,7 @@ public partial class SignUpViewModel : ObservableObject
             var success = await signInTask;
             if (success)
             {
+                await _preferences.LoadAsync(forceRefresh: true);
                 AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
             }
             else
