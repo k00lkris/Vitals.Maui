@@ -122,6 +122,12 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     [ObservableProperty] private bool _showWeight = false;
     [ObservableProperty] private bool _showGlucose = false;
 
+    // BP's insufficient-data state belongs to the BP tab only. Optional
+    // analyses (HR/SpO2/Temperature/Weight/Glucose) can still have useful
+    // results even when BP has fewer than its own 7-reading gate.
+    public bool ShowBpInsufficient => ShowBp && IsInsufficient;
+    public bool ShowBpAnalysis => ShowBp && IsOk;
+
     // Which optional analysis tabs the signed-in user chose to track.
     // These come from the users table through UserPreferencesService.
     [ObservableProperty] private bool _trackHeartRate = true;
@@ -144,6 +150,22 @@ public partial class VitalsAnalysisViewModel : ObservableObject
 
     [ObservableProperty] private bool _showDiastolicWarning = false;
     [ObservableProperty] private string _diastolicWarningText = string.Empty;
+
+    partial void OnShowBpChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowBpInsufficient));
+        OnPropertyChanged(nameof(ShowBpAnalysis));
+    }
+
+    partial void OnIsInsufficientChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowBpInsufficient));
+    }
+
+    partial void OnIsOkChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowBpAnalysis));
+    }
 
     public VitalsAnalysisViewModel(
         ApiService api,

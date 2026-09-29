@@ -79,7 +79,7 @@
                         BackgroundColor="{DynamicResource CardBackground}"
                         StrokeShape="RoundRectangle 12"
                         Stroke="{DynamicResource CardStroke}"
-                        IsVisible="{Binding IsInsufficient}">
+                        IsVisible="{Binding ShowBpInsufficient}">
                     <VerticalStackLayout Spacing="10">
                         <Label Text="📈  Not Enough Data Yet"
                                FontSize="16" FontAttributes="Bold"
@@ -102,7 +102,6 @@
                         <Button Text="❤️ BP"
                                 WidthRequest="76"
                                 Margin="0,0,6,6"
-                                IsEnabled="{Binding IsOk}"
                                 BackgroundColor="{Binding TabBpColor}"
                                 TextColor="{Binding TabBpTextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
@@ -156,7 +155,7 @@
                     </FlexLayout>
 
                     <!-- ==================== BP TAB ==================== -->
-                    <VerticalStackLayout Spacing="12" IsVisible="{Binding ShowBp}">
+                    <VerticalStackLayout Spacing="12" IsVisible="{Binding ShowBpAnalysis}">
 
                         <!-- Classification -->
                         <Border Padding="16"
