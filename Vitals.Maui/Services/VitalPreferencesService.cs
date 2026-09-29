@@ -19,6 +19,7 @@ public partial class VitalPreferencesService : ObservableObject
     private readonly SemaphoreSlim _saveLock = new(1, 1);
 
     private string? _loadedUserId;
+    private long _localChangeVersion;
 
     [ObservableProperty] private string _theme = "vitals_blue";
     [ObservableProperty] private bool _showHeartRate = true;
@@ -60,10 +61,23 @@ public partial class VitalPreferencesService : ObservableObject
 
             ApplyLocalCache(userId);
             _loadedUserId = userId;
+            var versionBeforeFetch = _localChangeVersion;
 
             var server = await _api.GetUserPreferencesAsync(userId);
             if (server is null)
                 return;
+
+            // Do not let a slow GET overwrite a switch the user changed while
+            // the request was in flight, and do not apply one account's
+            // response after the authenticated identity has changed.
+            if (!string.Equals(_auth.UserId, userId, StringComparison.Ordinal))
+                return;
+
+            if (_localChangeVersion != versionBeforeFetch)
+            {
+                await SaveAsync();
+                return;
+            }
 
             Apply(server);
             SaveLocalCache(userId);
@@ -80,6 +94,7 @@ public partial class VitalPreferencesService : ObservableObject
         if (Theme == value)
             return Task.CompletedTask;
 
+        _localChangeVersion++;
         Theme = value;
         ThemeService.Apply(value);
         SaveLocalCacheForCurrentUser();
@@ -106,6 +121,7 @@ public partial class VitalPreferencesService : ObservableObject
         if (getter() == value)
             return Task.CompletedTask;
 
+        _localChangeVersion++;
         setter(value);
         SaveLocalCacheForCurrentUser();
         return SaveAsync();
@@ -161,6 +177,7 @@ public partial class VitalPreferencesService : ObservableObject
     public void Reset()
     {
         _loadedUserId = null;
+        _localChangeVersion++;
         ShowHeartRate = true;
         ShowSpo2 = true;
         ShowTemperature = true;
