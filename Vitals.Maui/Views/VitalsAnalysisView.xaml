@@ -1740,6 +1740,21 @@
 
                         <!-- Data support / measurement-site limitations -->
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Weight.HasVariation}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Daily Variability" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Weight.VariationDisplay}"
+                                       FontSize="13" TextColor="{DynamicResource TextSecondary}"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="Weight statistics use one median value per local calendar day so multiple checks on one day do not receive extra statistical weight."
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       FontAttributes="Italic" LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}">
                             <VerticalStackLayout Spacing="5">
                                 <Label Text="Data Confidence" FontSize="11"
@@ -1839,11 +1854,27 @@
                                 <Label Text="{Binding Analysis.Weight.SummaryDisplay}"
                                        FontSize="13" TextColor="{DynamicResource TextSecondary}"
                                        LineBreakMode="WordWrap" />
-                                <Label Text="{Binding Analysis.Weight.ChangeDisplay}"
-                                       IsVisible="{Binding Analysis.Weight.HasChange}"
+                                <Label Text="{Binding Analysis.Weight.BaselineChangeDisplay}"
+                                       IsVisible="{Binding Analysis.Weight.HasBaselineChange}"
                                        FontSize="13" FontAttributes="Bold"
                                        TextColor="{DynamicResource TextPrimary}"
                                        LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Weight.HasRecentChange}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Recent 7-Day Comparison" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Weight.RecentChangeDisplay}"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="Each period uses the median of distinct measurement days; at least two measured days are required in each 7-day block."
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       FontAttributes="Italic" LineBreakMode="WordWrap" />
                             </VerticalStackLayout>
                         </Border>
 
@@ -1878,6 +1909,18 @@
                                        IsVisible="{Binding Analysis.Weight.HasUnavailableAnalyses}"
                                        FontSize="11" TextColor="{DynamicResource TextMuted}"
                                        LineBreakMode="WordWrap" Margin="0,6,0,0" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Weight.HasLimitations}">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Interpretation Limits" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Weight.LimitationsDisplay}"
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       LineBreakMode="WordWrap" />
                             </VerticalStackLayout>
                         </Border>
 
