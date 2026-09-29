@@ -535,8 +535,10 @@ CREATE TABLE IF NOT EXISTS public.patients
     last_name text COLLATE pg_catalog."default" NOT NULL,
     dob date,
     gender text COLLATE pg_catalog."default",
+    height_inches smallint,
     created_at timestamp with time zone DEFAULT now(),
     household_id uuid NOT NULL,
+    CONSTRAINT patients_height_inches_check CHECK (height_inches IS NULL OR height_inches BETWEEN 12 AND 107),
     CONSTRAINT patients_pkey PRIMARY KEY (patient_id),
     CONSTRAINT fk_patients_household FOREIGN KEY (household_id)
         REFERENCES public.households (household_id) MATCH SIMPLE
