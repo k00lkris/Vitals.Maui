@@ -1,44 +1,72 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Vitals.Maui.Services;
 
 namespace Vitals.Maui.ViewModels;
 
 public partial class OnboardingVitalPreferencesViewModel : ObservableObject
 {
+    private readonly VitalPreferencesService _preferences;
+
     // Wired by the page's code-behind, same pattern as the other onboarding VMs.
     public Action? OnContinue { get; set; }
     public Action? OnBack { get; set; }
 
-    // Same Preferences keys SettingsViewModel and VitalsEntryViewModel already
-    // use — setting these here means Settings and the real Vitals Entry
-    // screen are immediately consistent with whatever's chosen during
-    // onboarding, not a separate onboarding-only preference.
-    // Blood pressure has no toggle here either, matching VitalsEntryPage —
-    // it's always tracked.
-    [ObservableProperty] private bool _showHeartRate = true;
-    [ObservableProperty] private bool _showSpo2 = true;
-    [ObservableProperty] private bool _showTemperature = true;
-    [ObservableProperty] private bool _showWeight = false;
-    [ObservableProperty] private bool _showGlucose = false;
-
-    public OnboardingVitalPreferencesViewModel()
+    // Blood pressure intentionally has no toggle and remains always tracked.
+    public bool ShowHeartRate
     {
-        ShowHeartRate = Preferences.Get("show_heart_rate", true);
-        ShowSpo2 = Preferences.Get("show_spo2", true);
-        ShowTemperature = Preferences.Get("show_temperature", true);
-        ShowWeight = Preferences.Get("show_weight", false);
-        ShowGlucose = Preferences.Get("show_glucose", false);
+        get => _preferences.ShowHeartRate;
+        set => _preferences.ShowHeartRate = value;
     }
 
-    partial void OnShowHeartRateChanged(bool value) => Preferences.Set("show_heart_rate", value);
-    partial void OnShowSpo2Changed(bool value) => Preferences.Set("show_spo2", value);
-    partial void OnShowTemperatureChanged(bool value) => Preferences.Set("show_temperature", value);
-    partial void OnShowWeightChanged(bool value) => Preferences.Set("show_weight", value);
-    partial void OnShowGlucoseChanged(bool value) => Preferences.Set("show_glucose", value);
+    public bool ShowSpo2
+    {
+        get => _preferences.ShowSpo2;
+        set => _preferences.ShowSpo2 = value;
+    }
+
+    public bool ShowTemperature
+    {
+        get => _preferences.ShowTemperature;
+        set => _preferences.ShowTemperature = value;
+    }
+
+    public bool ShowWeight
+    {
+        get => _preferences.ShowWeight;
+        set => _preferences.ShowWeight = value;
+    }
+
+    public bool ShowGlucose
+    {
+        get => _preferences.ShowGlucose;
+        set => _preferences.ShowGlucose = value;
+    }
+
+    public OnboardingVitalPreferencesViewModel(VitalPreferencesService preferences)
+    {
+        _preferences = preferences;
+
+        _preferences.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(VitalPreferencesService.ShowHeartRate)
+                or nameof(VitalPreferencesService.ShowSpo2)
+                or nameof(VitalPreferencesService.ShowTemperature)
+                or nameof(VitalPreferencesService.ShowWeight)
+                or nameof(VitalPreferencesService.ShowGlucose))
+            {
+                OnPropertyChanged(e.PropertyName);
+            }
+        };
+    }
 
     [RelayCommand]
-    public void Continue()
+    public async Task ContinueAsync()
     {
+        // This boundary is worth awaiting: the first-reading screen and any
+        // later app launch should see the same server-backed choices even if
+        // the app is suspended immediately after onboarding.
+        await _preferences.SaveAsync();
         OnContinue?.Invoke();
     }
 
