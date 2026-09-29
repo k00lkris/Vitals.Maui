@@ -266,6 +266,10 @@ class PatientCreate(BaseModel):
     last_name: str
     dob: Optional[date] = None
     gender: Optional[str]
+    # Canonical storage is total inches even though the mobile UI captures
+    # feet + inches. Nullable because a caregiver may not know height during
+    # onboarding and can add it later from Settings.
+    height_inches: Optional[int] = Field(None, ge=12, le=107)
     # How the creating user relates to this patient (e.g. "self",
     # "caregiver") — recorded in patient_users, not used for access control.
     # Household-wide access is still the current model; this is metadata
@@ -284,6 +288,11 @@ class PatientOut(BaseModel):
     last_name: str
     dob: Optional[date]
     gender: Optional[str]
+    height_inches: Optional[int]
+
+class PatientDemographicsUpdate(BaseModel):
+    gender: Optional[str] = None
+    height_inches: Optional[int] = Field(None, ge=12, le=107)
 
 class MedicationCreate(BaseModel):
     patient_id: UUID
@@ -4115,7 +4124,7 @@ def list_patients(
         # mistakenly confirm "this is me" on a patient that's already
         # someone else's own identity.
         cur.execute("""
-            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender
+            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender, p.height_inches
             FROM patients p
             WHERE p.household_id = %s
               AND NOT EXISTS (
@@ -4134,7 +4143,7 @@ def list_patients(
         # naturally lands on the right patient for whoever's logged in,
         # without any client-side change.
         cur.execute("""
-            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender
+            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender, p.height_inches
             FROM patients p
             LEFT JOIN patient_users pu
                 ON pu.patient_id = p.patient_id
@@ -4148,7 +4157,14 @@ def list_patients(
     cur.close()
     conn.close()
     return [
-        {"patient_id": r[0], "first_name": r[1], "last_name": r[2], "dob": r[3], "gender": r[4]}
+        {
+            "patient_id": r[0],
+            "first_name": r[1],
+            "last_name": r[2],
+            "dob": r[3],
+            "gender": r[4],
+            "height_inches": r[5],
+        }
         for r in rows
     ]
 
@@ -4179,10 +4195,10 @@ def create_patient(
         )
 
     cur.execute("""
-        INSERT INTO patients (first_name, last_name, dob, gender, household_id)
-        VALUES (%s, %s, %s, %s, %s)
-        RETURNING patient_id, first_name, last_name, dob, gender
-    """, (p.first_name, p.last_name, p.dob, p.gender, household_id))
+        INSERT INTO patients (first_name, last_name, dob, gender, height_inches, household_id)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING patient_id, first_name, last_name, dob, gender, height_inches
+    """, (p.first_name, p.last_name, p.dob, p.gender, p.height_inches, household_id))
     row = cur.fetchone()
 
     # Record who created this patient and how they relate to them. Not an
@@ -4204,6 +4220,60 @@ def create_patient(
     cur.close()
     conn.close()
     return {"patient_id": row[0], "first_name": row[1], "last_name": row[2], "dob": row[3], "gender": row[4]}
+
+
+@app.patch("/api/patients/{patient_id}", response_model=PatientOut)
+def update_patient_demographics(
+    patient_id: UUID,
+    body: PatientDemographicsUpdate,
+    household_id: str = Depends(get_household_id),
+):
+    """
+    Updates patient-level demographics that can legitimately change over time.
+
+    Height is stored as total inches even though the mobile UI displays
+    feet/inches. The household predicate is part of the UPDATE itself so a
+    caller can never update a patient from another household by guessing an ID.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            UPDATE patients
+            SET gender = %s,
+                height_inches = %s
+            WHERE patient_id = %s
+              AND household_id = %s
+            RETURNING patient_id, first_name, last_name, dob, gender, height_inches;
+        """, (
+            body.gender,
+            body.height_inches,
+            str(patient_id),
+            household_id,
+        ))
+        row = cur.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        conn.commit()
+        return {
+            "patient_id": str(row[0]),
+            "first_name": row[1],
+            "last_name": row[2],
+            "dob": row[3],
+            "gender": row[4],
+            "height_inches": row[5],
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Patient update error: {e}")
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.post("/api/patients/{patient_id}/claim")
