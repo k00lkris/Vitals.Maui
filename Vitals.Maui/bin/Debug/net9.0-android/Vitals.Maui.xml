@@ -436,6 +436,21 @@
             <inheritdoc/>
             <inheritdoc/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.ShowHeartRate">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._showHeartRate"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.ShowSpo2">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._showSpo2"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.ShowTemperature">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._showTemperature"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.ShowWeight">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._showWeight"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.ShowGlucose">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._showGlucose"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.LatestBp">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._latestBp"/>
         </member>
@@ -447,6 +462,12 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.LatestTemperature">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._latestTemperature"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.LatestWeight">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._latestWeight"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.LatestGlucose">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._latestGlucose"/>
         </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.LatestRecordedAt">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._latestRecordedAt"/>
@@ -462,6 +483,12 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.AvgTemperature">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._avgTemperature"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.AvgWeight">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._avgWeight"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.AvgGlucose">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._avgGlucose"/>
         </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.SelectedDays">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._selectedDays"/>
@@ -513,6 +540,12 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.TempSeries">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._tempSeries"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.WeightSeries">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._weightSeries"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.GlucoseSeries">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._glucoseSeries"/>
         </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.DateAxes">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._dateAxes"/>
@@ -2059,7 +2092,7 @@
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ContinueCommand"/>.</summary>
         </member>
         <member name="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ContinueCommand">
-            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.Continue"/>.</summary>
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ContinueAsync"/>.</summary>
         </member>
         <member name="F:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.backCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.BackCommand"/>.</summary>
@@ -2388,6 +2421,9 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.IsOk">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._isOk"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.HasAnalysisResults">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._hasAnalysisResults"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectedDays">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._selectedDays"/>
         </member>
@@ -2412,6 +2448,27 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowTemp">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showTemp"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowWeight">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showWeight"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowGlucose">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showGlucose"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TrackHeartRate">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._trackHeartRate"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TrackSpo2">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._trackSpo2"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TrackTemperature">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._trackTemperature"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TrackWeight">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._trackWeight"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TrackGlucose">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._trackGlucose"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.HrSummary">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._hrSummary"/>
         </member>
@@ -2429,6 +2486,18 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.TempPcpLine">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._tempPcpLine"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.WeightSummary">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._weightSummary"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.WeightPcpLine">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._weightPcpLine"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.GlucoseSummary">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._glucoseSummary"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.GlucosePcpLine">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._glucosePcpLine"/>
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowDiastolicWarning">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._showDiastolicWarning"/>
@@ -2925,6 +2994,21 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasNoDoctors">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HasNoDoctors" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowHeartRate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowHeartRate" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowSpo2">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowSpo2" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowTemperature">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowTemperature" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowWeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowWeight" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowGlucose">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowGlucose" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.LatestBp">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "LatestBp" generated properties.</summary>
         </member>
@@ -2936,6 +3020,12 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.LatestTemperature">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "LatestTemperature" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.LatestWeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "LatestWeight" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.LatestGlucose">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "LatestGlucose" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.LatestRecordedAt">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "LatestRecordedAt" generated properties.</summary>
@@ -2951,6 +3041,12 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.AvgTemperature">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "AvgTemperature" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.AvgWeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "AvgWeight" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.AvgGlucose">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "AvgGlucose" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.SelectedDays">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "SelectedDays" generated properties.</summary>
@@ -2996,6 +3092,12 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempSeries">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempSeries" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.WeightSeries">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "WeightSeries" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseSeries">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseSeries" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.DateAxes">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "DateAxes" generated properties.</summary>
@@ -3252,21 +3354,6 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasNoNotes">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HasNoNotes" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowHeartRate">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowHeartRate" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowSpo2">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowSpo2" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowTemperature">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowTemperature" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowWeight">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowWeight" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowGlucose">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowGlucose" generated properties.</summary>
-        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Systolic">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Systolic" generated properties.</summary>
         </member>
@@ -3423,6 +3510,9 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsOk">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsOk" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasAnalysisResults">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HasAnalysisResults" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.PlainEnglishSummary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "PlainEnglishSummary" generated properties.</summary>
         </member>
@@ -3437,6 +3527,21 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowTemp">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowTemp" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TrackHeartRate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TrackHeartRate" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TrackSpo2">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TrackSpo2" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TrackTemperature">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TrackTemperature" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TrackWeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TrackWeight" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TrackGlucose">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TrackGlucose" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HrSummary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HrSummary" generated properties.</summary>
@@ -3455,6 +3560,18 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.TempPcpLine">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "TempPcpLine" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.WeightSummary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "WeightSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.WeightPcpLine">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "WeightPcpLine" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseSummary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucosePcpLine">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucosePcpLine" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowDiastolicWarning">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowDiastolicWarning" generated properties.</summary>
@@ -3609,6 +3726,21 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasNoDoctors">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HasNoDoctors" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowHeartRate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowHeartRate" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowSpo2">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowSpo2" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowTemperature">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowTemperature" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowWeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowWeight" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowGlucose">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowGlucose" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.LatestBp">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "LatestBp" generated properties.</summary>
         </member>
@@ -3620,6 +3752,12 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.LatestTemperature">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "LatestTemperature" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.LatestWeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "LatestWeight" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.LatestGlucose">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "LatestGlucose" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.LatestRecordedAt">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "LatestRecordedAt" generated properties.</summary>
@@ -3635,6 +3773,12 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.AvgTemperature">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "AvgTemperature" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.AvgWeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "AvgWeight" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.AvgGlucose">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "AvgGlucose" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.SelectedDays">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "SelectedDays" generated properties.</summary>
@@ -3680,6 +3824,12 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempSeries">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempSeries" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.WeightSeries">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "WeightSeries" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseSeries">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseSeries" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.DateAxes">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "DateAxes" generated properties.</summary>
@@ -3936,21 +4086,6 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasNoNotes">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HasNoNotes" generated properties.</summary>
         </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowHeartRate">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowHeartRate" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowSpo2">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowSpo2" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowTemperature">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowTemperature" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowWeight">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowWeight" generated properties.</summary>
-        </member>
-        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowGlucose">
-            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowGlucose" generated properties.</summary>
-        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Systolic">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Systolic" generated properties.</summary>
         </member>
@@ -4107,6 +4242,9 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsOk">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsOk" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasAnalysisResults">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HasAnalysisResults" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.PlainEnglishSummary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "PlainEnglishSummary" generated properties.</summary>
         </member>
@@ -4121,6 +4259,21 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowTemp">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowTemp" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TrackHeartRate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TrackHeartRate" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TrackSpo2">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TrackSpo2" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TrackTemperature">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TrackTemperature" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TrackWeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TrackWeight" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TrackGlucose">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TrackGlucose" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HrSummary">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HrSummary" generated properties.</summary>
@@ -4139,6 +4292,18 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.TempPcpLine">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "TempPcpLine" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.WeightSummary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "WeightSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.WeightPcpLine">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "WeightPcpLine" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseSummary">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseSummary" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucosePcpLine">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucosePcpLine" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowDiastolicWarning">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowDiastolicWarning" generated properties.</summary>
