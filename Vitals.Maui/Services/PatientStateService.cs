@@ -44,6 +44,29 @@ public partial class PatientStateService : ObservableObject
     }
 
     /// <summary>
+    /// Replaces a patient returned by an API update while preserving the
+    /// currently selected patient identity. Patient is a plain model rather
+    /// than an ObservableObject, so replacing the instance is what makes
+    /// downstream bindings see updated demographics such as height.
+    /// </summary>
+    public void ApplyUpdatedPatient(Patient updated)
+    {
+        var list = Patients.ToList();
+        var index = list.FindIndex(p => p.PatientId == updated.PatientId);
+
+        if (index >= 0)
+            list[index] = updated;
+        else
+            list.Add(updated);
+
+        var wasSelected = SelectedPatient?.PatientId == updated.PatientId;
+        Patients = list;
+
+        if (wasSelected)
+            SelectedPatient = updated;
+    }
+
+    /// <summary>
     /// Clears cached patient data. This service is registered as a Singleton
     /// (see MauiProgram.cs), so it otherwise lives for the entire app process
     /// — InitializeAsync's "if (Patients.Any()) return" guard means once
