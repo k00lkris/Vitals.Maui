@@ -3127,7 +3127,7 @@ def run_weight_analysis(
     )
 
     return {
-        "analysis_version": 2,
+        "analysis_version": 3,
         "vital_type": "weight",
         "unit": "lb",
         "latest": {
