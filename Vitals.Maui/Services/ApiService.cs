@@ -797,14 +797,22 @@ public class ApiService
         return "Something went wrong. Please try again.";
     }
 
-    public async Task<UserPreferences?> GetUserPreferencesAsync(string userId)
+    public async Task<UserPreferences?> GetUserPreferencesAsync(
+        string userId,
+        string? patientId = null)
     {
         try
         {
-            var response = await _http.GetAsync(
-                $"/api/user/preferences?user_id={Uri.EscapeDataString(userId)}");
+            var url =
+                $"/api/user/preferences?user_id={Uri.EscapeDataString(userId)}";
+
+            if (!string.IsNullOrWhiteSpace(patientId))
+                url += $"&patient_id={Uri.EscapeDataString(patientId)}";
+
+            var response = await _http.GetAsync(url);
             var raw = await response.Content.ReadAsStringAsync();
-            System.Diagnostics.Debug.WriteLine($"=== USER PREFS STATUS: {response.StatusCode}");
+            System.Diagnostics.Debug.WriteLine(
+                $"=== USER/PATIENT PREFS STATUS: {response.StatusCode}");
 
             if (!response.IsSuccessStatusCode)
                 return null;
@@ -813,25 +821,35 @@ public class ApiService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"=== USER PREFS ERROR: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"=== USER/PATIENT PREFS ERROR: {ex.Message}");
             return null;
         }
     }
 
-    public async Task<bool> UpdateUserPreferencesAsync(string userId, object payload)
+    public async Task<bool> UpdateUserPreferencesAsync(
+        string userId,
+        object payload,
+        string? patientId = null)
     {
         try
         {
+            var url =
+                $"/api/user/preferences?user_id={Uri.EscapeDataString(userId)}";
+
+            if (!string.IsNullOrWhiteSpace(patientId))
+                url += $"&patient_id={Uri.EscapeDataString(patientId)}";
+
             var json = JsonSerializer.Serialize(payload, _jsonOptions);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await _http.PatchAsync(
-                $"/api/user/preferences?user_id={userId}", content);
-            System.Diagnostics.Debug.WriteLine($"=== UPDATE PREFS STATUS: {response.StatusCode}");
+            var response = await _http.PatchAsync(url, content);
+            System.Diagnostics.Debug.WriteLine(
+                $"=== UPDATE USER/PATIENT PREFS STATUS: {response.StatusCode}");
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"=== UPDATE PREFS ERROR: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine(
+                $"=== UPDATE USER/PATIENT PREFS ERROR: {ex.Message}");
             return false;
         }
     }
