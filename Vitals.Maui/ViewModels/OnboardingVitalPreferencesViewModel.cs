@@ -1,44 +1,105 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Vitals.Maui.Services;
 
 namespace Vitals.Maui.ViewModels;
 
 public partial class OnboardingVitalPreferencesViewModel : ObservableObject
 {
-    // Wired by the page's code-behind, same pattern as the other onboarding VMs.
+    private readonly VitalPreferencesService _vitalPreferences;
+
     public Action? OnContinue { get; set; }
     public Action? OnBack { get; set; }
 
-    // Same Preferences keys SettingsViewModel and VitalsEntryViewModel already
-    // use — setting these here means Settings and the real Vitals Entry
-    // screen are immediately consistent with whatever's chosen during
-    // onboarding, not a separate onboarding-only preference.
-    // Blood pressure has no toggle here either, matching VitalsEntryPage —
-    // it's always tracked.
-    [ObservableProperty] private bool _showHeartRate = true;
-    [ObservableProperty] private bool _showSpo2 = true;
-    [ObservableProperty] private bool _showTemperature = true;
-    [ObservableProperty] private bool _showWeight = false;
-    [ObservableProperty] private bool _showGlucose = false;
-
-    public OnboardingVitalPreferencesViewModel()
+    // Blood pressure remains always tracked; the optional vitals proxy the
+    // same shared service used by Settings and Vitals Entry.
+    public bool ShowHeartRate
     {
-        ShowHeartRate = Preferences.Get("show_heart_rate", true);
-        ShowSpo2 = Preferences.Get("show_spo2", true);
-        ShowTemperature = Preferences.Get("show_temperature", true);
-        ShowWeight = Preferences.Get("show_weight", false);
-        ShowGlucose = Preferences.Get("show_glucose", false);
+        get => _vitalPreferences.ShowHeartRate;
+        set
+        {
+            if (value == _vitalPreferences.ShowHeartRate) return;
+            _ = _vitalPreferences.SetShowHeartRateAsync(value);
+        }
     }
 
-    partial void OnShowHeartRateChanged(bool value) => Preferences.Set("show_heart_rate", value);
-    partial void OnShowSpo2Changed(bool value) => Preferences.Set("show_spo2", value);
-    partial void OnShowTemperatureChanged(bool value) => Preferences.Set("show_temperature", value);
-    partial void OnShowWeightChanged(bool value) => Preferences.Set("show_weight", value);
-    partial void OnShowGlucoseChanged(bool value) => Preferences.Set("show_glucose", value);
+    public bool ShowSpo2
+    {
+        get => _vitalPreferences.ShowSpo2;
+        set
+        {
+            if (value == _vitalPreferences.ShowSpo2) return;
+            _ = _vitalPreferences.SetShowSpo2Async(value);
+        }
+    }
+
+    public bool ShowTemperature
+    {
+        get => _vitalPreferences.ShowTemperature;
+        set
+        {
+            if (value == _vitalPreferences.ShowTemperature) return;
+            _ = _vitalPreferences.SetShowTemperatureAsync(value);
+        }
+    }
+
+    public bool ShowWeight
+    {
+        get => _vitalPreferences.ShowWeight;
+        set
+        {
+            if (value == _vitalPreferences.ShowWeight) return;
+            _ = _vitalPreferences.SetShowWeightAsync(value);
+        }
+    }
+
+    public bool ShowGlucose
+    {
+        get => _vitalPreferences.ShowGlucose;
+        set
+        {
+            if (value == _vitalPreferences.ShowGlucose) return;
+            _ = _vitalPreferences.SetShowGlucoseAsync(value);
+        }
+    }
+
+    public OnboardingVitalPreferencesViewModel(VitalPreferencesService vitalPreferences)
+    {
+        _vitalPreferences = vitalPreferences;
+
+        _vitalPreferences.PropertyChanged += (_, e) =>
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(VitalPreferencesService.ShowHeartRate):
+                    OnPropertyChanged(nameof(ShowHeartRate));
+                    break;
+                case nameof(VitalPreferencesService.ShowSpo2):
+                    OnPropertyChanged(nameof(ShowSpo2));
+                    break;
+                case nameof(VitalPreferencesService.ShowTemperature):
+                    OnPropertyChanged(nameof(ShowTemperature));
+                    break;
+                case nameof(VitalPreferencesService.ShowWeight):
+                    OnPropertyChanged(nameof(ShowWeight));
+                    break;
+                case nameof(VitalPreferencesService.ShowGlucose):
+                    OnPropertyChanged(nameof(ShowGlucose));
+                    break;
+            }
+        };
+
+        // Handles resumed onboarding: cached values appear first and server
+        // values replace them when reachable.
+        _ = _vitalPreferences.LoadAsync();
+    }
 
     [RelayCommand]
-    public void Continue()
+    public async Task Continue()
     {
+        // Ensure the final combination has reached the serialized save queue
+        // before moving to the first-reading step.
+        await _vitalPreferences.SaveAsync();
         OnContinue?.Invoke();
     }
 
