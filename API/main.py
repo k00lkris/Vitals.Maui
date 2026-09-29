@@ -3384,21 +3384,6 @@ def recompute_vital_cache(patient_id: str, household_id: str, vital_type: str):
         # works without a combinatorial chain of if/else branches — a
         # future vital needing two or three of these just adds its own
         # registry flag, no changes needed here.
-        patient_demographics = None
-        if entry.get("needs_patient_demographics"):
-            cur.execute("""
-                SELECT dob, height_inches
-                FROM patients
-                WHERE patient_id = %s
-                  AND household_id = %s;
-            """, (patient_id, household_id))
-            demographic_row = cur.fetchone()
-            if demographic_row is not None:
-                patient_demographics = {
-                    "dob": demographic_row[0],
-                    "height_inches": demographic_row[1],
-                }
-
         extra_kwargs = {}
         if lookback:
             extra_kwargs["baseline_rows"] = baseline_rows
@@ -3471,7 +3456,7 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
                     )
                 ):
                     return cached  # valid cache hit
-                # Contract changed (currently used by Weight v2). Fall through
+                # Contract changed (currently used by Weight v3). Fall through
                 # and recompute this window instead of serving stale JSON.
 
         # Cache miss on a standard window, or a custom range — compute now.
@@ -3513,6 +3498,21 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
                 ORDER BY vitals.recorded_at ASC;
             """, (patient_id, household_id, prior_lookback))
             prior_period_rows = cur.fetchall()
+
+        patient_demographics = None
+        if entry.get("needs_patient_demographics"):
+            cur.execute("""
+                SELECT dob, height_inches
+                FROM patients
+                WHERE patient_id = %s
+                  AND household_id = %s;
+            """, (patient_id, household_id))
+            demographic_row = cur.fetchone()
+            if demographic_row is not None:
+                patient_demographics = {
+                    "dob": demographic_row[0],
+                    "height_inches": demographic_row[1],
+                }
 
         extra_kwargs = {}
         if lookback:
