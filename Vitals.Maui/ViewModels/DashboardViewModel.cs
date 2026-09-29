@@ -72,6 +72,7 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private Color _btnDay60TextColor = Colors.White;
 
     [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private bool _isLoadingAnalysis;
     [ObservableProperty] private string _statusMessage = string.Empty;
 
     // Charts
@@ -435,11 +436,39 @@ public partial class DashboardViewModel : ObservableObject
     [RelayCommand]
     public async Task OpenVitalsAnalysisAsync()
     {
-        var vm = Application.Current!.Handler.MauiContext!
-            .Services.GetService<VitalsAnalysisViewModel>()!;
-        await vm.LoadAsync(SelectedDays);
+        if (IsLoadingAnalysis)
+            return;
 
-        var popup = new VitalsAnalysisView(vm);
-        await Shell.Current.CurrentPage.ShowPopupAsync(popup);
+        IsLoadingAnalysis = true;
+
+        try
+        {
+            // Give MAUI one UI turn to paint the loading overlay before the
+            // analysis request starts. The popup is intentionally created
+            // only after its ViewModel has finished loading.
+            await Task.Yield();
+
+            var vm = Application.Current!.Handler.MauiContext!
+                .Services.GetService<VitalsAnalysisViewModel>()!;
+
+            await vm.LoadAsync(SelectedDays);
+
+            var popup = new VitalsAnalysisView(vm);
+
+            // The dashboard overlay is only for the wait BEFORE the popup is
+            // ready. Remove it before presenting the populated Analysis view.
+            IsLoadingAnalysis = false;
+            await Shell.Current.CurrentPage.ShowPopupAsync(popup);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== OPEN VITALS ANALYSIS ERROR: {ex.Message}");
+            StatusMessage = "Could not open Vitals Analysis. Please try again.";
+        }
+        finally
+        {
+            IsLoadingAnalysis = false;
+        }
     }
 }

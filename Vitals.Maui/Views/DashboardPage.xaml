@@ -7,7 +7,8 @@
              x:DataType="vm:DashboardViewModel"
              BackgroundColor="{DynamicResource PageBackground}">
 
-    <ScrollView>
+    <Grid>
+        <ScrollView>
         <VerticalStackLayout Padding="16" Spacing="12">
 
             <!-- Patient Header Card -->
@@ -411,6 +412,42 @@
                                HorizontalOptions="Center" />
 
         </VerticalStackLayout>
-    </ScrollView>
+        </ScrollView>
+
+        <!-- Full-page loading veil used while Vitals Analysis is being
+             prepared. It dims the dashboard, blocks repeat taps, and gives
+             immediate feedback during the API/cache load. -->
+        <Grid IsVisible="{Binding IsLoadingAnalysis}"
+              ZIndex="100"
+              BackgroundColor="#99000000"
+              InputTransparent="False">
+            <Border Padding="28,22"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    BackgroundColor="{DynamicResource CardBackground}"
+                    Stroke="{DynamicResource CardStroke}"
+                    StrokeShape="RoundRectangle 14">
+                <VerticalStackLayout Spacing="12"
+                                     HorizontalOptions="Center">
+                    <ActivityIndicator IsRunning="{Binding IsLoadingAnalysis}"
+                                       Color="{DynamicResource PrimaryAccent}"
+                                       WidthRequest="42"
+                                       HeightRequest="42"
+                                       HorizontalOptions="Center" />
+                    <Label Text="Loading..."
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimary}"
+                           HorizontalOptions="Center"
+                           HorizontalTextAlignment="Center" />
+                    <Label Text="Preparing Vitals Analysis"
+                           FontSize="11"
+                           TextColor="{DynamicResource TextSecondary}"
+                           HorizontalOptions="Center"
+                           HorizontalTextAlignment="Center" />
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+    </Grid>
 
 </ContentPage>
