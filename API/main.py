@@ -8121,43 +8121,75 @@ def health_check():
     return {"status": "ok"}
 
 # =====================================================
-# USER PREFERENCES
+# USER + PATIENT PREFERENCES
 # =====================================================
+# Theme remains a signed-in USER preference. Optional-vital tracking is a
+# PATIENT preference: two people in the same household can legitimately
+# track different vitals. patient_id is optional only for backward
+# compatibility with older mobile builds; new clients always send it.
 @app.get("/api/user/preferences")
 def get_user_preferences(
     user_id: str = Query(...),
+    patient_id: Optional[str] = Query(None),
     household_id: str = Depends(get_household_id),
     caller_user_id: str = Depends(get_own_user_id)
 ):
     if caller_user_id is not None and caller_user_id != user_id:
         raise HTTPException(status_code=403, detail="Cannot access another user's preferences")
+
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT user_id, display_name, theme,
-               show_heart_rate, show_spo2, show_temperature,
-               show_weight, show_glucose
-        FROM users WHERE user_id = %s AND household_id = %s;
-    """, (user_id, household_id))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {
-        "user_id":          str(row[0]),
-        "display_name":     row[1],
-        "theme":            row[2],
-        "show_heart_rate":  row[3],
-        "show_spo2":        row[4],
-        "show_temperature": row[5],
-        "show_weight":      row[6],
-        "show_glucose":     row[7],
-    }
+    try:
+        cur.execute("""
+            SELECT user_id, display_name, theme,
+                   show_heart_rate, show_spo2, show_temperature,
+                   show_weight, show_glucose
+            FROM users
+            WHERE user_id = %s AND household_id = %s;
+        """, (user_id, household_id))
+        user_row = cur.fetchone()
+
+        if not user_row:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # New path: vital visibility/tracking comes from the selected patient.
+        if patient_id:
+            cur.execute("""
+                SELECT show_heart_rate, show_spo2, show_temperature,
+                       show_weight, show_glucose
+                FROM patients
+                WHERE patient_id = %s
+                  AND household_id = %s;
+            """, (patient_id, household_id))
+            patient_row = cur.fetchone()
+
+            if not patient_row:
+                raise HTTPException(status_code=404, detail="Patient not found")
+
+            vital_values = patient_row
+        else:
+            # Legacy fallback for an older app that has not yet been rebuilt.
+            vital_values = user_row[3:8]
+
+        return {
+            "user_id":          str(user_row[0]),
+            "patient_id":       patient_id,
+            "display_name":     user_row[1],
+            "theme":            user_row[2],
+            "show_heart_rate":  vital_values[0],
+            "show_spo2":        vital_values[1],
+            "show_temperature": vital_values[2],
+            "show_weight":      vital_values[3],
+            "show_glucose":     vital_values[4],
+        }
+    finally:
+        cur.close()
+        conn.close()
 
 @app.patch("/api/user/preferences")
 def update_user_preferences(
     user_id: str = Query(...),
+    patient_id: Optional[str] = Query(None),
     payload: dict = Body(...),
     household_id: str = Depends(get_household_id),
     caller_user_id: str = Depends(get_own_user_id)
@@ -8165,25 +8197,71 @@ def update_user_preferences(
     if caller_user_id is not None and caller_user_id != user_id:
         raise HTTPException(status_code=403, detail="Cannot modify another user's preferences")
 
-    allowed = {"theme", "show_heart_rate", "show_spo2",
-               "show_temperature", "show_weight", "show_glucose"}
-    updates = {k: v for k, v in payload.items() if k in allowed}
-    if not updates:
-        raise HTTPException(status_code=400, detail="No valid fields to update")
+    theme_present = "theme" in payload
+    vital_keys = {
+        "show_heart_rate", "show_spo2", "show_temperature",
+        "show_weight", "show_glucose",
+    }
+    vital_updates = {k: v for k, v in payload.items() if k in vital_keys}
 
-    fields = ", ".join(f"{k} = %s" for k in updates)
-    values = list(updates.values()) + [user_id, household_id]
+    if not theme_present and not vital_updates:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
 
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(f"""
-        UPDATE users SET {fields}
-        WHERE user_id = %s AND household_id = %s;
-    """, values)
-    conn.commit()
-    cur.close()
-    conn.close()
-    return {"status": "updated"}
+    try:
+        # Theme is still user-scoped.
+        if theme_present:
+            cur.execute("""
+                UPDATE users
+                SET theme = %s
+                WHERE user_id = %s
+                  AND household_id = %s;
+            """, (payload["theme"], user_id, household_id))
+
+            if cur.rowcount == 0:
+                raise HTTPException(status_code=404, detail="User not found")
+
+        if vital_updates:
+            fields = ", ".join(f"{k} = %s" for k in vital_updates)
+
+            if patient_id:
+                # Patient-scoped path used by current mobile builds.
+                values = list(vital_updates.values()) + [patient_id, household_id]
+                cur.execute(f"""
+                    UPDATE patients
+                    SET {fields}
+                    WHERE patient_id = %s
+                      AND household_id = %s;
+                """, values)
+
+                if cur.rowcount == 0:
+                    raise HTTPException(status_code=404, detail="Patient not found")
+            else:
+                # Backward-compatible path for older clients. This can be
+                # removed after all supported builds send patient_id.
+                values = list(vital_updates.values()) + [user_id, household_id]
+                cur.execute(f"""
+                    UPDATE users
+                    SET {fields}
+                    WHERE user_id = %s
+                      AND household_id = %s;
+                """, values)
+
+                if cur.rowcount == 0:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+        conn.commit()
+        return {"status": "updated", "patient_id": patient_id}
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
 
 # =====================================================
 # AUTH ENDPOINTS
