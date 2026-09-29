@@ -78,8 +78,21 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
     /// </summary>
     public async Task LoadAsync()
     {
+        // Preserve the patient chosen during onboarding/join while still
+        // forcing a clean patient-list reload for the current household.
+        var intendedPatientId = _patientState.SelectedPatient?.PatientId;
+
         _patientState.Reset();
         await _patientState.InitializeAsync();
+
+        if (!string.IsNullOrWhiteSpace(intendedPatientId))
+        {
+            var intended = _patientState.Patients
+                .FirstOrDefault(p => p.PatientId == intendedPatientId);
+            if (intended is not null)
+                _patientState.SelectedPatient = intended;
+        }
+
         OnPropertyChanged(nameof(Patients));
         OnPropertyChanged(nameof(HasMultiplePatients));
         OnPropertyChanged(nameof(SelectedPatient));
