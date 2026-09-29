@@ -9,6 +9,7 @@ public partial class LoginViewModel : ObservableObject
 {
     private readonly AuthService _auth;
     private readonly PatientStateService _patientState;
+    private readonly VitalPreferencesService _preferences;
 
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
@@ -22,10 +23,14 @@ public partial class LoginViewModel : ObservableObject
     // option without abandoning what they typed and starting over.
     [ObservableProperty] private bool _showResendVerification;
 
-    public LoginViewModel(AuthService auth, PatientStateService patientState)
+    public LoginViewModel(
+        AuthService auth,
+        PatientStateService patientState,
+        VitalPreferencesService preferences)
     {
         _auth = auth;
         _patientState = patientState;
+        _preferences = preferences;
     }
 
     [RelayCommand]
@@ -40,6 +45,7 @@ public partial class LoginViewModel : ObservableObject
 
             if (success)
             {
+                await _preferences.LoadAsync(forceRefresh: true);
                 AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
             }
             else
@@ -85,6 +91,7 @@ public partial class LoginViewModel : ObservableObject
 
             if (result.Success)
             {
+                await _preferences.LoadAsync(forceRefresh: true);
                 AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
             }
             else
