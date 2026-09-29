@@ -765,6 +765,32 @@ public class ApiService
         return "Something went wrong. Please try again.";
     }
 
+    public async Task<UserPreferences?> GetUserPreferencesAsync(string userId)
+    {
+        try
+        {
+            var encodedUserId = Uri.EscapeDataString(userId);
+            var response = await _http.GetAsync(
+                $"/api/user/preferences?user_id={encodedUserId}");
+            var raw = await response.Content.ReadAsStringAsync();
+
+            System.Diagnostics.Debug.WriteLine($"=== GET PREFS STATUS: {response.StatusCode}");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                System.Diagnostics.Debug.WriteLine($"=== GET PREFS ERROR RESPONSE: {raw}");
+                return null;
+            }
+
+            return JsonSerializer.Deserialize<UserPreferences>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== GET PREFS ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
     public async Task<bool> UpdateUserPreferencesAsync(string userId, object payload)
     {
         try
@@ -772,7 +798,7 @@ public class ApiService
             var json = JsonSerializer.Serialize(payload, _jsonOptions);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await _http.PatchAsync(
-                $"/api/user/preferences?user_id={userId}", content);
+                $"/api/user/preferences?user_id={Uri.EscapeDataString(userId)}", content);
             System.Diagnostics.Debug.WriteLine($"=== UPDATE PREFS STATUS: {response.StatusCode}");
             return response.IsSuccessStatusCode;
         }
