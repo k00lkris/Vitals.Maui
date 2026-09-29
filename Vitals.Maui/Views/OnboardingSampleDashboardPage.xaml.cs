@@ -18,6 +18,7 @@ public partial class OnboardingSampleDashboardPage : ContentPage
         {
             var preferencesVm = Application.Current!.Handler.MauiContext!
                 .Services.GetService<OnboardingVitalPreferencesViewModel>()!;
+            await preferencesVm.LoadAsync();
             await Navigation.PushAsync(new OnboardingVitalPreferencesPage(preferencesVm));
         };
 
