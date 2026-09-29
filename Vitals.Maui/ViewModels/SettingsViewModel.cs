@@ -63,6 +63,13 @@ public partial class SettingsViewModel : ObservableObject
         _auth = auth;
         _patientState = patientState;
         _api = api;
+
+        _patientState.PropertyChanged += async (s, e) =>
+        {
+            if (e.PropertyName == nameof(PatientStateService.SelectedPatient))
+                await LoadSelectedPatientAsync();
+        };
+
         LoadPreferences();
         LoadPatientProfile();
     }
@@ -86,12 +93,31 @@ public partial class SettingsViewModel : ObservableObject
 
     private void LoadPreferences()
     {
-        ApplyPreferences(_preferences.LocalSnapshot());
+        ApplyPreferences(
+            _preferences.LocalSnapshot(_patientState.SelectedPatient?.PatientId));
     }
 
     public async Task LoadAsync()
     {
-        var preferences = await _preferences.RefreshAsync();
+        await _patientState.InitializeAsync();
+        await LoadSelectedPatientAsync();
+    }
+
+    private async Task LoadSelectedPatientAsync()
+    {
+        var patientId = _patientState.SelectedPatient?.PatientId;
+
+        if (string.IsNullOrWhiteSpace(patientId))
+        {
+            LoadPatientProfile();
+            return;
+        }
+
+        var preferences = await _preferences.RefreshAsync(patientId);
+
+        if (_patientState.SelectedPatient?.PatientId != patientId)
+            return;
+
         ApplyPreferences(preferences);
         LoadPatientProfile();
     }
@@ -278,35 +304,30 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnShowHeartRateChanged(bool value)
     {
         if (_suppressPreferenceSave) return;
-        Preferences.Set("show_heart_rate", value);
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowSpo2Changed(bool value)
     {
         if (_suppressPreferenceSave) return;
-        Preferences.Set("show_spo2", value);
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowTemperatureChanged(bool value)
     {
         if (_suppressPreferenceSave) return;
-        Preferences.Set("show_temperature", value);
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowWeightChanged(bool value)
     {
         if (_suppressPreferenceSave) return;
-        Preferences.Set("show_weight", value);
         _ = SavePreferencesAsync();
     }
 
     partial void OnShowGlucoseChanged(bool value)
     {
         if (_suppressPreferenceSave) return;
-        Preferences.Set("show_glucose", value);
         _ = SavePreferencesAsync();
     }
 
@@ -314,10 +335,13 @@ public partial class SettingsViewModel : ObservableObject
     {
         try
         {
+            var patientId = _patientState.SelectedPatient?.PatientId;
+
             await _preferences.SaveAsync(
                 new UserPreferences
                 {
                     UserId = _auth.UserId ?? string.Empty,
+                    PatientId = patientId,
                     DisplayName = _auth.DisplayName,
                     Theme = CurrentTheme,
                     ShowHeartRate = ShowHeartRate,
@@ -325,7 +349,8 @@ public partial class SettingsViewModel : ObservableObject
                     ShowTemperature = ShowTemperature,
                     ShowWeight = ShowWeight,
                     ShowGlucose = ShowGlucose,
-                });
+                },
+                patientId);
         }
         catch (Exception ex)
         {
