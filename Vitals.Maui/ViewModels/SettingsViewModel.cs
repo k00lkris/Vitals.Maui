@@ -7,24 +7,51 @@ namespace Vitals.Maui.ViewModels;
 
 public partial class SettingsViewModel : ObservableObject
 {
-    private readonly ApiService _apiService;
+    private readonly VitalPreferencesService _preferences;
     private readonly AuthService _auth;
     private readonly PatientStateService _patientState;
 
-    [ObservableProperty] string _currentTheme = "vitals_blue";
-    [ObservableProperty] bool _showHeartRate = true;
-    [ObservableProperty] bool _showSpo2 = true;
-    [ObservableProperty] bool _showTemperature = true;
-    [ObservableProperty] bool _showWeight = false;
-    [ObservableProperty] bool _showGlucose = false;
+    public string CurrentTheme
+    {
+        get => _preferences.Theme;
+        private set => _preferences.Theme = value;
+    }
+
+    public bool ShowHeartRate
+    {
+        get => _preferences.ShowHeartRate;
+        set => _preferences.ShowHeartRate = value;
+    }
+
+    public bool ShowSpo2
+    {
+        get => _preferences.ShowSpo2;
+        set => _preferences.ShowSpo2 = value;
+    }
+
+    public bool ShowTemperature
+    {
+        get => _preferences.ShowTemperature;
+        set => _preferences.ShowTemperature = value;
+    }
+
+    public bool ShowWeight
+    {
+        get => _preferences.ShowWeight;
+        set => _preferences.ShowWeight = value;
+    }
+
+    public bool ShowGlucose
+    {
+        get => _preferences.ShowGlucose;
+        set => _preferences.ShowGlucose = value;
+    }
 
     public string DisplayName => _auth.DisplayName ?? "Unknown";
     public string Email => _auth.Email ?? "";
 
     // Maps the raw backend value ("password", "google.com", "apple.com")
-    // to what's actually shown on screen — same computed pass-through
-    // pattern as DisplayName/Email above, same reason it needs
-    // RefreshAccountInfo() to update after an account switch.
+    // to what's actually shown on screen.
     public string AuthProviderDisplay => _auth.AuthProvider switch
     {
         "password" => "Email",
@@ -38,23 +65,42 @@ public partial class SettingsViewModel : ObservableObject
     public string ThemeVitalsBlueColor => CurrentTheme == "vitals_blue" ? "#0f3460" : "Transparent";
     public string ThemeSystemColor => CurrentTheme == "system" ? "#0f3460" : "Transparent";
 
-    public SettingsViewModel(ApiService apiService, AuthService auth, PatientStateService patientState)
+    public SettingsViewModel(
+        VitalPreferencesService preferences,
+        AuthService auth,
+        PatientStateService patientState)
     {
-        _apiService = apiService;
+        _preferences = preferences;
         _auth = auth;
         _patientState = patientState;
-        LoadPreferences();
+
+        _preferences.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(VitalPreferencesService.Theme))
+            {
+                OnPropertyChanged(nameof(CurrentTheme));
+                OnPropertyChanged(nameof(ThemeDarkColor));
+                OnPropertyChanged(nameof(ThemeLightColor));
+                OnPropertyChanged(nameof(ThemeVitalsBlueColor));
+                OnPropertyChanged(nameof(ThemeSystemColor));
+                return;
+            }
+
+            if (e.PropertyName is nameof(VitalPreferencesService.ShowHeartRate)
+                or nameof(VitalPreferencesService.ShowSpo2)
+                or nameof(VitalPreferencesService.ShowTemperature)
+                or nameof(VitalPreferencesService.ShowWeight)
+                or nameof(VitalPreferencesService.ShowGlucose))
+            {
+                OnPropertyChanged(e.PropertyName);
+            }
+        };
     }
 
     /// <summary>
-    /// DisplayName/Email are computed pass-throughs to AuthService — the
-    /// underlying value is always correct, but since this ViewModel is a
-    /// Singleton (see MauiProgram.cs) and these aren't [ObservableProperty]
-    /// fields, XAML bindings have no way to know they should re-read the
-    /// value after an account switch. Nothing raises PropertyChanged for
-    /// them on its own. Called explicitly from AppNavigation right after
-    /// sign-in, alongside the same reload DashboardViewModel needs for the
-    /// same underlying reason.
+    /// DisplayName/Email are computed pass-throughs to AuthService. This VM is
+    /// a singleton, so account switches must explicitly tell those bindings to
+    /// re-read the current AuthService values.
     /// </summary>
     public void RefreshAccountInfo()
     {
@@ -63,36 +109,16 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(AuthProviderDisplay));
     }
 
-    private void LoadPreferences()
-    {
-        CurrentTheme = Preferences.Get("theme", "vitals_blue");
-        ShowHeartRate = Preferences.Get("show_heart_rate", true);
-        ShowSpo2 = Preferences.Get("show_spo2", true);
-        ShowTemperature = Preferences.Get("show_temperature", true);
-        ShowWeight = Preferences.Get("show_weight", false);
-        ShowGlucose = Preferences.Get("show_glucose", false);
-    }
+    public Task LoadPreferencesAsync(bool forceRefresh = false) =>
+        _preferences.LoadAsync(forceRefresh);
 
     [RelayCommand]
-    async Task SetTheme(string theme)
+    Task SetTheme(string theme)
     {
         CurrentTheme = theme;
-        Preferences.Set("theme", theme);
-        ThemeService.Apply(theme);
-        OnPropertyChanged(nameof(ThemeDarkColor));
-        OnPropertyChanged(nameof(ThemeLightColor));
-        OnPropertyChanged(nameof(ThemeVitalsBlueColor));
-        OnPropertyChanged(nameof(ThemeSystemColor));
-        await SavePreferencesAsync();
+        return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Uses Shell.Current.Navigation.PushAsync rather than a named Shell
-    /// route (Shell.Current.GoToAsync("//SomeRoute")) — this doesn't
-    /// require registering a route in AppShell.xaml first, which I don't
-    /// have visibility into here. If a named route for this screen gets
-    /// added later, this can switch to GoToAsync to match convention.
-    /// </summary>
     [RelayCommand]
     async Task OpenHouseholdInviteAsync()
     {
@@ -111,74 +137,13 @@ public partial class SettingsViewModel : ObservableObject
 
         if (!confirm) return;
 
+        _preferences.Reset();
         _auth.SignOut();
         _patientState.Reset();
 
         var loginVm = Application.Current!.Handler.MauiContext!
             .Services.GetService<LoginViewModel>()!;
 
-        // Was: Application.Current.MainPage = new LoginPage(loginVm);
-        // That assignment sets the legacy Application.MainPage property,
-        // which conflicts with App.xaml.cs's overridden CreateWindow the
-        // next time the OS recreates the Activity (e.g. app backgrounded
-        // and reopened) — throws "Both MainPage was set and CreateWindow
-        // was overridden to provide a page." AppNavigation.SetRootPage
-        // operates on Window.Page instead, which has no such conflict.
         AppNavigation.SetRootPage(new LoginPage(loginVm));
-    }
-
-    partial void OnShowHeartRateChanged(bool value)
-    {
-        Preferences.Set("show_heart_rate", value);
-        _ = SavePreferencesAsync();
-    }
-
-    partial void OnShowSpo2Changed(bool value)
-    {
-        Preferences.Set("show_spo2", value);
-        _ = SavePreferencesAsync();
-    }
-
-    partial void OnShowTemperatureChanged(bool value)
-    {
-        Preferences.Set("show_temperature", value);
-        _ = SavePreferencesAsync();
-    }
-
-    partial void OnShowWeightChanged(bool value)
-    {
-        Preferences.Set("show_weight", value);
-        _ = SavePreferencesAsync();
-    }
-
-    partial void OnShowGlucoseChanged(bool value)
-    {
-        Preferences.Set("show_glucose", value);
-        _ = SavePreferencesAsync();
-    }
-
-    private async Task SavePreferencesAsync()
-    {
-        try
-        {
-            var userId = _auth.UserId;
-            if (string.IsNullOrEmpty(userId)) return;
-
-            await _apiService.UpdateUserPreferencesAsync(
-                userId,
-                new
-                {
-                    theme = CurrentTheme,
-                    show_heart_rate = ShowHeartRate,
-                    show_spo2 = ShowSpo2,
-                    show_temperature = ShowTemperature,
-                    show_weight = ShowWeight,
-                    show_glucose = ShowGlucose,
-                });
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"=== SAVE PREFS ERROR: {ex.Message}");
-        }
     }
 }

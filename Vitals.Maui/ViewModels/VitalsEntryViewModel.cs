@@ -9,6 +9,7 @@ public partial class VitalsEntryViewModel : ObservableObject
 {
     private readonly ApiService _api;
     private readonly PatientStateService _patientState;
+    private readonly VitalPreferencesService _preferences;
 
     [ObservableProperty]
     private string _systolic = string.Empty;
@@ -43,23 +44,13 @@ public partial class VitalsEntryViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSuccess;
 
-    // Field visibility, driven by the same Preferences keys SettingsViewModel
-    // writes to. Systolic/Diastolic have no corresponding setting — blood
-    // pressure is always shown — so there's no visibility flag for them.
-    [ObservableProperty]
-    private bool _showHeartRate = true;
-
-    [ObservableProperty]
-    private bool _showSpo2 = true;
-
-    [ObservableProperty]
-    private bool _showTemperature = true;
-
-    [ObservableProperty]
-    private bool _showWeight = false;
-
-    [ObservableProperty]
-    private bool _showGlucose = false;
+    // Field visibility comes from the shared, account-scoped preference
+    // service. Blood pressure remains always visible by product design.
+    public bool ShowHeartRate => _preferences.ShowHeartRate;
+    public bool ShowSpo2 => _preferences.ShowSpo2;
+    public bool ShowTemperature => _preferences.ShowTemperature;
+    public bool ShowWeight => _preferences.ShowWeight;
+    public bool ShowGlucose => _preferences.ShowGlucose;
 
     // Shared selection fill for the optional context controls below.
     // Selected uses a translucent blue fill so the active choice is much
@@ -148,10 +139,14 @@ public partial class VitalsEntryViewModel : ObservableObject
         set => _patientState.SelectedPatient = value;
     }
 
-    public VitalsEntryViewModel(ApiService api, PatientStateService patientState)
+    public VitalsEntryViewModel(
+        ApiService api,
+        PatientStateService patientState,
+        VitalPreferencesService preferences)
     {
         _api = api;
         _patientState = patientState;
+        _preferences = preferences;
 
         _patientState.PropertyChanged += (s, e) =>
         {
@@ -161,29 +156,23 @@ public partial class VitalsEntryViewModel : ObservableObject
                 OnPropertyChanged(nameof(Patients));
         };
 
-        LoadDisplayPreferences();
-    }
-
-    /// <summary>
-    /// Reads the same show/hide keys SettingsViewModel writes to. Called
-    /// from the constructor and again from LoadAsync (i.e. on page
-    /// appearing), since a Settings change made after this ViewModel was
-    /// first constructed wouldn't otherwise be picked up if the page/VM
-    /// instance is cached rather than recreated on navigation.
-    /// </summary>
-    private void LoadDisplayPreferences()
-    {
-        ShowHeartRate = Preferences.Get("show_heart_rate", true);
-        ShowSpo2 = Preferences.Get("show_spo2", true);
-        ShowTemperature = Preferences.Get("show_temperature", true);
-        ShowWeight = Preferences.Get("show_weight", false);
-        ShowGlucose = Preferences.Get("show_glucose", false);
+        _preferences.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(VitalPreferencesService.ShowHeartRate)
+                or nameof(VitalPreferencesService.ShowSpo2)
+                or nameof(VitalPreferencesService.ShowTemperature)
+                or nameof(VitalPreferencesService.ShowWeight)
+                or nameof(VitalPreferencesService.ShowGlucose))
+            {
+                OnPropertyChanged(e.PropertyName);
+            }
+        };
     }
 
     [RelayCommand]
     public async Task LoadAsync()
     {
-        LoadDisplayPreferences();
+        await _preferences.LoadAsync();
         await _patientState.InitializeAsync();
         OnPropertyChanged(nameof(Patients));
         OnPropertyChanged(nameof(SelectedPatient));
