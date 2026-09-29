@@ -9,6 +9,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
 {
     private readonly ApiService _api;
     private readonly PatientStateService _patientState;
+    private readonly UserPreferencesService _preferences;
 
     public Patient? SelectedPatient => _patientState.SelectedPatient;
 
@@ -25,11 +26,16 @@ public partial class VitalsAnalysisViewModel : ObservableObject
                 ? Analysis?.Spo2?.ReadingCount ?? 0
                 : ShowTemp
                     ? Analysis?.Temperature?.ReadingCount ?? 0
-                    : Analysis?.ReadingCount ?? 0;
+                    : ShowWeight
+                        ? Analysis?.Weight?.ReadingCount ?? 0
+                        : ShowGlucose
+                            ? Analysis?.Glucose?.ReadingCount ?? 0
+                            : Analysis?.ReadingCount ?? 0;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _isInsufficient;
     [ObservableProperty] private bool _isOk;
+    [ObservableProperty] private bool _hasAnalysisResults;
 
     // Day buttons — background colors
     [ObservableProperty] private int _selectedDays = 30;
@@ -84,6 +90,12 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     private Color _tabTempColor = Colors.Transparent;
     public Color TabTempColor { get => _tabTempColor; set { _tabTempColor = value; OnPropertyChanged(); } }
 
+    private Color _tabWeightColor = Colors.Transparent;
+    public Color TabWeightColor { get => _tabWeightColor; set { _tabWeightColor = value; OnPropertyChanged(); } }
+
+    private Color _tabGlucoseColor = Colors.Transparent;
+    public Color TabGlucoseColor { get => _tabGlucoseColor; set { _tabGlucoseColor = value; OnPropertyChanged(); } }
+
     // Tab buttons — text colors
     private Color _tabBpTextColor = Colors.White;
     public Color TabBpTextColor { get => _tabBpTextColor; set { _tabBpTextColor = value; OnPropertyChanged(); } }
@@ -97,10 +109,26 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     private Color _tabTempTextColor = Colors.White;
     public Color TabTempTextColor { get => _tabTempTextColor; set { _tabTempTextColor = value; OnPropertyChanged(); } }
 
+    private Color _tabWeightTextColor = Colors.White;
+    public Color TabWeightTextColor { get => _tabWeightTextColor; set { _tabWeightTextColor = value; OnPropertyChanged(); } }
+
+    private Color _tabGlucoseTextColor = Colors.White;
+    public Color TabGlucoseTextColor { get => _tabGlucoseTextColor; set { _tabGlucoseTextColor = value; OnPropertyChanged(); } }
+
     [ObservableProperty] private bool _showBp = true;
     [ObservableProperty] private bool _showHr = false;
     [ObservableProperty] private bool _showSpo2 = false;
     [ObservableProperty] private bool _showTemp = false;
+    [ObservableProperty] private bool _showWeight = false;
+    [ObservableProperty] private bool _showGlucose = false;
+
+    // Which optional analysis tabs the signed-in user chose to track.
+    // These come from the users table through UserPreferencesService.
+    [ObservableProperty] private bool _trackHeartRate = true;
+    [ObservableProperty] private bool _trackSpo2 = true;
+    [ObservableProperty] private bool _trackTemperature = true;
+    [ObservableProperty] private bool _trackWeight;
+    [ObservableProperty] private bool _trackGlucose;
 
     // Secondary plain English
     [ObservableProperty] private string _hrSummary = string.Empty;
@@ -109,22 +137,40 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     [ObservableProperty] private string _spo2PcpLine = string.Empty;
     [ObservableProperty] private string _tempSummary = string.Empty;
     [ObservableProperty] private string _tempPcpLine = string.Empty;
+    [ObservableProperty] private string _weightSummary = string.Empty;
+    [ObservableProperty] private string _weightPcpLine = string.Empty;
+    [ObservableProperty] private string _glucoseSummary = string.Empty;
+    [ObservableProperty] private string _glucosePcpLine = string.Empty;
 
     [ObservableProperty] private bool _showDiastolicWarning = false;
     [ObservableProperty] private string _diastolicWarningText = string.Empty;
 
-    public VitalsAnalysisViewModel(ApiService api, PatientStateService patientState)
+    public VitalsAnalysisViewModel(
+        ApiService api,
+        PatientStateService patientState,
+        UserPreferencesService preferences)
     {
         _api = api;
         _patientState = patientState;
+        _preferences = preferences;
     }
 
     public async Task LoadAsync(int days = 30)
     {
         SelectedDays = days;
         UpdateButtonColors(days);
+        ApplyPreferences(await _preferences.RefreshAsync());
         SelectTab("bp");
         await RunAnalysisAsync();
+    }
+
+    private void ApplyPreferences(UserPreferences preferences)
+    {
+        TrackHeartRate = preferences.ShowHeartRate;
+        TrackSpo2 = preferences.ShowSpo2;
+        TrackTemperature = preferences.ShowTemperature;
+        TrackWeight = preferences.ShowWeight;
+        TrackGlucose = preferences.ShowGlucose;
     }
 
     [RelayCommand]
@@ -172,19 +218,46 @@ public partial class VitalsAnalysisViewModel : ObservableObject
                 StatusMessage = "Could not load analysis. Check your connection.";
                 IsInsufficient = false;
                 IsOk = false;
+                HasAnalysisResults = false;
                 return;
             }
 
             IsInsufficient = result.IsInsufficient;
             IsOk = result.IsOk;
+            HasAnalysisResults =
+                result.IsOk ||
+                (TrackHeartRate && result.HeartRate is not null) ||
+                (TrackSpo2 && result.Spo2 is not null) ||
+                (TrackTemperature && result.Temperature is not null) ||
+                (TrackWeight && result.Weight is not null) ||
+                (TrackGlucose && result.Glucose is not null);
 
             if (result.IsOk)
             {
                 BuildPlainEnglish(result);
                 BuildPcpLine(result);
-                BuildHrSummary(result);
-                BuildSpo2Summary(result);
-                BuildTempSummary(result);
+            }
+
+            // Optional vital analyses are independent of whether BP has
+            // enough readings for its own full analysis.
+            BuildHrSummary(result);
+            BuildSpo2Summary(result);
+            BuildTempSummary(result);
+            BuildWeightSummary(result);
+            BuildGlucoseSummary(result);
+
+            if (!result.IsOk)
+            {
+                if (TrackHeartRate && result.HeartRate is not null)
+                    SelectTab("hr");
+                else if (TrackSpo2 && result.Spo2 is not null)
+                    SelectTab("spo2");
+                else if (TrackTemperature && result.Temperature is not null)
+                    SelectTab("temp");
+                else if (TrackWeight && result.Weight is not null)
+                    SelectTab("weight");
+                else if (TrackGlucose && result.Glucose is not null)
+                    SelectTab("glucose");
             }
         }
         catch (Exception ex)
@@ -231,20 +304,37 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         var activeTxt = res.TryGetValue("TextPrimary", out var at) ? (Color)at : Colors.White;
         var inactiveTxt = res.TryGetValue("ButtonSecondaryText", out var it) ? (Color)it : Color.FromArgb("#0d2137");
 
+        // Ignore stale/programmatic requests for a tab the user no longer
+        // tracks. BP is always available and is the safe fallback.
+        if ((tab == "hr" && !TrackHeartRate) ||
+            (tab == "spo2" && !TrackSpo2) ||
+            (tab == "temp" && !TrackTemperature) ||
+            (tab == "weight" && !TrackWeight) ||
+            (tab == "glucose" && !TrackGlucose))
+        {
+            tab = "bp";
+        }
+
         ShowBp = tab == "bp";
         ShowHr = tab == "hr";
         ShowSpo2 = tab == "spo2";
         ShowTemp = tab == "temp";
+        ShowWeight = tab == "weight";
+        ShowGlucose = tab == "glucose";
 
         TabBpColor = tab == "bp" ? active : inactive;
         TabHrColor = tab == "hr" ? active : inactive;
         TabSpo2Color = tab == "spo2" ? active : inactive;
         TabTempColor = tab == "temp" ? active : inactive;
+        TabWeightColor = tab == "weight" ? active : inactive;
+        TabGlucoseColor = tab == "glucose" ? active : inactive;
 
         TabBpTextColor = tab == "bp" ? activeTxt : inactiveTxt;
         TabHrTextColor = tab == "hr" ? activeTxt : inactiveTxt;
         TabSpo2TextColor = tab == "spo2" ? activeTxt : inactiveTxt;
         TabTempTextColor = tab == "temp" ? activeTxt : inactiveTxt;
+        TabWeightTextColor = tab == "weight" ? activeTxt : inactiveTxt;
+        TabGlucoseTextColor = tab == "glucose" ? activeTxt : inactiveTxt;
 
         OnPropertyChanged(nameof(SelectedMetricReadingCount));
     }
@@ -1238,6 +1328,111 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         TempPcpLine = !string.IsNullOrWhiteSpace(a.NextFollowup)
             ? $"Consider discussing the recorded temperature findings highlighted above with {a.PcpName} at the appointment on {a.NextFollowup}."
             : $"Consider discussing the recorded temperature findings highlighted above with {a.PcpName} at the next visit.";
+    }
+
+    private void BuildWeightSummary(VitalsAnalysis a)
+    {
+        if (a.Weight?.Latest is not { } latest)
+        {
+            WeightSummary = string.Empty;
+            WeightPcpLine = string.Empty;
+            return;
+        }
+
+        var weight = a.Weight;
+        var parts = new List<string>
+        {
+            $"The latest recorded weight was {latest.Value:F1} lb."
+        };
+
+        if (weight.Summary is not null)
+        {
+            parts.Add(
+                $"Across {weight.ReadingCount} logged readings, the median was " +
+                $"{weight.Summary.Median:F1} lb with a recorded range of " +
+                $"{weight.Summary.Min:F1}–{weight.Summary.Max:F1} lb.");
+        }
+
+        if (weight.ChangeFromFirst is not null)
+        {
+            var change = weight.ChangeFromFirst;
+            var direction = change.AbsoluteChange > 0 ? "higher" :
+                            change.AbsoluteChange < 0 ? "lower" : "the same";
+            var magnitude = Math.Abs(change.AbsoluteChange);
+
+            parts.Add(change.AbsoluteChange == 0
+                ? "The latest weight matches the first logged weight in this window."
+                : $"The latest weight is {magnitude:F1} lb {direction} than the first logged weight in this window.");
+        }
+
+        if (weight.Trend is not null)
+        {
+            parts.Add(
+                $"The modeled longitudinal rate of change is " +
+                $"{weight.Trend.SlopePerWeek:+0.00;-0.00;0.00} lb per week across " +
+                $"{weight.Trend.SpanDays:F1} days. This describes the recorded pattern " +
+                "and does not by itself determine whether the change is medically desirable.");
+        }
+
+        WeightSummary = string.Join(
+            " ",
+            parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+        WeightPcpLine = BuildDescriptivePcpLine(
+            a,
+            "weight",
+            weight.ReadingCount > 1);
+    }
+
+    private void BuildGlucoseSummary(VitalsAnalysis a)
+    {
+        if (a.Glucose?.Latest is not { } latest)
+        {
+            GlucoseSummary = string.Empty;
+            GlucosePcpLine = string.Empty;
+            return;
+        }
+
+        var glucose = a.Glucose;
+        var parts = new List<string>
+        {
+            $"The latest recorded blood glucose was {latest.Value:F0} mg/dL."
+        };
+
+        if (glucose.Summary is not null)
+        {
+            parts.Add(
+                $"Across {glucose.ReadingCount} logged readings, the median was " +
+                $"{glucose.Summary.Median:F0} mg/dL with a recorded range of " +
+                $"{glucose.Summary.Min:F0}–{glucose.Summary.Max:F0} mg/dL.");
+        }
+
+        parts.Add(
+            "Vitals does not classify these readings against a single glucose target " +
+            "because fasting, pre-meal, post-meal, and random measurement context is " +
+            "not collected yet, and individual targets may differ.");
+
+        GlucoseSummary = string.Join(
+            " ",
+            parts.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+        GlucosePcpLine = BuildDescriptivePcpLine(
+            a,
+            "blood-glucose",
+            glucose.ReadingCount > 0);
+    }
+
+    private static string BuildDescriptivePcpLine(
+        VitalsAnalysis a,
+        string metricName,
+        bool hasData)
+    {
+        if (!hasData || string.IsNullOrWhiteSpace(a.PcpName))
+            return string.Empty;
+
+        return !string.IsNullOrWhiteSpace(a.NextFollowup)
+            ? $"Consider sharing this {metricName} summary with {a.PcpName} at the appointment on {a.NextFollowup}."
+            : $"Consider sharing this {metricName} summary with {a.PcpName} at the next visit.";
     }
 
     private void BuildBurdenSummary(VitalsAnalysis a)

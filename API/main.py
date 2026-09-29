@@ -2646,6 +2646,169 @@ def run_temperature_analysis(rows: list, baseline_rows: list | None = None) -> d
 
 
 # --------------------
+# Weight / glucose descriptive analysis
+# --------------------
+def _run_descriptive_scalar_analysis(
+    rows: list,
+    *,
+    vital_type: str,
+    unit: str,
+    allow_longitudinal_trend: bool,
+) -> dict | None:
+    """
+    Conservative P0 engine for scalar vitals that do not yet have enough
+    structured context for a clinically targeted interpretation.
+
+    Weight supports a descriptive longitudinal model because repeated body
+    weight measurements are comparable as the same physical quantity.
+    Blood glucose deliberately does NOT expose a clinical target band or
+    trend yet: fasting/post-meal/random context is not collected, so mixing
+    those states into a target or trajectory would overstate what the data
+    can support.
+    """
+    if not rows:
+        return None
+
+    points = [
+        {
+            "recorded_at": r[0],
+            "local_offset_minutes": r[1],
+            "value": float(r[2]),
+        }
+        for r in rows
+        if r[2] is not None
+    ]
+    if not points:
+        return None
+
+    values = np.array([p["value"] for p in points], dtype=float)
+    first = points[0]
+    latest = points[-1]
+    span_days = max(
+        0.0,
+        (latest["recorded_at"] - first["recorded_at"]).total_seconds() / 86400.0,
+    )
+    distinct_days = len({_hr_local_datetime(p).date() for p in points})
+
+    summary = {
+        "mean": round(float(np.mean(values)), 1),
+        "median": round(float(np.median(values)), 1),
+        "min": round(float(np.min(values)), 1),
+        "max": round(float(np.max(values)), 1),
+    }
+
+    change = None
+    # First-to-latest change is meaningful for longitudinal Weight tracking.
+    # Do not expose it for glucose while fasting/meal context is unknown:
+    # two values from different measurement states are not directly
+    # comparable as one continuous trajectory.
+    if len(points) >= 2 and allow_longitudinal_trend:
+        absolute_change = float(latest["value"] - first["value"])
+        pct_change = (
+            absolute_change / float(first["value"]) * 100.0
+            if float(first["value"]) != 0
+            else None
+        )
+        change = {
+            "first_value": round(float(first["value"]), 1),
+            "first_at": first["recorded_at"].isoformat(),
+            "latest_value": round(float(latest["value"]), 1),
+            "latest_at": latest["recorded_at"].isoformat(),
+            "absolute_change": round(absolute_change, 1),
+            "pct_change": round(pct_change, 1) if pct_change is not None else None,
+        }
+
+    trend = None
+    unavailable = []
+
+    if allow_longitudinal_trend:
+        if len(points) >= 3 and distinct_days >= 3 and span_days >= 7.0:
+            origin = first["recorded_at"]
+            t = np.array([
+                (p["recorded_at"] - origin).total_seconds() / 86400.0
+                for p in points
+            ], dtype=float)
+            slope, _, r_val, p_val, _ = stats.linregress(t, values)
+            trend = {
+                "n": len(points),
+                "span_days": round(span_days, 1),
+                "slope_per_day": round(float(slope), 3),
+                "slope_per_week": round(float(slope) * 7.0, 2),
+                "r2": round(float(r_val ** 2), 2),
+                "p_value": round(float(p_val), 3),
+            }
+        else:
+            unavailable.append({
+                "analysis": "longitudinal_trend",
+                "reason_code": "insufficient_longitudinal_support",
+                "reason": "needs >=3 readings on >=3 distinct days spanning >=7 days",
+            })
+    else:
+        unavailable.append({
+            "analysis": "longitudinal_trend",
+            "reason_code": "measurement_context_not_collected",
+            "reason": (
+                "fasting/post-meal/random measurement context is not collected, "
+                "so Vitals does not model a single glucose trajectory across mixed contexts"
+            ),
+        })
+        unavailable.append({
+            "analysis": "target_range",
+            "reason_code": "measurement_context_not_collected",
+            "reason": (
+                "glucose target interpretation requires measurement context and may also "
+                "depend on an individualized care plan"
+            ),
+        })
+
+    support_state = (
+        "trend"
+        if trend is not None
+        else "descriptive"
+        if len(points) >= 2
+        else "snapshot"
+    )
+
+    return {
+        "vital_type": vital_type,
+        "unit": unit,
+        "latest": {
+            "value": round(float(latest["value"]), 1),
+            "recorded_at": latest["recorded_at"].isoformat(),
+        },
+        "reading_count": len(points),
+        "summary": summary,
+        "change_from_first": change,
+        "trend": trend,
+        "data_support": {
+            "n": len(points),
+            "distinct_days": distinct_days,
+            "span_days": round(span_days, 1),
+            "support_state": support_state,
+            "unavailable_analyses": unavailable,
+        },
+    }
+
+
+def run_weight_analysis(rows: list) -> dict | None:
+    return _run_descriptive_scalar_analysis(
+        rows,
+        vital_type="weight",
+        unit="lb",
+        allow_longitudinal_trend=True,
+    )
+
+
+def run_glucose_analysis(rows: list) -> dict | None:
+    return _run_descriptive_scalar_analysis(
+        rows,
+        vital_type="glucose",
+        unit="mg/dL",
+        allow_longitudinal_trend=False,
+    )
+
+
+# --------------------
 # Vitals analysis cache — eager, per-vital-type
 # --------------------
 # Standard windows are computed and cached the moment a relevant vital is
@@ -2745,8 +2908,18 @@ VITAL_ANALYSIS_REGISTRY = {
         # this fetch window.
         "baseline_lookback_days": 60,
     },
-    # "weight":  {...},   # TODO once the Weight spec is implemented
-    # "glucose": {...},   # TODO once the Glucose spec is implemented
+    "weight": {
+        "from_clause": "vitals",
+        "columns": "vitals.recorded_at, vitals.local_offset_minutes, vitals.weight",
+        "where_clause": "vitals.weight IS NOT NULL",
+        "analysis_fn": run_weight_analysis,
+    },
+    "glucose": {
+        "from_clause": "vitals",
+        "columns": "vitals.recorded_at, vitals.local_offset_minutes, vitals.blood_glucose",
+        "where_clause": "vitals.blood_glucose IS NOT NULL",
+        "analysis_fn": run_glucose_analysis,
+    },
 }
 
 def recompute_vital_cache(patient_id: str, household_id: str, vital_type: str):
@@ -3324,11 +3497,10 @@ def record_vitals(
         background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "spo2")
     if vital.temperature is not None:
         background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "temperature")
-    # Uncomment each block below as its analysis function is implemented:
-    # if vital.weight is not None:
-    #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "weight")
-    # if vital.blood_glucose is not None:
-    #     background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "glucose")
+    if vital.weight is not None:
+        background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "weight")
+    if vital.blood_glucose is not None:
+        background_tasks.add_task(recompute_vital_cache, vital.patient_id, household_id, "glucose")
 
     return {"status": "success", "vital_id": vital_id, "message": "Vitals recorded"}
 
@@ -3346,18 +3518,70 @@ def get_latest_vitals(
     conn = get_conn()
     cur = conn.cursor()
     verify_patient_household(cur, patient_id, household_id)
-    cur.execute("""
-        SELECT recorded_at, systolic, diastolic, oxygen_saturation,
-               heart_rate, temperature, temperature_site, weight, blood_glucose
-        FROM vitals
-        WHERE patient_id = %s
-        ORDER BY recorded_at DESC
-        LIMIT 1;
-    """, (patient_id,))
+    # "Latest" is per vital, not "whatever happened to be populated on
+    # the newest row." A user may log weight today and BP yesterday; the
+    # dashboard should still show yesterday's BP as the latest BP instead
+    # of replacing it with an em dash just because today's row has no BP.
+    cur.execute(f"""
+        SELECT
+            (SELECT recorded_at FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+             ORDER BY recorded_at DESC LIMIT 1) AS latest_event_at,
+
+            (SELECT systolic FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND systolic IS NOT NULL AND diastolic IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS systolic,
+
+            (SELECT diastolic FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND systolic IS NOT NULL AND diastolic IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS diastolic,
+
+            (SELECT oxygen_saturation FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND oxygen_saturation IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS oxygen_saturation,
+
+            (SELECT heart_rate FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND heart_rate IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS heart_rate,
+
+            (SELECT temperature FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND temperature IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS temperature,
+
+            (SELECT temperature_site FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND temperature IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS temperature_site,
+
+            (SELECT weight FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND weight IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS weight,
+
+            (SELECT blood_glucose FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND blood_glucose IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1) AS blood_glucose;
+    """, (
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+        patient_id, household_id,
+    ))
     row = cur.fetchone()
     cur.close()
     conn.close()
-    if not row:
+    if not row or row[0] is None:
         return {}
     return {
         "recorded_at": row[0],
@@ -3367,7 +3591,7 @@ def get_latest_vitals(
         "heart_rate": row[4],
         "temperature": row[5],
         "temperature_site": row[6],
-        "weight": float(row[7]) if row[7] else None,
+        "weight": float(row[7]) if row[7] is not None else None,
         "blood_glucose": row[8]
     }
 
@@ -3531,9 +3755,11 @@ def get_vitals_analysis(
     # Heart Rate, SpO2, and Temperature use dedicated engines through
     # the shared registry/cache path. Each is independently computed and
     # gated on its OWN observations.
-    hr_analysis   = get_cached_or_compute_analysis(patient_id, household_id, "heart_rate", days)
-    spo2_analysis = get_cached_or_compute_analysis(patient_id, household_id, "spo2", days)
-    temp_analysis = get_cached_or_compute_analysis(patient_id, household_id, "temperature", days)
+    hr_analysis      = get_cached_or_compute_analysis(patient_id, household_id, "heart_rate", days)
+    spo2_analysis    = get_cached_or_compute_analysis(patient_id, household_id, "spo2", days)
+    temp_analysis    = get_cached_or_compute_analysis(patient_id, household_id, "temperature", days)
+    weight_analysis  = get_cached_or_compute_analysis(patient_id, household_id, "weight", days)
+    glucose_analysis = get_cached_or_compute_analysis(patient_id, household_id, "glucose", days)
 
     pcp_name      = pcp[0] if pcp else None
     next_followup = pcp[1].strftime("%b %-d, %Y") if pcp and pcp[1] else None
@@ -3554,6 +3780,8 @@ def get_vitals_analysis(
             "heart_rate":    hr_analysis,
             "spo2":          spo2_analysis,
             "temperature":   temp_analysis,
+            "weight":        weight_analysis,
+            "glucose":       glucose_analysis,
             "pcp_name":      pcp_name,
             "next_followup": next_followup,
         }
@@ -3577,6 +3805,8 @@ def get_vitals_analysis(
         "heart_rate":     hr_analysis,
         "spo2":           spo2_analysis,
         "temperature":    temp_analysis,
+        "weight":         weight_analysis,
+        "glucose":        glucose_analysis,
         "pcp_name":       pcp_name,
         "next_followup":  next_followup,
     }
@@ -3993,6 +4223,7 @@ def export_medications_pdf(
     patient_id: UUID,
     days: int = Query(default=15),
     x_api_key: str = Header(..., alias="X-API-KEY"),
+    auth: dict = Depends(get_auth),
     household_id: str = Depends(get_household_id)
 ):
     check_key(x_api_key)
@@ -4008,6 +4239,46 @@ def export_medications_pdf(
     cur = conn.cursor()
     verify_patient_household(cur, str(patient_id), household_id)
 
+    # The PDF is generated for the signed-in user's chosen vital set.
+    # Blood pressure is always tracked. Legacy API-key callers have no
+    # per-user preference row, so preserve the pre-mobile default set and
+    # leave the newer Weight/Glucose sections off for that path.
+    show_hr = True
+    show_spo2 = True
+    show_temp = True
+    show_weight = False
+    show_glucose = False
+
+    if auth.get("type") != "api_key":
+        user_id = auth.get("sub")
+        if user_id:
+            cur.execute("""
+                SELECT show_heart_rate, show_spo2, show_temperature,
+                       show_weight, show_glucose
+                FROM users
+                WHERE user_id = %s AND household_id = %s;
+            """, (user_id, household_id))
+            pref_row = cur.fetchone()
+            if pref_row:
+                show_hr, show_spo2, show_temp, show_weight, show_glucose = [
+                    bool(v) for v in pref_row
+                ]
+
+    tracked_conditions = [
+        "(systolic IS NOT NULL AND diastolic IS NOT NULL)"
+    ]
+    if show_hr:
+        tracked_conditions.append("heart_rate IS NOT NULL")
+    if show_spo2:
+        tracked_conditions.append("oxygen_saturation IS NOT NULL")
+    if show_temp:
+        tracked_conditions.append("temperature IS NOT NULL")
+    if show_weight:
+        tracked_conditions.append("weight IS NOT NULL")
+    if show_glucose:
+        tracked_conditions.append("blood_glucose IS NOT NULL")
+    tracked_where = " OR ".join(tracked_conditions)
+
     cur.execute("""
         SELECT first_name, last_name, dob
         FROM patients WHERE patient_id = %s AND household_id = %s;
@@ -4016,17 +4287,58 @@ def export_medications_pdf(
     patient_name = f"{p[0]} {p[1]}" if p else "Unknown Patient"
     patient_dob  = p[2].strftime("%m/%d/%Y") if p and p[2] else "Unknown DOB"
 
-    cur.execute("""
-        SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation, temperature
-        FROM vitals WHERE patient_id = %s AND household_id = %s
-        ORDER BY recorded_at DESC LIMIT 1;
-    """, (str(patient_id), household_id))
+    cur.execute(f"""
+        SELECT
+            (SELECT recorded_at FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND ({tracked_where})
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT systolic FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND systolic IS NOT NULL AND diastolic IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT diastolic FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND systolic IS NOT NULL AND diastolic IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT heart_rate FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND heart_rate IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT oxygen_saturation FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND oxygen_saturation IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT temperature FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND temperature IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT weight FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND weight IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1),
+            (SELECT blood_glucose FROM vitals
+             WHERE patient_id = %s AND household_id = %s
+               AND blood_glucose IS NOT NULL
+             ORDER BY recorded_at DESC LIMIT 1);
+    """, (
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+    ))
     latest = cur.fetchone()
 
-    cur.execute("""
-        SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation, temperature
+    cur.execute(f"""
+        SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation,
+               temperature, weight, blood_glucose
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
+          AND ({tracked_where})
         ORDER BY recorded_at DESC;
     """, (str(patient_id), household_id, days))
     history = cur.fetchall()
@@ -4056,10 +4368,12 @@ def export_medications_pdf(
     """, (str(patient_id), household_id))
     allergies = cur.fetchall()
 
-    cur.execute("""
-        SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation, temperature
+    cur.execute(f"""
+        SELECT recorded_at, systolic, diastolic, heart_rate, oxygen_saturation,
+               temperature, weight, blood_glucose
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
+          AND ({tracked_where})
         ORDER BY recorded_at;
     """, (str(patient_id), household_id, days))
     chart_data = cur.fetchall()
@@ -4074,22 +4388,30 @@ def export_medications_pdf(
     bp_analysis_rows = cur.fetchall()
     bp = run_bp_analysis(bp_analysis_rows)
 
-    cur.execute("""
-        SELECT recorded_at, heart_rate, oxygen_saturation, temperature
-        FROM vitals WHERE patient_id = %s AND household_id = %s
-          AND recorded_at >= now() - interval '%s days'
-          AND (heart_rate IS NOT NULL OR oxygen_saturation IS NOT NULL OR temperature IS NOT NULL)
-        ORDER BY recorded_at ASC;
-    """, (str(patient_id), household_id, days))
-    secondary_rows = cur.fetchall()
-
     # Heart Rate, SpO2, and Temperature all use the same dedicated
     # analysis engines that power the app's Analysis view. Keeping the
     # PDF on those contracts prevents the report from drifting back to
     # the retired generic average/classification/interpolated-burden path.
-    hr_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "heart_rate", days)
-    spo2_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "spo2", days)
-    temp_analysis = get_cached_or_compute_analysis(str(patient_id), household_id, "temperature", days)
+    hr_analysis = (
+        get_cached_or_compute_analysis(str(patient_id), household_id, "heart_rate", days)
+        if show_hr else None
+    )
+    spo2_analysis = (
+        get_cached_or_compute_analysis(str(patient_id), household_id, "spo2", days)
+        if show_spo2 else None
+    )
+    temp_analysis = (
+        get_cached_or_compute_analysis(str(patient_id), household_id, "temperature", days)
+        if show_temp else None
+    )
+    weight_analysis = (
+        get_cached_or_compute_analysis(str(patient_id), household_id, "weight", days)
+        if show_weight else None
+    )
+    glucose_analysis = (
+        get_cached_or_compute_analysis(str(patient_id), household_id, "glucose", days)
+        if show_glucose else None
+    )
 
     cur.close()
     conn.close()
@@ -4796,6 +5118,178 @@ def export_medications_pdf(
 
         return paragraphs
 
+    def draw_scalar_clinical_analysis(
+        y,
+        title,
+        analysis,
+        *,
+        context_note=None,
+        show_trend=True,
+    ):
+        if analysis is None:
+            return y
+
+        y = check_page_break(y, needed=180)
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(LEFT, y, title)
+        y -= 20
+
+        latest_s = analysis.get("latest") or {}
+        summary_s = analysis.get("summary") or {}
+        support_s = analysis.get("data_support") or {}
+        unit_s = analysis.get("unit") or ""
+
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT, y, "Latest Logged Value")
+        y -= 14
+        pdf.setFont("Helvetica", 9)
+        latest_value = latest_s.get("value")
+        latest_display = (
+            f"{latest_value:.1f} {unit_s}"
+            if latest_value is not None
+            else "n/a"
+        )
+        pdf.drawString(LEFT + 10, y, latest_display)
+        y -= 12
+        if latest_s.get("recorded_at"):
+            y = draw_wrapped_line(
+                y,
+                f"Recorded: {latest_s['recorded_at']}",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+        y -= 6
+
+        if summary_s:
+            y = check_page_break(y, needed=65)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Logged Reading Summary")
+            y -= 14
+            pdf.setFont("Helvetica", 9)
+            y = draw_wrapped_line(
+                y,
+                f"Readings: {analysis.get('reading_count', 0)}   |   "
+                f"Mean: {summary_s.get('mean', 0):.1f} {unit_s}   |   "
+                f"Median: {summary_s.get('median', 0):.1f} {unit_s}   |   "
+                f"Range: {summary_s.get('min', 0):.1f}-{summary_s.get('max', 0):.1f} {unit_s}",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+            y -= 6
+
+        change_s = analysis.get("change_from_first")
+        if change_s:
+            y = check_page_break(y, needed=55)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Change Across Logged Window")
+            y -= 14
+            pct_s = (
+                f" ({change_s['pct_change']:+.1f}%)"
+                if change_s.get("pct_change") is not None
+                else ""
+            )
+            pdf.setFont("Helvetica", 9)
+            y = draw_wrapped_line(
+                y,
+                f"First: {change_s.get('first_value', 0):.1f} {unit_s}   |   "
+                f"Latest: {change_s.get('latest_value', 0):.1f} {unit_s}   |   "
+                f"Change: {change_s.get('absolute_change', 0):+.1f} {unit_s}{pct_s}",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+            y -= 6
+
+        trend_s = analysis.get("trend")
+        if show_trend and trend_s:
+            y = check_page_break(y, needed=65)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Descriptive Longitudinal Trend")
+            y -= 14
+            pdf.setFont("Helvetica", 9)
+            y = draw_wrapped_line(
+                y,
+                f"Modeled rate: {trend_s.get('slope_per_week', 0):+.2f} {unit_s}/week   |   "
+                f"Span: {trend_s.get('span_days', 0):.1f} days   |   "
+                f"R2: {trend_s.get('r2', 0):.2f}   |   p={trend_s.get('p_value', 0):.3f}",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            y = draw_wrapped_line(
+                y,
+                "This is a descriptive modeled pattern and does not by itself determine "
+                "whether the change is medically desirable or harmful.",
+                fontsize=8,
+                indent=10,
+                line_spacing=11,
+            )
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 6
+
+        if context_note:
+            y = check_page_break(y, needed=55)
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            y = draw_wrapped_line(
+                y,
+                context_note,
+                fontsize=8,
+                indent=10,
+                line_spacing=11,
+            )
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 8
+
+        if support_s:
+            y = check_page_break(y, needed=75)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Data Support")
+            y -= 14
+            pdf.setFont("Helvetica", 9)
+            y = draw_wrapped_line(
+                y,
+                f"State: {(support_s.get('support_state') or 'snapshot').replace('_', ' ')}   |   "
+                f"{support_s.get('n', 0)} readings on {support_s.get('distinct_days', 0)} "
+                f"distinct days across {support_s.get('span_days', 0):.1f} days",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+
+            unavailable_s = support_s.get("unavailable_analyses") or []
+            for item in unavailable_s:
+                y = check_page_break(y, needed=32)
+                name = (item.get("analysis") or "analysis").replace("_", " ").title()
+                reason = item.get("reason") or item.get("reason_code") or "not available"
+                y = draw_wrapped_line(
+                    y,
+                    f"- {name}: {reason}",
+                    fontsize=8,
+                    indent=10,
+                    line_spacing=11,
+                )
+            y -= 8
+
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+        return y
+
+
     # =====================================================
     # PAGE 1 — HEADER, VITALS, ALLERGIES, MEDS, CARE TEAM
     # =====================================================
@@ -4813,14 +5307,16 @@ def export_medications_pdf(
     y -= 30
 
     pdf.setFont("Helvetica-Bold", 13)
-    pdf.drawString(LEFT, y, "Most Recent Vitals")
+    pdf.drawString(LEFT, y, "Most Recent Vitals & Period Averages")
     y -= 18
 
     conn2 = get_conn()
     cur2 = conn2.cursor()
     cur2.execute("""
-        SELECT round(avg(systolic),1), round(avg(diastolic),1), round(avg(heart_rate),1),
-               round(avg(oxygen_saturation),1), round(avg(temperature),1)
+        SELECT round(avg(systolic),1), round(avg(diastolic),1),
+               round(avg(heart_rate),1), round(avg(oxygen_saturation),1),
+               round(avg(temperature),1), round(avg(weight),1),
+               round(avg(blood_glucose),1)
         FROM vitals WHERE patient_id = %s AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
     """, (str(patient_id), household_id, days))
@@ -4828,30 +5324,82 @@ def export_medications_pdf(
     cur2.close()
     conn2.close()
 
-    DIVIDER_X = 310
+    if latest and latest[0] is not None:
+        taken, sys, dia, hr, spo2, temp, weight, glucose = latest
+        avg_sys, avg_dia, avg_hr, avg_spo2, avg_temp, avg_weight, avg_glucose = (
+            avg if avg else (None,) * 7
+        )
 
-    if latest:
-        taken, sys, dia, hr, spo2, temp = latest
-        avg_sys, avg_dia, avg_hr, avg_spo2, avg_temp = avg if avg else (None,)*5
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(LEFT, y, f"Last vital entry: {taken.strftime('%m/%d/%Y %I:%M %p')}")
+        y -= 16
 
-        pdf.setFont("Helvetica-Bold", 9)
-        pdf.drawString(LEFT, y, "Latest")
-        pdf.drawString(DIVIDER_X + 10, y, f"{days}-Day Average")
-        y -= 14
+        summary_rows = []
+        if (
+            (sys is not None and dia is not None) or
+            (avg_sys is not None and avg_dia is not None)
+        ):
+            summary_rows.append((
+                "Blood Pressure",
+                f"{sys}/{dia} mmHg" if sys is not None and dia is not None else "n/a",
+                f"{avg_sys:.0f}/{avg_dia:.0f} mmHg"
+                if avg_sys is not None and avg_dia is not None else "n/a",
+            ))
 
-        pdf.setFont("Helvetica", 10)
-        pdf.drawString(LEFT, y, f"Taken: {taken.strftime('%m/%d/%Y %I:%M %p')}")
-        y -= 14
-        pdf.drawString(LEFT,           y, f"BP: {sys}/{dia} mmHg")
-        pdf.drawString(220,            y, f"Heart Rate: {hr} BPM")
-        pdf.drawString(DIVIDER_X + 10, y, f"BP: {avg_sys}/{avg_dia} mmHg")
-        pdf.drawString(460,            y, f"HR: {avg_hr} BPM")
-        y -= 14
-        pdf.drawString(LEFT,           y, f"O2 Saturation: {spo2}%")
-        pdf.drawString(220,            y, f"Temperature: {temp} F")
-        pdf.drawString(DIVIDER_X + 10, y, f"O2 Saturation: {avg_spo2}%")
-        pdf.drawString(460,            y, f"Temp: {avg_temp} F")
-        y -= 25
+        if show_hr and (hr is not None or avg_hr is not None):
+            summary_rows.append((
+                "Heart Rate",
+                f"{hr} BPM" if hr is not None else "n/a",
+                f"{avg_hr:.0f} BPM" if avg_hr is not None else "n/a",
+            ))
+        if show_spo2 and (spo2 is not None or avg_spo2 is not None):
+            summary_rows.append((
+                "Oxygen Saturation",
+                f"{spo2}%" if spo2 is not None else "n/a",
+                f"{avg_spo2:.1f}%" if avg_spo2 is not None else "n/a",
+            ))
+        if show_temp and (temp is not None or avg_temp is not None):
+            summary_rows.append((
+                "Temperature",
+                f"{float(temp):.1f} F" if temp is not None else "n/a",
+                f"{avg_temp:.1f} F" if avg_temp is not None else "n/a",
+            ))
+        if show_weight and (weight is not None or avg_weight is not None):
+            summary_rows.append((
+                "Weight",
+                f"{float(weight):.1f} lb" if weight is not None else "n/a",
+                f"{avg_weight:.1f} lb" if avg_weight is not None else "n/a",
+            ))
+        if show_glucose and (glucose is not None or avg_glucose is not None):
+            summary_rows.append((
+                "Blood Glucose",
+                f"{glucose} mg/dL" if glucose is not None else "n/a",
+                f"{avg_glucose:.0f} mg/dL" if avg_glucose is not None else "n/a",
+            ))
+
+        if summary_rows:
+            summary_widths = [170, 160, 182]
+            y = draw_table_row(
+                y,
+                ["Vital", "Latest", f"{days}-Day Logged Average"],
+                summary_widths,
+                fontsize=8,
+                bold=True,
+                fill_bg=True,
+            )
+            for label, latest_display, avg_display in summary_rows:
+                y = check_page_break(y, needed=35)
+                y = draw_table_row(
+                    y,
+                    [label, latest_display, avg_display],
+                    summary_widths,
+                    fontsize=8,
+                )
+            y -= 12
+        else:
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(LEFT, y, "No tracked vital values are available in this period.")
+            y -= 20
     else:
         pdf.setFont("Helvetica", 10)
         pdf.drawString(LEFT, y, "No vitals recorded.")
@@ -4973,39 +5521,71 @@ def export_medications_pdf(
     # PAGE 2 — VITAL TREND CHARTS
     # =====================================================
     if chart_data:
-        pdf.showPage()
-        y = height - 50
-        pdf.setFont("Helvetica-Bold", 13)
-        pdf.drawString(LEFT, y, f"Vital Trends (Last {days} Days)")
-        y -= 20
+        dates        = [r[0] for r in chart_data]
+        sys_vals     = [r[1] for r in chart_data]
+        dia_vals     = [r[2] for r in chart_data]
+        hr_vals      = [r[3] for r in chart_data]
+        spo2_vals    = [r[4] for r in chart_data]
+        temp_vals    = [float(r[5]) if r[5] is not None else None for r in chart_data]
+        weight_vals  = [float(r[6]) if r[6] is not None else None for r in chart_data]
+        glucose_vals = [float(r[7]) if r[7] is not None else None for r in chart_data]
 
-        dates     = [r[0] for r in chart_data]
-        sys_vals  = [r[1] for r in chart_data]
-        dia_vals  = [r[2] for r in chart_data]
-        hr_vals   = [r[3] for r in chart_data]
-        spo2_vals = [r[4] for r in chart_data]
-        temp_vals = [float(r[5]) if r[5] else None for r in chart_data]
+        def has_values(values):
+            return any(v is not None for v in values)
 
-        def make_chart(title, datasets, ylabel, chart_width=480, chart_height=160):
+        def make_chart(
+            title,
+            datasets,
+            ylabel,
+            chart_width=480,
+            chart_height=160,
+            smooth=True,
+        ):
             fig, ax = plt.subplots(figsize=(chart_width/72, chart_height/72))
             for label, values, color in datasets:
                 paired = [(d, v) for d, v in zip(dates, values) if v is not None]
                 if not paired:
                     continue
+
                 d_clean, v_clean = zip(*paired)
                 d_clean = list(d_clean)
                 v_clean = list(v_clean)
-                ax.scatter(d_clean, v_clean, color=color, alpha=0.25, s=14, zorder=2)
-                if len(v_clean) >= 4:
+
+                ax.scatter(
+                    d_clean,
+                    v_clean,
+                    color=color,
+                    alpha=0.45 if not smooth else 0.25,
+                    s=18 if not smooth else 14,
+                    zorder=2,
+                    label=label if not smooth else None,
+                )
+
+                if smooth and len(v_clean) >= 4:
                     x_ord = np.array([d.toordinal() for d in d_clean], dtype=float)
                     y_arr = np.array(v_clean, dtype=float)
                     sort_idx = np.argsort(x_ord)
                     y_loess = loess_smooth(x_ord[sort_idx], y_arr[sort_idx], frac=0.4)
-                    ax.plot([d_clean[i] for i in sort_idx], y_loess,
-                            color=color, linewidth=2.0, zorder=3, label=label)
-                else:
-                    ax.plot(d_clean, v_clean, color=color, linewidth=1.5,
-                            marker='o', markersize=3, zorder=3, label=label)
+                    ax.plot(
+                        [d_clean[i] for i in sort_idx],
+                        y_loess,
+                        color=color,
+                        linewidth=2.0,
+                        zorder=3,
+                        label=label,
+                    )
+                elif smooth:
+                    ax.plot(
+                        d_clean,
+                        v_clean,
+                        color=color,
+                        linewidth=1.5,
+                        marker='o',
+                        markersize=3,
+                        zorder=3,
+                        label=label,
+                    )
+
             ax.set_title(title, fontsize=10, fontweight='bold')
             ax.set_ylabel(ylabel, fontsize=8)
             ax.xaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
@@ -5021,30 +5601,93 @@ def export_medications_pdf(
             buf.seek(0)
             return buf
 
-        chart_w = 480
-        chart_h = 160
+        chart_specs = []
+        if has_values(sys_vals) or has_values(dia_vals):
+            chart_specs.append((
+                "Blood Pressure (mmHg)",
+                [("Systolic", sys_vals, "#d32f2f"), ("Diastolic", dia_vals, "#1976d2")],
+                "mmHg",
+                True,
+            ))
+        if show_hr and has_values(hr_vals):
+            chart_specs.append((
+                "Heart Rate (BPM)",
+                [("Heart Rate", hr_vals, "#388e3c")],
+                "BPM",
+                True,
+            ))
+        if show_spo2 and has_values(spo2_vals):
+            chart_specs.append((
+                "Oxygen Saturation (%)",
+                [("SpO2", spo2_vals, "#7b1fa2")],
+                "%",
+                True,
+            ))
+        if show_temp and has_values(temp_vals):
+            chart_specs.append((
+                "Temperature (F)",
+                [("Temperature", temp_vals, "#f57c00")],
+                "F",
+                True,
+            ))
+        if show_weight and has_values(weight_vals):
+            chart_specs.append((
+                "Weight (lb)",
+                [("Weight", weight_vals, "#00897b")],
+                "lb",
+                True,
+            ))
+        if show_glucose and has_values(glucose_vals):
+            chart_specs.append((
+                "Blood Glucose (mg/dL)",
+                [("Blood Glucose", glucose_vals, "#8e24aa")],
+                "mg/dL",
+                False,
+            ))
 
-        bp_buf = make_chart(
-            "Blood Pressure (mmHg)",
-            [("Systolic", sys_vals, "#d32f2f"), ("Diastolic", dia_vals, "#1976d2")],
-            "mmHg"
-        )
-        pdf.drawImage(ImageReader(bp_buf), LEFT, y - chart_h, width=chart_w, height=chart_h)
-        y -= chart_h + 20
+        if chart_specs:
+            pdf.showPage()
+            y = height - 50
+            pdf.setFont("Helvetica-Bold", 13)
+            pdf.drawString(LEFT, y, f"Vital Trends (Last {days} Days)")
+            y -= 20
 
-        y = check_page_break(y, needed=chart_h + 20)
-        hr_buf = make_chart("Heart Rate (BPM)", [("Heart Rate", hr_vals, "#388e3c")], "BPM")
-        pdf.drawImage(ImageReader(hr_buf), LEFT, y - chart_h, width=chart_w, height=chart_h)
-        y -= chart_h + 20
+            chart_w = 480
+            chart_h = 160
 
-        y = check_page_break(y, needed=chart_h + 20)
-        spo2_buf = make_chart("Oxygen Saturation (%)", [("SpO2", spo2_vals, "#7b1fa2")], "%")
-        pdf.drawImage(ImageReader(spo2_buf), LEFT, y - chart_h, width=chart_w, height=chart_h)
-        y -= chart_h + 20
+            for title, datasets, ylabel, smooth in chart_specs:
+                y = check_page_break(y, needed=chart_h + 22)
+                chart_buf = make_chart(
+                    title,
+                    datasets,
+                    ylabel,
+                    chart_width=chart_w,
+                    chart_height=chart_h,
+                    smooth=smooth,
+                )
+                pdf.drawImage(
+                    ImageReader(chart_buf),
+                    LEFT,
+                    y - chart_h,
+                    width=chart_w,
+                    height=chart_h,
+                )
+                y -= chart_h + 20
 
-        y = check_page_break(y, needed=chart_h + 20)
-        temp_buf = make_chart("Temperature (F)", [("Temp", temp_vals, "#f57c00")], "F")
-        pdf.drawImage(ImageReader(temp_buf), LEFT, y - chart_h, width=chart_w, height=chart_h)
+                if not smooth:
+                    pdf.setFont("Helvetica-Oblique", 7)
+                    pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                    y = draw_wrapped_line(
+                        y,
+                        "Glucose values are shown as logged observations only. "
+                        "Fasting/post-meal/random context is not collected, so no "
+                        "single smoothed clinical trajectory is inferred.",
+                        fontsize=7,
+                        indent=6,
+                        line_spacing=9,
+                    )
+                    pdf.setFillColorRGB(0, 0, 0)
+                    y -= 6
 
     # =====================================================
     # PAGE 3 — VITALS ANALYSIS
@@ -5250,721 +5893,764 @@ def export_medications_pdf(
         pdf.setStrokeColorRGB(0, 0, 0)
         y -= 14
 
-        # =====================================================
-        # HEART RATE — CLINICAL ANALYSIS
-        # Mirrors the Blood Pressure section above in depth (Clinical
-        # Summary + Detailed Metrics), using hr_analysis — the same
-        # run_hr_analysis engine powering the app's Analysis tab — not
-        # the older analyze_vital_series output SpO2/Temperature below
-        # still use. Rate-events methodology is deliberately NOT
-        # AUC/duration-weighted like BP's burden — spot readings don't
-        # support that continuous-coverage assumption (see the note
-        # drawn with that block below).
-        # =====================================================
-        if hr_analysis is not None:
-            y = check_page_break(y, needed=200)
-            pdf.setFont("Helvetica-Bold", 13)
-            pdf.drawString(LEFT, y, "Heart Rate Clinical Analysis")
-            y -= 20
+    # Optional vital analyses are independent of BP readiness. When BP
+    # has fewer than its own analysis gate, start a dedicated analysis
+    # page here instead of suppressing every other tracked metric.
+    optional_analysis_present = any([
+        hr_analysis,
+        spo2_analysis,
+        temp_analysis,
+        weight_analysis,
+        glucose_analysis,
+    ])
+    if bp is None and optional_analysis_present:
+        pdf.showPage()
+        y = height - 50
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(LEFT, y, f"Vitals Analysis (Last {days} Days)")
+        y -= 20
 
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(LEFT, y, "Clinical Summary")
-            y -= 4
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 12
+    # =====================================================
+    # HEART RATE — CLINICAL ANALYSIS
+    # Mirrors the Blood Pressure section above in depth (Clinical
+    # Summary + Detailed Metrics), using hr_analysis — the same
+    # run_hr_analysis engine powering the app's Analysis tab — not
+    # the older analyze_vital_series output SpO2/Temperature below
+    # still use. Rate-events methodology is deliberately NOT
+    # AUC/duration-weighted like BP's burden — spot readings don't
+    # support that continuous-coverage assumption (see the note
+    # drawn with that block below).
+    # =====================================================
+    if hr_analysis is not None:
+        y = check_page_break(y, needed=200)
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(LEFT, y, "Heart Rate Clinical Analysis")
+        y -= 20
 
-            for para in build_hr_clinical_summary(hr_analysis):
-                y = check_page_break(y, needed=40)
-                y = draw_wrapped_line(y, para, fontsize=9, indent=0, line_spacing=13)
-                y -= 6
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(LEFT, y, "Clinical Summary")
+        y -= 4
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 12
 
+        for para in build_hr_clinical_summary(hr_analysis):
+            y = check_page_break(y, needed=40)
+            y = draw_wrapped_line(y, para, fontsize=9, indent=0, line_spacing=13)
             y -= 6
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 14
 
-            rs = hr_analysis.get("resting_summary")
-            if rs:
-                pdf.setFont("Helvetica-Bold", 11)
-                pdf.drawString(LEFT, y, "Detailed Metrics")
-                y -= 14
+        y -= 6
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
 
-                pdf.setFont("Helvetica-Bold", 10)
-                pdf.drawString(LEFT, y, "Readings analyzed:")
-                pdf.setFont("Helvetica", 10)
-                pdf.drawString(LEFT + 130, y, f"{rs['n']} ({rs['distinct_days']} distinct days)")
-                y -= 14
-
-                pdf.setFont("Helvetica-Bold", 10)
-                pdf.drawString(LEFT, y, "Resting mean / median:")
-                pdf.setFont("Helvetica", 10)
-                pdf.drawString(LEFT + 150, y,
-                    f"{rs['mean']:.0f} / {rs['median']:.0f} BPM  (range {rs['min']}\u2013{rs['max']})")
-                y -= 20
-
-                disp = hr_analysis.get("dispersion")
-                if disp:
-                    y = check_page_break(y, needed=50)
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Variability")
-                    y -= 14
-                    pdf.setFont("Helvetica", 9)
-                    pdf.drawString(LEFT + 10, y,
-                        f"SD: {disp['sd']:.1f} BPM   |   IQR: {disp['iqr']:.1f} BPM "
-                        f"(Q1={disp['q1']:.1f}, Q3={disp['q3']:.1f})")
-                    y -= 20
-
-                trend = hr_analysis.get("trend")
-                if trend:
-                    y = check_page_break(y, needed=60)
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Resting-Rate Trend")
-                    y -= 14
-                    pdf.setFont("Helvetica", 9)
-                    p_display = f"{trend['p_value']:.3f}" if trend.get("p_value") is not None else "n/a (insufficient span/n)"
-                    r2_display = f"{trend['r2']:.2f}" if trend.get("r2") is not None else "n/a"
-                    pdf.drawString(LEFT + 10, y,
-                        f"Trend: {trend['trend_label'].replace('_', ' ').title()}   |   "
-                        f"Rate: {trend['slope_bpm_per_day']:+.2f} BPM/day   |   "
-                        f"Span: {trend['span_days']:.0f} days")
-                    y -= 12
-                    pdf.drawString(LEFT + 10, y,
-                        f"p-value: {p_display}   |   R\u00b2: {r2_display}   |   "
-                        f"Consistency: {trend.get('consistency') or 'n/a'}")
-                    y -= 20
-
-                bd = hr_analysis.get("baseline_deviation")
-                if bd:
-                    y = check_page_break(y, needed=60)
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Personal Baseline Comparison")
-                    y -= 14
-                    pdf.setFont("Helvetica", 9)
-                    pdf.drawString(LEFT + 10, y,
-                        f"Prior 30-day baseline: {bd['baseline_median']:.0f} BPM (n={bd['baseline_n']})   |   "
-                        f"Recent 7 days: {bd['recent_median']:.0f} BPM (n={bd['recent_n']})")
-                    y -= 12
-                    z_note = f"   |   z-score: {bd['z_score']:.2f} (clinician reference only)" if bd.get("z_score") is not None else ""
-                    pct_note = f" ({bd['delta_pct']:+.1f}%)" if bd.get("delta_pct") is not None else ""
-                    pdf.drawString(LEFT + 10, y, f"Change: {bd['delta_bpm']:+.1f} BPM{pct_note}{z_note}")
-                    y -= 20
-
-                re_ = hr_analysis.get("rate_events")
-                if re_ and re_.get("n_resting_in_window", 0) >= 1:
-                    y = check_page_break(y, needed=70)
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Threshold Events (Reading Counts)")
-                    y -= 14
-                    th = re_.get("thresholds", {}) or {}
-                    high = re_.get("high", {}) or {}
-                    low = re_.get("low", {}) or {}
-                    pdf.setFont("Helvetica", 9)
-                    high_pct = f", {high['pct']:.0f}%" if high.get("pct") is not None else ""
-                    low_pct = f", {low['pct']:.0f}%" if low.get("pct") is not None else ""
-                    pdf.drawString(LEFT + 10, y,
-                        f"Above {th.get('high')} BPM: {high.get('count', 0)} reading(s){high_pct}   |   "
-                        f"Below {th.get('low')} BPM: {low.get('count', 0)} reading(s){low_pct}")
-                    y -= 12
-                    pdf.setFont("Helvetica-Oblique", 8)
-                    pdf.setFillColorRGB(0.4, 0.4, 0.4)
-                    pdf.drawString(LEFT + 10, y,
-                        "Methodology: discrete reading counts against fixed thresholds \u2014 "
-                        "not AUC/duration-weighted (spot measurements do not support a "
-                        "continuous-coverage assumption).")
-                    pdf.setFillColorRGB(0, 0, 0)
-                    y -= 20
-
-                meds = hr_analysis.get("medication_associations")
-                if meds:
-                    y = check_page_break(y, needed=40 + 24 * len(meds))
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Medication-Change Associations")
-                    y -= 14
-                    pdf.setFont("Helvetica", 9)
-                    for m in meds:
-                        y = check_page_break(y, needed=24)
-                        confound_flag = "  [CONFOUNDED \u2014 another change occurred nearby]" if m.get("confounded") else ""
-                        pdf.drawString(LEFT + 10, y,
-                            f"{m['medication_name']} \u2014 {m['change_type'].replace('_', ' ').title()} "
-                            f"({m['effective_date']}): {m['pre_median']:.0f} \u2192 "
-                            f"{m['post_median']:.0f} BPM ({m['delta_bpm']:+.1f}){confound_flag}")
-                        y -= 12
-                    y -= 8
-
-            y -= 6
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 14
-
-        # =====================================================
-        # SPO2 — CLINICAL ANALYSIS
-        # Mirrors the Heart Rate section above in structure, using
-        # spo2_analysis — the same run_spo2_analysis engine powering the
-        # app's Analysis tab — not the older analyze_vital_series output
-        # Temperature below still uses. Reference bands and low-
-        # observation counts are deliberately NOT framed as "time in
-        # range"/"time below target" — spot readings don't support that
-        # continuous-coverage assumption (see the methodology note drawn
-        # with that block below).
-        # =====================================================
-        if spo2_analysis is not None:
-            y = check_page_break(y, needed=200)
-            pdf.setFont("Helvetica-Bold", 13)
-            pdf.drawString(LEFT, y, "Oxygen Saturation (SpO2) Clinical Analysis")
-            y -= 20
-
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(LEFT, y, "Clinical Summary")
-            y -= 4
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 12
-
-            for para in build_spo2_clinical_summary(spo2_analysis):
-                y = check_page_break(y, needed=40)
-                y = draw_wrapped_line(y, para, fontsize=9, indent=0, line_spacing=13)
-                y -= 6
-
-            y -= 6
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 14
-
-            ss = spo2_analysis.get("spot_summary")
-            if ss:
-                pdf.setFont("Helvetica-Bold", 11)
-                pdf.drawString(LEFT, y, "Detailed Metrics")
-                y -= 14
-
-                pdf.setFont("Helvetica-Bold", 10)
-                pdf.drawString(LEFT, y, "Readings analyzed:")
-                pdf.setFont("Helvetica", 10)
-                pdf.drawString(LEFT + 130, y, f"{ss['n']} ({ss['distinct_days']} distinct days)")
-                y -= 14
-
-                pdf.setFont("Helvetica-Bold", 10)
-                pdf.drawString(LEFT, y, "Mean / median:")
-                pdf.setFont("Helvetica", 10)
-                pdf.drawString(LEFT + 150, y,
-                    f"{ss['mean']:.1f}% / {ss['median']:.1f}%  (range {ss['min']}\u2013{ss['max']}%)")
-                y -= 20
-
-                disp = spo2_analysis.get("dispersion")
-                if disp:
-                    y = check_page_break(y, needed=50)
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Variability")
-                    y -= 14
-                    pdf.setFont("Helvetica", 9)
-                    pdf.drawString(LEFT + 10, y,
-                        f"SD: {disp['sd']:.1f} pts   |   IQR: {disp['iqr']:.1f} pts "
-                        f"(Q1={disp['q1']:.1f}, Q3={disp['q3']:.1f})")
-                    y -= 20
-
-                trend = spo2_analysis.get("trend")
-                if trend:
-                    y = check_page_break(y, needed=60)
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Trend")
-                    y -= 14
-                    pdf.setFont("Helvetica", 9)
-                    p_display = f"{trend['p_value']:.3f}" if trend.get("p_value") is not None else "n/a (insufficient span/n)"
-                    pdf.drawString(LEFT + 10, y,
-                        f"Trend: {trend['trend_label'].replace('_', ' ').title()}   |   "
-                        f"Rate: {trend['slope_pct_points_per_day']:+.2f} pts/day   |   "
-                        f"Span: {trend['span_days']:.0f} days")
-                    y -= 12
-                    # Only shown for an actual rising/falling trend — same
-                    # reasoning as the app and build_spo2_clinical_summary
-                    # above: R² against a flat/stable series isn't a
-                    # quality signal.
-                    if trend.get("trend_label") != "stable" and trend.get("r2") is not None:
-                        pdf.drawString(LEFT + 10, y,
-                            f"p-value: {p_display}   |   Trend fit: R\u00b2={trend['r2']:.2f}   |   "
-                            f"Consistency: {trend.get('consistency') or 'n/a'}")
-                        y -= 12
-                    y -= 8
-
-                bd = spo2_analysis.get("baseline_deviation")
-                if bd:
-                    y = check_page_break(y, needed=60)
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Personal Baseline Comparison")
-                    y -= 14
-                    pdf.setFont("Helvetica", 9)
-                    pdf.drawString(LEFT + 10, y,
-                        f"Prior 30-day baseline: {bd['baseline_median']:.1f}% (n={bd['baseline_n']})   |   "
-                        f"Recent 7 days: {bd['recent_median']:.1f}% (n={bd['recent_n']})")
-                    y -= 12
-                    pdf.drawString(LEFT + 10, y, f"Change: {bd['delta_pct_points']:+.1f} points")
-                    y -= 20
-
-                low = spo2_analysis.get("low_observations")
-                if low and low.get("count", 0) > 0:
-                    y = check_page_break(y, needed=70)
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Readings Below Target")
-                    y -= 14
-                    pdf.setFont("Helvetica", 9)
-                    pct_note = f", {low['pct_of_logged_readings']:.0f}%" if low.get("pct_of_logged_readings") is not None else ""
-                    pdf.drawString(LEFT + 10, y,
-                        f"Below {low['threshold']}%: {low['count']} reading(s){pct_note} of logged readings")
-                    y -= 12
-
-                    confirmed = spo2_analysis.get("confirmed_low_observations")
-                    if confirmed and confirmed.get("episode_count", 0) > 0:
-                        pdf.drawString(LEFT + 10, y,
-                            f"Repeat-confirmed episodes: {confirmed['episode_count']} "
-                            f"(>=2 readings within {confirmed['confirmation_rule_minutes']} min of each other)")
-                        y -= 12
-
-                    marked = spo2_analysis.get("marked_low_observations")
-                    if marked and marked.get("count", 0) > 0:
-                        pdf.drawString(LEFT + 10, y,
-                            f"Markedly low (below {marked['threshold']}%): {marked['count']} reading(s)")
-                        y -= 12
-
-                    pdf.setFont("Helvetica-Oblique", 8)
-                    pdf.setFillColorRGB(0.4, 0.4, 0.4)
-                    pdf.drawString(LEFT + 10, y,
-                        "Methodology: discrete reading counts against fixed thresholds \u2014 "
-                        "not a measure of continuous time below target.")
-                    pdf.setFillColorRGB(0, 0, 0)
-                    y -= 20
-
-                bands = spo2_analysis.get("reference_bands")
-                if bands:
-                    y = check_page_break(y, needed=70)
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Reference Bands (Logged Readings)")
-                    y -= 14
-
-                    band_headers = ["Normal (>=95%)", "Mild (92-94%)", "Moderate (88-91%)", "Severe (<88%)"]
-                    band_keys    = ["at_or_above_95", "92_to_94", "88_to_91", "below_88"]
-                    col_w        = USABLE_WIDTH / len(band_headers)
-                    col_widths   = [col_w] * len(band_headers)
-                    y = draw_table_row(y, band_headers, col_widths, bold=True, fill_bg=True)
-                    values = [str(bands.get(k, {}).get("count", 0)) for k in band_keys]
-                    y = draw_table_row(y, values, col_widths)
-
-                    y -= 6
-                    pdf.setFont("Helvetica-Oblique", 8)
-                    pdf.setFillColorRGB(0.4, 0.4, 0.4)
-                    pdf.drawString(LEFT + 10, y,
-                        "Counts of logged readings only \u2014 not a measure of time spent in each range.")
-                    pdf.setFillColorRGB(0, 0, 0)
-                    y -= 20
-
-                corr = spo2_analysis.get("cross_vital_correlations")
-                if corr:
-                    y = check_page_break(y, needed=40)
-                    pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                    pdf.line(LEFT, y, RIGHT, y)
-                    pdf.setStrokeColorRGB(0, 0, 0)
-                    y -= 14
-                    pdf.setFont("Helvetica-Bold", 10)
-                    pdf.drawString(LEFT, y, "Correlation with Other Vitals (Physician Reference Only)")
-                    y -= 14
-                    pdf.setFont("Helvetica", 9)
-                    corr_str = "   |   ".join(f"{k.replace('_', ' ')}: r={v:.2f}" for k, v in corr.items())
-                    pdf.drawString(LEFT + 10, y, corr_str)
-                    y -= 12
-                    pdf.setFont("Helvetica-Oblique", 8)
-                    pdf.setFillColorRGB(0.4, 0.4, 0.4)
-                    pdf.drawString(LEFT + 10, y, "Correlation does not establish cause.")
-                    pdf.setFillColorRGB(0, 0, 0)
-                    y -= 20
-
-            y -= 6
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 14
-
-
-        # =====================================================
-        # TEMPERATURE — CLINICAL ANALYSIS
-        # Uses run_temperature_analysis via the cache: episode-centric,
-        # measurement-site-aware, and based on discrete logged readings.
-        # No generic "normal/elevated" classification, 30-day global OLS,
-        # or interpolated fever burden is used here.
-        # =====================================================
-        if temp_analysis is not None:
-            y = check_page_break(y, needed=220)
-            pdf.setFont("Helvetica-Bold", 13)
-            pdf.drawString(LEFT, y, "Temperature Clinical Analysis")
-            y -= 20
-
-            pdf.setFont("Helvetica-Bold", 11)
-            pdf.drawString(LEFT, y, "Clinical Summary")
-            y -= 4
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 12
-
-            for para in build_temperature_clinical_summary(temp_analysis):
-                y = check_page_break(y, needed=42)
-                y = draw_wrapped_line(y, para, fontsize=9, indent=0, line_spacing=13)
-                y -= 6
-
-            y -= 6
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 14
-
-            latest_t = temp_analysis.get("latest") or {}
-            ds_t = temp_analysis.get("data_support") or {}
-            ranges_t = temp_analysis.get("range_events") or {}
-            profile_t = temp_analysis.get("target_profile") or {}
-
+        rs = hr_analysis.get("resting_summary")
+        if rs:
             pdf.setFont("Helvetica-Bold", 11)
             pdf.drawString(LEFT, y, "Detailed Metrics")
-            y -= 16
+            y -= 14
 
-            # Latest / measurement context
-            y = check_page_break(y, needed=75)
             pdf.setFont("Helvetica-Bold", 10)
-            pdf.drawString(LEFT, y, "Latest Temperature")
+            pdf.drawString(LEFT, y, "Readings analyzed:")
+            pdf.setFont("Helvetica", 10)
+            pdf.drawString(LEFT + 130, y, f"{rs['n']} ({rs['distinct_days']} distinct days)")
             y -= 14
-            pdf.setFont("Helvetica", 9)
-            recorded_at = latest_t.get("recorded_at") or "n/a"
-            pdf.drawString(LEFT + 10, y,
-                f"Value: {latest_t.get('value_f', 0):.1f} F ({latest_t.get('value_c', 0):.1f} C)   |   "
-                f"Site: {(latest_t.get('site') or 'unknown').replace('_', ' ').title()}")
-            y -= 12
-            y = draw_wrapped_line(
-                y,
-                f"Recorded: {recorded_at}   |   Ingestion source: "
-                f"{(latest_t.get('source') or 'unknown').replace('_', ' ')}",
-                fontsize=9, indent=10, line_spacing=12
-            )
-            y -= 8
 
-            # Data support and site quality
-            y = check_page_break(y, needed=75)
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 14
             pdf.setFont("Helvetica-Bold", 10)
-            pdf.drawString(LEFT, y, "Data Support / Measurement Site")
-            y -= 14
-            pdf.setFont("Helvetica", 9)
-            pdf.drawString(LEFT + 10, y,
-                f"Readings: {ds_t.get('n', temp_analysis.get('reading_count', 0))}   |   "
-                f"Distinct days: {ds_t.get('distinct_days', 0)}   |   "
-                f"Observed span: {ds_t.get('span_days', 0):.1f} days")
-            y -= 12
-            site_consistency = (
-                f"{ds_t['site_consistency_pct']:.1f}%"
-                if ds_t.get("site_consistency_pct") is not None else "n/a"
-            )
-            pdf.drawString(LEFT + 10, y,
-                f"Known-site coverage: {ds_t.get('known_site_pct', 0):.1f}%   |   "
-                f"Modal site: {ds_t.get('modal_site') or 'n/a'}   |   "
-                f"Same-site consistency: {site_consistency}")
+            pdf.drawString(LEFT, y, "Resting mean / median:")
+            pdf.setFont("Helvetica", 10)
+            pdf.drawString(LEFT + 150, y,
+                f"{rs['mean']:.0f} / {rs['median']:.0f} BPM  (range {rs['min']}\u2013{rs['max']})")
             y -= 20
 
-            # Personal baseline
-            baseline_t = temp_analysis.get("baseline")
-            if baseline_t:
-                y = check_page_break(y, needed=70)
+            disp = hr_analysis.get("dispersion")
+            if disp:
+                y = check_page_break(y, needed=50)
                 pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
                 pdf.line(LEFT, y, RIGHT, y)
                 pdf.setStrokeColorRGB(0, 0, 0)
                 y -= 14
                 pdf.setFont("Helvetica-Bold", 10)
-                pdf.drawString(LEFT, y, "Personal Same-Site Baseline")
+                pdf.drawString(LEFT, y, "Variability")
                 y -= 14
                 pdf.setFont("Helvetica", 9)
                 pdf.drawString(LEFT + 10, y,
-                    f"Site: {baseline_t.get('site', 'unknown')}   |   Median: "
-                    f"{baseline_t.get('median_f', 0):.1f} F ({baseline_t.get('median_c', 0):.1f} C)   |   "
-                    f"Latest delta: {baseline_t.get('delta_current_f', 0):+.1f} F")
-                y -= 12
-                pdf.drawString(LEFT + 10, y,
-                    f"Support: {baseline_t.get('n', 0)} readings on "
-                    f"{baseline_t.get('distinct_days', 0)} days spanning "
-                    f"{baseline_t.get('span_days', 0):.1f} days")
+                    f"SD: {disp['sd']:.1f} BPM   |   IQR: {disp['iqr']:.1f} BPM "
+                    f"(Q1={disp['q1']:.1f}, Q3={disp['q3']:.1f})")
                 y -= 20
 
-            # Fever-range logged observations
-            y = check_page_break(y, needed=80)
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 14
-            pdf.setFont("Helvetica-Bold", 10)
-            pdf.drawString(LEFT, y, "Fever-Range Logged Observations")
-            y -= 14
-            pdf.setFont("Helvetica", 9)
-            pdf.drawString(LEFT + 10, y,
-                f"Configured fever reference: >= {profile_t.get('fever_threshold_f', ranges_t.get('fever_threshold_f', 100.4)):.1f} F "
-                f"({profile_t.get('fever_threshold_c', 38.0):.1f} C)")
-            y -= 12
-            pdf.drawString(LEFT + 10, y,
-                f"Fever-range readings: {ranges_t.get('fever_count', 0)}   |   "
-                f"Percent of logged readings: {ranges_t.get('fever_logged_pct', 0):.1f}%   |   "
-                f"Febrile days: {ranges_t.get('febrile_days', 0)}")
-            y -= 12
-            pdf.setFont("Helvetica-Oblique", 8)
-            pdf.setFillColorRGB(0.4, 0.4, 0.4)
-            pdf.drawString(LEFT + 10, y,
-                "Discrete logged observations only - not an estimate of continuous time with fever.")
-            pdf.setFillColorRGB(0, 0, 0)
-            y -= 20
-
-            # Episode table
-            episodes_t = temp_analysis.get("episodes") or []
-            if episodes_t:
-                y = check_page_break(y, needed=90)
-                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                pdf.line(LEFT, y, RIGHT, y)
-                pdf.setStrokeColorRGB(0, 0, 0)
-                y -= 14
-                pdf.setFont("Helvetica-Bold", 10)
-                pdf.drawString(LEFT, y, "Recorded Fever Episodes")
-                y -= 14
-                ep_widths = [42, 92, 92, 94, 94, 98]
-                ep_headers = ["#", "First fever", "Last fever", "Peak", "Minimum", "Observed span"]
-                y = draw_table_row(y, ep_headers, ep_widths, fontsize=8, bold=True, fill_bg=True)
-                for ep in episodes_t:
-                    y = check_page_break(y, needed=55)
-                    peak_site = (ep.get("peak_site") or "unknown").replace("_", " ")
-                    min_site = (ep.get("minimum_site") or "unknown").replace("_", " ")
-                    y = draw_table_row(
-                        y,
-                        [
-                            str(ep.get("episode_id", "")),
-                            str(ep.get("first_fever_at", "")),
-                            str(ep.get("last_fever_at", "")),
-                            f"{ep.get('peak_f', 0):.1f} F ({peak_site})",
-                            f"{ep.get('minimum_f', 0):.1f} F ({min_site})",
-                            f"{ep.get('observed_span_hours', 0):.1f} h; "
-                            f"{ep.get('n_fever_readings', 0)} reading(s)",
-                        ],
-                        ep_widths, fontsize=8
-                    )
-                y -= 6
-                pdf.setFont("Helvetica-Oblique", 8)
-                pdf.setFillColorRGB(0.4, 0.4, 0.4)
-                y = draw_wrapped_line(
-                    y,
-                    "Episode grouping uses a Vitals 24-hour gap rule. Observed span is the interval "
-                    "between logged fever-range readings, not confirmed continuous fever duration.",
-                    fontsize=8, indent=10, line_spacing=11
-                )
-                pdf.setFillColorRGB(0, 0, 0)
-                y -= 10
-
-            # Acute same-site trajectory
-            acute_t = temp_analysis.get("acute_trend")
-            if acute_t:
-                y = check_page_break(y, needed=80)
-                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                pdf.line(LEFT, y, RIGHT, y)
-                pdf.setStrokeColorRGB(0, 0, 0)
-                y -= 14
-                pdf.setFont("Helvetica-Bold", 10)
-                pdf.drawString(LEFT, y, "Acute Same-Site Episode Trend")
-                y -= 14
-                pdf.setFont("Helvetica", 9)
-                pdf.drawString(LEFT + 10, y,
-                    f"Direction: {acute_t.get('trend_label', 'stable').title()}   |   "
-                    f"Site: {acute_t.get('site', 'unknown')}   |   "
-                    f"Support: n={acute_t.get('n', 0)}, span {acute_t.get('span_hours', 0):.1f} h")
-                y -= 12
-                p_disp = (
-                    f"{acute_t['p_value']:.3f}" if acute_t.get("p_value") is not None else "n/a"
-                )
-                r2_disp = (
-                    f"{acute_t['r2']:.2f}" if acute_t.get("r2") is not None else "n/a"
-                )
-                pdf.drawString(LEFT + 10, y,
-                    f"Slope: {acute_t.get('slope_f_per_12_hours', 0):+.2f} F/12 h   |   "
-                    f"Modeled change: {acute_t.get('modeled_change_f', 0):+.1f} F   |   "
-                    f"R2: {r2_disp}   |   p: {p_disp}")
-                y -= 12
-                pdf.setFont("Helvetica-Oblique", 8)
-                pdf.setFillColorRGB(0.4, 0.4, 0.4)
-                pdf.drawString(LEFT + 10, y,
-                    "Short-window same-site episode model; not a long-term temperature trend.")
-                pdf.setFillColorRGB(0, 0, 0)
-                y -= 20
-
-            # Low-temperature / hypothermia-range observations
-            y = check_page_break(y, needed=80)
-            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-            pdf.line(LEFT, y, RIGHT, y)
-            pdf.setStrokeColorRGB(0, 0, 0)
-            y -= 14
-            pdf.setFont("Helvetica-Bold", 10)
-            pdf.drawString(LEFT, y, "Low-Temperature / Hypothermia-Range Observations")
-            y -= 14
-            pdf.setFont("Helvetica", 9)
-            pdf.drawString(LEFT + 10, y,
-                f"Lowest logged: {ranges_t.get('lowest_f', 0):.1f} F "
-                f"({ranges_t.get('lowest_c', 0):.1f} C), site: "
-                f"{(ranges_t.get('lowest_site') or 'unknown').replace('_', ' ').title()}")
-            y -= 12
-            pdf.drawString(LEFT + 10, y,
-                f"Hypothermia-range reference: < {ranges_t.get('hypothermia_threshold_f', 95.0):.1f} F   |   "
-                f"Count: {ranges_t.get('hypothermia_range_count', 0)}")
-            y -= 12
-            pdf.setFont("Helvetica-Oblique", 8)
-            pdf.setFillColorRGB(0.4, 0.4, 0.4)
-            y = draw_wrapped_line(
-                y,
-                "A broader low-temperature product threshold is not configured. The recognized "
-                "hypothermia-range reference below 95 F is evaluated separately.",
-                fontsize=8, indent=10, line_spacing=11
-            )
-            pdf.setFillColorRGB(0, 0, 0)
-            y -= 8
-
-            hypo_readings = ranges_t.get("hypothermia_readings") or []
-            if hypo_readings:
-                low_widths = [155, 110, 110, 137]
-                y = draw_table_row(y, ["Recorded", "Temperature", "Site", "Context"], low_widths, fontsize=8, bold=True, fill_bg=True)
-                for r in hypo_readings:
-                    y = check_page_break(y, needed=45)
-                    y = draw_table_row(
-                        y,
-                        [
-                            str(r.get("recorded_at", "")),
-                            f"{r.get('value_f', 0):.1f} F",
-                            (r.get("site") or "unknown").replace("_", " ").title(),
-                            "Hypothermia-range",
-                        ],
-                        low_widths, fontsize=8
-                    )
-                y -= 8
-
-            # Same-event cross-vital context
-            cvc_t = temp_analysis.get("cross_vital_context") or {}
-            paired_t = cvc_t.get("paired_counts") or {}
-            fever_obs_t = cvc_t.get("fever_observations") or []
-            if any((paired_t.get("heart_rate", 0), paired_t.get("oxygen_saturation", 0), paired_t.get("blood_pressure", 0))):
-                y = check_page_break(y, needed=80)
-                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
-                pdf.line(LEFT, y, RIGHT, y)
-                pdf.setStrokeColorRGB(0, 0, 0)
-                y -= 14
-                pdf.setFont("Helvetica-Bold", 10)
-                pdf.drawString(LEFT, y, "Same-Event Cross-Vital Context")
-                y -= 14
-                pdf.setFont("Helvetica", 9)
-                pdf.drawString(LEFT + 10, y,
-                    f"Paired fever observations - HR: {paired_t.get('heart_rate', 0)}   |   "
-                    f"SpO2: {paired_t.get('oxygen_saturation', 0)}   |   "
-                    f"BP: {paired_t.get('blood_pressure', 0)}")
-                y -= 14
-                cv_widths = [110, 65, 70, 65, 65, 137]
-                y = draw_table_row(y, ["Recorded", "Temp", "Site", "HR", "SpO2", "Blood pressure"], cv_widths, fontsize=8, bold=True, fill_bg=True)
-                for obs in fever_obs_t:
-                    ctx = obs.get("context") or {}
-                    bp_ctx = ctx.get("blood_pressure") or {}
-                    bp_text = (
-                        f"{bp_ctx.get('systolic')}/{bp_ctx.get('diastolic')} mmHg"
-                        if bp_ctx else "-"
-                    )
-                    y = check_page_break(y, needed=45)
-                    y = draw_table_row(
-                        y,
-                        [
-                            str(obs.get("recorded_at", "")),
-                            f"{obs.get('temperature_f', 0):.1f} F",
-                            (obs.get("site") or "unknown").replace("_", " ").title(),
-                            str(ctx.get("heart_rate") or "-"),
-                            str(ctx.get("oxygen_saturation") or "-"),
-                            bp_text,
-                        ],
-                        cv_widths, fontsize=8
-                    )
-                y -= 6
-                pdf.setFont("Helvetica-Oblique", 8)
-                pdf.setFillColorRGB(0.4, 0.4, 0.4)
-                pdf.drawString(LEFT + 10, y,
-                    "Measurements occurred alongside one another; temporal pairing does not establish causation.")
-                pdf.setFillColorRGB(0, 0, 0)
-                y -= 18
-
-            # Unavailable capabilities / confidence notes
-            unavailable_t = ds_t.get("unavailable_analyses") or []
-            if unavailable_t:
+            trend = hr_analysis.get("trend")
+            if trend:
                 y = check_page_break(y, needed=60)
                 pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
                 pdf.line(LEFT, y, RIGHT, y)
                 pdf.setStrokeColorRGB(0, 0, 0)
                 y -= 14
                 pdf.setFont("Helvetica-Bold", 10)
-                pdf.drawString(LEFT, y, "Unavailable / Limited Analyses")
+                pdf.drawString(LEFT, y, "Resting-Rate Trend")
                 y -= 14
-                for item in unavailable_t:
-                    y = check_page_break(y, needed=35)
-                    name = (item.get("analysis") or "analysis").replace("_", " ").title()
-                    reason = item.get("reason") or item.get("reason_code") or "not available"
-                    y = draw_wrapped_line(
-                        y, f"- {name}: {reason}", fontsize=8, indent=10, line_spacing=11
-                    )
-                    y -= 2
+                pdf.setFont("Helvetica", 9)
+                p_display = f"{trend['p_value']:.3f}" if trend.get("p_value") is not None else "n/a (insufficient span/n)"
+                r2_display = f"{trend['r2']:.2f}" if trend.get("r2") is not None else "n/a"
+                pdf.drawString(LEFT + 10, y,
+                    f"Trend: {trend['trend_label'].replace('_', ' ').title()}   |   "
+                    f"Rate: {trend['slope_bpm_per_day']:+.2f} BPM/day   |   "
+                    f"Span: {trend['span_days']:.0f} days")
+                y -= 12
+                pdf.drawString(LEFT + 10, y,
+                    f"p-value: {p_display}   |   R\u00b2: {r2_display}   |   "
+                    f"Consistency: {trend.get('consistency') or 'n/a'}")
+                y -= 20
 
+            bd = hr_analysis.get("baseline_deviation")
+            if bd:
+                y = check_page_break(y, needed=60)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Personal Baseline Comparison")
+                y -= 14
+                pdf.setFont("Helvetica", 9)
+                pdf.drawString(LEFT + 10, y,
+                    f"Prior 30-day baseline: {bd['baseline_median']:.0f} BPM (n={bd['baseline_n']})   |   "
+                    f"Recent 7 days: {bd['recent_median']:.0f} BPM (n={bd['recent_n']})")
+                y -= 12
+                z_note = f"   |   z-score: {bd['z_score']:.2f} (clinician reference only)" if bd.get("z_score") is not None else ""
+                pct_note = f" ({bd['delta_pct']:+.1f}%)" if bd.get("delta_pct") is not None else ""
+                pdf.drawString(LEFT + 10, y, f"Change: {bd['delta_bpm']:+.1f} BPM{pct_note}{z_note}")
+                y -= 20
+
+            re_ = hr_analysis.get("rate_events")
+            if re_ and re_.get("n_resting_in_window", 0) >= 1:
+                y = check_page_break(y, needed=70)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Threshold Events (Reading Counts)")
+                y -= 14
+                th = re_.get("thresholds", {}) or {}
+                high = re_.get("high", {}) or {}
+                low = re_.get("low", {}) or {}
+                pdf.setFont("Helvetica", 9)
+                high_pct = f", {high['pct']:.0f}%" if high.get("pct") is not None else ""
+                low_pct = f", {low['pct']:.0f}%" if low.get("pct") is not None else ""
+                pdf.drawString(LEFT + 10, y,
+                    f"Above {th.get('high')} BPM: {high.get('count', 0)} reading(s){high_pct}   |   "
+                    f"Below {th.get('low')} BPM: {low.get('count', 0)} reading(s){low_pct}")
+                y -= 12
+                pdf.setFont("Helvetica-Oblique", 8)
+                pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                pdf.drawString(LEFT + 10, y,
+                    "Methodology: discrete reading counts against fixed thresholds \u2014 "
+                    "not AUC/duration-weighted (spot measurements do not support a "
+                    "continuous-coverage assumption).")
+                pdf.setFillColorRGB(0, 0, 0)
+                y -= 20
+
+            meds = hr_analysis.get("medication_associations")
+            if meds:
+                y = check_page_break(y, needed=40 + 24 * len(meds))
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Medication-Change Associations")
+                y -= 14
+                pdf.setFont("Helvetica", 9)
+                for m in meds:
+                    y = check_page_break(y, needed=24)
+                    confound_flag = "  [CONFOUNDED \u2014 another change occurred nearby]" if m.get("confounded") else ""
+                    pdf.drawString(LEFT + 10, y,
+                        f"{m['medication_name']} \u2014 {m['change_type'].replace('_', ' ').title()} "
+                        f"({m['effective_date']}): {m['pre_median']:.0f} \u2192 "
+                        f"{m['post_median']:.0f} BPM ({m['delta_bpm']:+.1f}){confound_flag}")
+                    y -= 12
+                y -= 8
+
+        y -= 6
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+
+    # =====================================================
+    # SPO2 — CLINICAL ANALYSIS
+    # Mirrors the Heart Rate section above in structure, using
+    # spo2_analysis — the same run_spo2_analysis engine powering the
+    # app's Analysis tab — not the older analyze_vital_series output
+    # Temperature below still uses. Reference bands and low-
+    # observation counts are deliberately NOT framed as "time in
+    # range"/"time below target" — spot readings don't support that
+    # continuous-coverage assumption (see the methodology note drawn
+    # with that block below).
+    # =====================================================
+    if spo2_analysis is not None:
+        y = check_page_break(y, needed=200)
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(LEFT, y, "Oxygen Saturation (SpO2) Clinical Analysis")
+        y -= 20
+
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(LEFT, y, "Clinical Summary")
+        y -= 4
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 12
+
+        for para in build_spo2_clinical_summary(spo2_analysis):
+            y = check_page_break(y, needed=40)
+            y = draw_wrapped_line(y, para, fontsize=9, indent=0, line_spacing=13)
             y -= 6
+
+        y -= 6
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+
+        ss = spo2_analysis.get("spot_summary")
+        if ss:
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(LEFT, y, "Detailed Metrics")
+            y -= 14
+
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Readings analyzed:")
+            pdf.setFont("Helvetica", 10)
+            pdf.drawString(LEFT + 130, y, f"{ss['n']} ({ss['distinct_days']} distinct days)")
+            y -= 14
+
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Mean / median:")
+            pdf.setFont("Helvetica", 10)
+            pdf.drawString(LEFT + 150, y,
+                f"{ss['mean']:.1f}% / {ss['median']:.1f}%  (range {ss['min']}\u2013{ss['max']}%)")
+            y -= 20
+
+            disp = spo2_analysis.get("dispersion")
+            if disp:
+                y = check_page_break(y, needed=50)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Variability")
+                y -= 14
+                pdf.setFont("Helvetica", 9)
+                pdf.drawString(LEFT + 10, y,
+                    f"SD: {disp['sd']:.1f} pts   |   IQR: {disp['iqr']:.1f} pts "
+                    f"(Q1={disp['q1']:.1f}, Q3={disp['q3']:.1f})")
+                y -= 20
+
+            trend = spo2_analysis.get("trend")
+            if trend:
+                y = check_page_break(y, needed=60)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Trend")
+                y -= 14
+                pdf.setFont("Helvetica", 9)
+                p_display = f"{trend['p_value']:.3f}" if trend.get("p_value") is not None else "n/a (insufficient span/n)"
+                pdf.drawString(LEFT + 10, y,
+                    f"Trend: {trend['trend_label'].replace('_', ' ').title()}   |   "
+                    f"Rate: {trend['slope_pct_points_per_day']:+.2f} pts/day   |   "
+                    f"Span: {trend['span_days']:.0f} days")
+                y -= 12
+                # Only shown for an actual rising/falling trend — same
+                # reasoning as the app and build_spo2_clinical_summary
+                # above: R² against a flat/stable series isn't a
+                # quality signal.
+                if trend.get("trend_label") != "stable" and trend.get("r2") is not None:
+                    pdf.drawString(LEFT + 10, y,
+                        f"p-value: {p_display}   |   Trend fit: R\u00b2={trend['r2']:.2f}   |   "
+                        f"Consistency: {trend.get('consistency') or 'n/a'}")
+                    y -= 12
+                y -= 8
+
+            bd = spo2_analysis.get("baseline_deviation")
+            if bd:
+                y = check_page_break(y, needed=60)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Personal Baseline Comparison")
+                y -= 14
+                pdf.setFont("Helvetica", 9)
+                pdf.drawString(LEFT + 10, y,
+                    f"Prior 30-day baseline: {bd['baseline_median']:.1f}% (n={bd['baseline_n']})   |   "
+                    f"Recent 7 days: {bd['recent_median']:.1f}% (n={bd['recent_n']})")
+                y -= 12
+                pdf.drawString(LEFT + 10, y, f"Change: {bd['delta_pct_points']:+.1f} points")
+                y -= 20
+
+            low = spo2_analysis.get("low_observations")
+            if low and low.get("count", 0) > 0:
+                y = check_page_break(y, needed=70)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Readings Below Target")
+                y -= 14
+                pdf.setFont("Helvetica", 9)
+                pct_note = f", {low['pct_of_logged_readings']:.0f}%" if low.get("pct_of_logged_readings") is not None else ""
+                pdf.drawString(LEFT + 10, y,
+                    f"Below {low['threshold']}%: {low['count']} reading(s){pct_note} of logged readings")
+                y -= 12
+
+                confirmed = spo2_analysis.get("confirmed_low_observations")
+                if confirmed and confirmed.get("episode_count", 0) > 0:
+                    pdf.drawString(LEFT + 10, y,
+                        f"Repeat-confirmed episodes: {confirmed['episode_count']} "
+                        f"(>=2 readings within {confirmed['confirmation_rule_minutes']} min of each other)")
+                    y -= 12
+
+                marked = spo2_analysis.get("marked_low_observations")
+                if marked and marked.get("count", 0) > 0:
+                    pdf.drawString(LEFT + 10, y,
+                        f"Markedly low (below {marked['threshold']}%): {marked['count']} reading(s)")
+                    y -= 12
+
+                pdf.setFont("Helvetica-Oblique", 8)
+                pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                pdf.drawString(LEFT + 10, y,
+                    "Methodology: discrete reading counts against fixed thresholds \u2014 "
+                    "not a measure of continuous time below target.")
+                pdf.setFillColorRGB(0, 0, 0)
+                y -= 20
+
+            bands = spo2_analysis.get("reference_bands")
+            if bands:
+                y = check_page_break(y, needed=70)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Reference Bands (Logged Readings)")
+                y -= 14
+
+                band_headers = ["Normal (>=95%)", "Mild (92-94%)", "Moderate (88-91%)", "Severe (<88%)"]
+                band_keys    = ["at_or_above_95", "92_to_94", "88_to_91", "below_88"]
+                col_w        = USABLE_WIDTH / len(band_headers)
+                col_widths   = [col_w] * len(band_headers)
+                y = draw_table_row(y, band_headers, col_widths, bold=True, fill_bg=True)
+                values = [str(bands.get(k, {}).get("count", 0)) for k in band_keys]
+                y = draw_table_row(y, values, col_widths)
+
+                y -= 6
+                pdf.setFont("Helvetica-Oblique", 8)
+                pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                pdf.drawString(LEFT + 10, y,
+                    "Counts of logged readings only \u2014 not a measure of time spent in each range.")
+                pdf.setFillColorRGB(0, 0, 0)
+                y -= 20
+
+            corr = spo2_analysis.get("cross_vital_correlations")
+            if corr:
+                y = check_page_break(y, needed=40)
+                pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+                pdf.line(LEFT, y, RIGHT, y)
+                pdf.setStrokeColorRGB(0, 0, 0)
+                y -= 14
+                pdf.setFont("Helvetica-Bold", 10)
+                pdf.drawString(LEFT, y, "Correlation with Other Vitals (Physician Reference Only)")
+                y -= 14
+                pdf.setFont("Helvetica", 9)
+                corr_str = "   |   ".join(f"{k.replace('_', ' ')}: r={v:.2f}" for k, v in corr.items())
+                pdf.drawString(LEFT + 10, y, corr_str)
+                y -= 12
+                pdf.setFont("Helvetica-Oblique", 8)
+                pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                pdf.drawString(LEFT + 10, y, "Correlation does not establish cause.")
+                pdf.setFillColorRGB(0, 0, 0)
+                y -= 20
+
+        y -= 6
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+
+
+    # =====================================================
+    # TEMPERATURE — CLINICAL ANALYSIS
+    # Uses run_temperature_analysis via the cache: episode-centric,
+    # measurement-site-aware, and based on discrete logged readings.
+    # No generic "normal/elevated" classification, 30-day global OLS,
+    # or interpolated fever burden is used here.
+    # =====================================================
+    if temp_analysis is not None:
+        y = check_page_break(y, needed=220)
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(LEFT, y, "Temperature Clinical Analysis")
+        y -= 20
+
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(LEFT, y, "Clinical Summary")
+        y -= 4
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 12
+
+        for para in build_temperature_clinical_summary(temp_analysis):
+            y = check_page_break(y, needed=42)
+            y = draw_wrapped_line(y, para, fontsize=9, indent=0, line_spacing=13)
+            y -= 6
+
+        y -= 6
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+
+        latest_t = temp_analysis.get("latest") or {}
+        ds_t = temp_analysis.get("data_support") or {}
+        ranges_t = temp_analysis.get("range_events") or {}
+        profile_t = temp_analysis.get("target_profile") or {}
+
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(LEFT, y, "Detailed Metrics")
+        y -= 16
+
+        # Latest / measurement context
+        y = check_page_break(y, needed=75)
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT, y, "Latest Temperature")
+        y -= 14
+        pdf.setFont("Helvetica", 9)
+        recorded_at = latest_t.get("recorded_at") or "n/a"
+        pdf.drawString(LEFT + 10, y,
+            f"Value: {latest_t.get('value_f', 0):.1f} F ({latest_t.get('value_c', 0):.1f} C)   |   "
+            f"Site: {(latest_t.get('site') or 'unknown').replace('_', ' ').title()}")
+        y -= 12
+        y = draw_wrapped_line(
+            y,
+            f"Recorded: {recorded_at}   |   Ingestion source: "
+            f"{(latest_t.get('source') or 'unknown').replace('_', ' ')}",
+            fontsize=9, indent=10, line_spacing=12
+        )
+        y -= 8
+
+        # Data support and site quality
+        y = check_page_break(y, needed=75)
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT, y, "Data Support / Measurement Site")
+        y -= 14
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(LEFT + 10, y,
+            f"Readings: {ds_t.get('n', temp_analysis.get('reading_count', 0))}   |   "
+            f"Distinct days: {ds_t.get('distinct_days', 0)}   |   "
+            f"Observed span: {ds_t.get('span_days', 0):.1f} days")
+        y -= 12
+        site_consistency = (
+            f"{ds_t['site_consistency_pct']:.1f}%"
+            if ds_t.get("site_consistency_pct") is not None else "n/a"
+        )
+        pdf.drawString(LEFT + 10, y,
+            f"Known-site coverage: {ds_t.get('known_site_pct', 0):.1f}%   |   "
+            f"Modal site: {ds_t.get('modal_site') or 'n/a'}   |   "
+            f"Same-site consistency: {site_consistency}")
+        y -= 20
+
+        # Personal baseline
+        baseline_t = temp_analysis.get("baseline")
+        if baseline_t:
+            y = check_page_break(y, needed=70)
             pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
             pdf.line(LEFT, y, RIGHT, y)
             pdf.setStrokeColorRGB(0, 0, 0)
             y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Personal Same-Site Baseline")
+            y -= 14
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(LEFT + 10, y,
+                f"Site: {baseline_t.get('site', 'unknown')}   |   Median: "
+                f"{baseline_t.get('median_f', 0):.1f} F ({baseline_t.get('median_c', 0):.1f} C)   |   "
+                f"Latest delta: {baseline_t.get('delta_current_f', 0):+.1f} F")
+            y -= 12
+            pdf.drawString(LEFT + 10, y,
+                f"Support: {baseline_t.get('n', 0)} readings on "
+                f"{baseline_t.get('distinct_days', 0)} days spanning "
+                f"{baseline_t.get('span_days', 0):.1f} days")
+            y -= 20
+
+        # Fever-range logged observations
+        y = check_page_break(y, needed=80)
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT, y, "Fever-Range Logged Observations")
+        y -= 14
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(LEFT + 10, y,
+            f"Configured fever reference: >= {profile_t.get('fever_threshold_f', ranges_t.get('fever_threshold_f', 100.4)):.1f} F "
+            f"({profile_t.get('fever_threshold_c', 38.0):.1f} C)")
+        y -= 12
+        pdf.drawString(LEFT + 10, y,
+            f"Fever-range readings: {ranges_t.get('fever_count', 0)}   |   "
+            f"Percent of logged readings: {ranges_t.get('fever_logged_pct', 0):.1f}%   |   "
+            f"Febrile days: {ranges_t.get('febrile_days', 0)}")
+        y -= 12
+        pdf.setFont("Helvetica-Oblique", 8)
+        pdf.setFillColorRGB(0.4, 0.4, 0.4)
+        pdf.drawString(LEFT + 10, y,
+            "Discrete logged observations only - not an estimate of continuous time with fever.")
+        pdf.setFillColorRGB(0, 0, 0)
+        y -= 20
+
+        # Episode table
+        episodes_t = temp_analysis.get("episodes") or []
+        if episodes_t:
+            y = check_page_break(y, needed=90)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Recorded Fever Episodes")
+            y -= 14
+            ep_widths = [42, 92, 92, 94, 94, 98]
+            ep_headers = ["#", "First fever", "Last fever", "Peak", "Minimum", "Observed span"]
+            y = draw_table_row(y, ep_headers, ep_widths, fontsize=8, bold=True, fill_bg=True)
+            for ep in episodes_t:
+                y = check_page_break(y, needed=55)
+                peak_site = (ep.get("peak_site") or "unknown").replace("_", " ")
+                min_site = (ep.get("minimum_site") or "unknown").replace("_", " ")
+                y = draw_table_row(
+                    y,
+                    [
+                        str(ep.get("episode_id", "")),
+                        str(ep.get("first_fever_at", "")),
+                        str(ep.get("last_fever_at", "")),
+                        f"{ep.get('peak_f', 0):.1f} F ({peak_site})",
+                        f"{ep.get('minimum_f', 0):.1f} F ({min_site})",
+                        f"{ep.get('observed_span_hours', 0):.1f} h; "
+                        f"{ep.get('n_fever_readings', 0)} reading(s)",
+                    ],
+                    ep_widths, fontsize=8
+                )
+            y -= 6
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            y = draw_wrapped_line(
+                y,
+                "Episode grouping uses a Vitals 24-hour gap rule. Observed span is the interval "
+                "between logged fever-range readings, not confirmed continuous fever duration.",
+                fontsize=8, indent=10, line_spacing=11
+            )
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 10
+
+        # Acute same-site trajectory
+        acute_t = temp_analysis.get("acute_trend")
+        if acute_t:
+            y = check_page_break(y, needed=80)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Acute Same-Site Episode Trend")
+            y -= 14
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(LEFT + 10, y,
+                f"Direction: {acute_t.get('trend_label', 'stable').title()}   |   "
+                f"Site: {acute_t.get('site', 'unknown')}   |   "
+                f"Support: n={acute_t.get('n', 0)}, span {acute_t.get('span_hours', 0):.1f} h")
+            y -= 12
+            p_disp = (
+                f"{acute_t['p_value']:.3f}" if acute_t.get("p_value") is not None else "n/a"
+            )
+            r2_disp = (
+                f"{acute_t['r2']:.2f}" if acute_t.get("r2") is not None else "n/a"
+            )
+            pdf.drawString(LEFT + 10, y,
+                f"Slope: {acute_t.get('slope_f_per_12_hours', 0):+.2f} F/12 h   |   "
+                f"Modeled change: {acute_t.get('modeled_change_f', 0):+.1f} F   |   "
+                f"R2: {r2_disp}   |   p: {p_disp}")
+            y -= 12
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            pdf.drawString(LEFT + 10, y,
+                "Short-window same-site episode model; not a long-term temperature trend.")
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 20
+
+        # Low-temperature / hypothermia-range observations
+        y = check_page_break(y, needed=80)
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT, y, "Low-Temperature / Hypothermia-Range Observations")
+        y -= 14
+        pdf.setFont("Helvetica", 9)
+        pdf.drawString(LEFT + 10, y,
+            f"Lowest logged: {ranges_t.get('lowest_f', 0):.1f} F "
+            f"({ranges_t.get('lowest_c', 0):.1f} C), site: "
+            f"{(ranges_t.get('lowest_site') or 'unknown').replace('_', ' ').title()}")
+        y -= 12
+        pdf.drawString(LEFT + 10, y,
+            f"Hypothermia-range reference: < {ranges_t.get('hypothermia_threshold_f', 95.0):.1f} F   |   "
+            f"Count: {ranges_t.get('hypothermia_range_count', 0)}")
+        y -= 12
+        pdf.setFont("Helvetica-Oblique", 8)
+        pdf.setFillColorRGB(0.4, 0.4, 0.4)
+        y = draw_wrapped_line(
+            y,
+            "A broader low-temperature product threshold is not configured. The recognized "
+            "hypothermia-range reference below 95 F is evaluated separately.",
+            fontsize=8, indent=10, line_spacing=11
+        )
+        pdf.setFillColorRGB(0, 0, 0)
+        y -= 8
+
+        hypo_readings = ranges_t.get("hypothermia_readings") or []
+        if hypo_readings:
+            low_widths = [155, 110, 110, 137]
+            y = draw_table_row(y, ["Recorded", "Temperature", "Site", "Context"], low_widths, fontsize=8, bold=True, fill_bg=True)
+            for r in hypo_readings:
+                y = check_page_break(y, needed=45)
+                y = draw_table_row(
+                    y,
+                    [
+                        str(r.get("recorded_at", "")),
+                        f"{r.get('value_f', 0):.1f} F",
+                        (r.get("site") or "unknown").replace("_", " ").title(),
+                        "Hypothermia-range",
+                    ],
+                    low_widths, fontsize=8
+                )
+            y -= 8
+
+        # Same-event cross-vital context
+        cvc_t = temp_analysis.get("cross_vital_context") or {}
+        paired_t = cvc_t.get("paired_counts") or {}
+        fever_obs_t = cvc_t.get("fever_observations") or []
+        if any((paired_t.get("heart_rate", 0), paired_t.get("oxygen_saturation", 0), paired_t.get("blood_pressure", 0))):
+            y = check_page_break(y, needed=80)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Same-Event Cross-Vital Context")
+            y -= 14
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(LEFT + 10, y,
+                f"Paired fever observations - HR: {paired_t.get('heart_rate', 0)}   |   "
+                f"SpO2: {paired_t.get('oxygen_saturation', 0)}   |   "
+                f"BP: {paired_t.get('blood_pressure', 0)}")
+            y -= 14
+            cv_widths = [110, 65, 70, 65, 65, 137]
+            y = draw_table_row(y, ["Recorded", "Temp", "Site", "HR", "SpO2", "Blood pressure"], cv_widths, fontsize=8, bold=True, fill_bg=True)
+            for obs in fever_obs_t:
+                ctx = obs.get("context") or {}
+                bp_ctx = ctx.get("blood_pressure") or {}
+                bp_text = (
+                    f"{bp_ctx.get('systolic')}/{bp_ctx.get('diastolic')} mmHg"
+                    if bp_ctx else "-"
+                )
+                y = check_page_break(y, needed=45)
+                y = draw_table_row(
+                    y,
+                    [
+                        str(obs.get("recorded_at", "")),
+                        f"{obs.get('temperature_f', 0):.1f} F",
+                        (obs.get("site") or "unknown").replace("_", " ").title(),
+                        str(ctx.get("heart_rate") or "-"),
+                        str(ctx.get("oxygen_saturation") or "-"),
+                        bp_text,
+                    ],
+                    cv_widths, fontsize=8
+                )
+            y -= 6
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            pdf.drawString(LEFT + 10, y,
+                "Measurements occurred alongside one another; temporal pairing does not establish causation.")
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 18
+
+        # Unavailable capabilities / confidence notes
+        unavailable_t = ds_t.get("unavailable_analyses") or []
+        if unavailable_t:
+            y = check_page_break(y, needed=60)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Unavailable / Limited Analyses")
+            y -= 14
+            for item in unavailable_t:
+                y = check_page_break(y, needed=35)
+                name = (item.get("analysis") or "analysis").replace("_", " ").title()
+                reason = item.get("reason") or item.get("reason_code") or "not available"
+                y = draw_wrapped_line(
+                    y, f"- {name}: {reason}", fontsize=8, indent=10, line_spacing=11
+                )
+                y -= 2
+
+        y -= 6
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
 
     # =====================================================
-    # PAGE 4 — HISTORICAL VITALS TABLE
+    # WEIGHT / GLUCOSE — DESCRIPTIVE CLINICAL SUMMARY
+    # =====================================================
+    if weight_analysis is not None:
+        y = draw_scalar_clinical_analysis(
+            y,
+            "Weight Clinical Analysis",
+            weight_analysis,
+            show_trend=True,
+        )
+
+    if glucose_analysis is not None:
+        y = draw_scalar_clinical_analysis(
+            y,
+            "Blood Glucose Clinical Analysis",
+            glucose_analysis,
+            show_trend=False,
+            context_note=(
+                "Glucose readings are presented descriptively only. "
+                "Fasting, pre-meal, post-meal, bedtime, and random measurement "
+                "context is not collected yet, and individualized glucose targets "
+                "may differ. Vitals therefore does not assign one target range or "
+                "model a single clinical glucose trajectory across mixed contexts."
+            ),
+        )
+
+    # =====================================================
+    # HISTORICAL VITALS TABLE
     # =====================================================
     pdf.showPage()
     y = height - 50
@@ -5972,24 +6658,58 @@ def export_medications_pdf(
     pdf.drawString(LEFT, y, f"Historical Vitals (Last {days} Days)")
     y -= 25
 
-    v_widths  = [80, 88, 88, 88, 80, 88]
-    v_headers = ["Date", "Systolic", "Diastolic", "Heart Rate", "SpO2", "Temp (F)"]
-    y = draw_table_row(y, v_headers, v_widths, bold=True, fill_bg=True)
+    history_columns = [
+        ("Date", lambda v: v[0].strftime("%m/%d/%Y")),
+        (
+            "BP (mmHg)",
+            lambda v: (
+                f"{v[1]}/{v[2]}"
+                if v[1] is not None and v[2] is not None
+                else ""
+            ),
+        ),
+    ]
+
+    if show_hr:
+        history_columns.append(("HR (BPM)", lambda v: str(v[3]) if v[3] is not None else ""))
+    if show_spo2:
+        history_columns.append(("SpO2 (%)", lambda v: str(v[4]) if v[4] is not None else ""))
+    if show_temp:
+        history_columns.append(("Temp (F)", lambda v: f"{float(v[5]):.1f}" if v[5] is not None else ""))
+    if show_weight:
+        history_columns.append(("Weight (lb)", lambda v: f"{float(v[6]):.1f}" if v[6] is not None else ""))
+    if show_glucose:
+        history_columns.append(("Glucose", lambda v: str(v[7]) if v[7] is not None else ""))
+
+    date_width = 74
+    remaining_width = USABLE_WIDTH - date_width
+    other_count = max(1, len(history_columns) - 1)
+    other_width = remaining_width / other_count
+    history_widths = [date_width] + [other_width] * (len(history_columns) - 1)
+    history_headers = [name for name, _ in history_columns]
+
+    y = draw_table_row(
+        y,
+        history_headers,
+        history_widths,
+        fontsize=7,
+        bold=True,
+        fill_bg=True,
+    )
 
     if history:
         for v in history:
-            taken, sys, dia, hr, spo2, temp = v
-            y = check_page_break(y, needed=80)
+            y = check_page_break(y, needed=40)
             y = draw_table_row(
                 y,
-                [taken.strftime("%m/%d/%Y"), str(sys), str(dia),
-                 f"{hr} BPM", f"{spo2}%", str(temp)],
-                v_widths
+                [formatter(v) for _, formatter in history_columns],
+                history_widths,
+                fontsize=7,
             )
     else:
         y -= 5
         pdf.setFont("Helvetica", 9)
-        pdf.drawString(LEFT, y, "No vitals recorded in the last 15 days.")
+        pdf.drawString(LEFT, y, f"No vitals recorded in the last {days} days.")
 
     pdf.save()
     buffer.seek(0)

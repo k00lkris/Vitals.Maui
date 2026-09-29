@@ -28,7 +28,7 @@
                    HorizontalOptions="Center"
                    HorizontalTextAlignment="Center" />
 
-            <Label Text="Blood pressure is always tracked. Choose anything else that's relevant — you can change this anytime in Settings."
+            <Label Text="Blood pressure is always tracked. Choose anything else that's relevant — these choices control entry, dashboard, analysis, and reports, and can be changed anytime in Settings."
                    FontSize="14"
                    TextColor="{DynamicResource TextSecondary}"
                    HorizontalOptions="Center"

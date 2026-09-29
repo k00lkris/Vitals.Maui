@@ -65,6 +65,11 @@
                                 Clicked="OnCustomDaysClicked" />
                     </Grid>
 
+                    <Label Text="The report includes blood pressure plus the optional vitals enabled in Settings. Metrics with no logged data are omitted."
+                           FontSize="11"
+                           TextColor="{DynamicResource TextMuted}"
+                           LineBreakMode="WordWrap" />
+
                     <!-- Generate Button -->
                     <Button Text="📄  Generate PDF"
                             BackgroundColor="{DynamicResource ButtonBackground}"
