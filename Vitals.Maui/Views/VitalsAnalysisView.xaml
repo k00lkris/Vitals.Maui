@@ -74,27 +74,11 @@
                                    Color="{DynamicResource PrimaryAccent}"
                                    HorizontalOptions="Center" />
 
-                <!-- Insufficient Data -->
-                <Border Padding="16"
-                        BackgroundColor="{DynamicResource CardBackground}"
-                        StrokeShape="RoundRectangle 12"
-                        Stroke="{DynamicResource CardStroke}"
-                        IsVisible="{Binding ShowBpInsufficient}">
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="📈  Not Enough Data Yet"
-                               FontSize="16" FontAttributes="Bold"
-                               TextColor="{DynamicResource PrimaryAccent}" />
-                        <Label Text="{Binding Analysis.Message}"
-                               FontSize="13" TextColor="{DynamicResource TextSecondary}"
-                               LineBreakMode="WordWrap" />
-                    </VerticalStackLayout>
-                </Border>
-
-                <!-- Analysis Results -->
-                <VerticalStackLayout Spacing="12" IsVisible="{Binding HasAnalysisResults}">
-
-                    <!-- Tab Buttons — optional vital tabs are only shown
-                         when the signed-in user tracks that metric. -->
+                <!-- Analysis Tabs -->
+                <VerticalStackLayout Spacing="12"
+                                     IsVisible="{Binding HasAnalysisResponse}">
+                    <!-- Optional vital tabs are only shown when the signed-in
+                         user tracks that metric. BP is always available. -->
                     <FlexLayout Direction="Row"
                                 Wrap="Wrap"
                                 JustifyContent="Start"
@@ -153,6 +137,27 @@
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="glucose" />
                     </FlexLayout>
+
+                    <!-- BP's own data gate belongs directly below the vital
+                         selector so it reads as the state of the selected BP tab. -->
+                    <Border Padding="16"
+                            BackgroundColor="{DynamicResource CardBackground}"
+                            StrokeShape="RoundRectangle 12"
+                            Stroke="{DynamicResource CardStroke}"
+                            IsVisible="{Binding ShowBpInsufficient}">
+                        <VerticalStackLayout Spacing="10">
+                            <Label Text="📈  Not Enough Data Yet"
+                                   FontSize="16" FontAttributes="Bold"
+                                   TextColor="{DynamicResource PrimaryAccent}" />
+                            <Label Text="{Binding Analysis.Message}"
+                                   FontSize="13" TextColor="{DynamicResource TextSecondary}"
+                                   LineBreakMode="WordWrap" />
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- Analysis Results -->
+                <VerticalStackLayout Spacing="12" IsVisible="{Binding HasAnalysisResults}">
 
                     <!-- ==================== BP TAB ==================== -->
                     <VerticalStackLayout Spacing="12" IsVisible="{Binding ShowBpAnalysis}">
