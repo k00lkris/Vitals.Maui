@@ -2557,6 +2557,21 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.DiastolicWarningText">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._diastolicWarningText"/>
         </member>
+        <member name="M:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.OnIsInsufficientChanged(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.IsInsufficient"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.IsInsufficient"/> is changed.</remarks>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.OnIsOkChanged(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.IsOk"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.IsOk"/> is changed.</remarks>
+        </member>
+        <member name="M:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.OnShowBpChanged(System.Boolean)">
+            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowBp"/> just changed.</summary>
+            <param name="value">The new property value that was set.</param>
+            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.ShowBp"/> is changed.</remarks>
+        </member>
         <member name="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.selectDaysCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.SelectDaysCommand"/>.</summary>
         </member>
