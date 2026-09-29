@@ -212,11 +212,11 @@ public partial class VitalPreferencesService : ObservableObject
             Theme = string.IsNullOrWhiteSpace(preferences.Theme)
                 ? "vitals_blue"
                 : preferences.Theme;
-            ShowHeartRate = preferences.ShowHeartRate;
-            ShowSpo2 = preferences.ShowSpo2;
-            ShowTemperature = preferences.ShowTemperature;
-            ShowWeight = preferences.ShowWeight;
-            ShowGlucose = preferences.ShowGlucose;
+            ShowHeartRate = preferences.ShowHeartRate ?? true;
+            ShowSpo2 = preferences.ShowSpo2 ?? true;
+            ShowTemperature = preferences.ShowTemperature ?? true;
+            ShowWeight = preferences.ShowWeight ?? false;
+            ShowGlucose = preferences.ShowGlucose ?? false;
         }
         finally
         {
