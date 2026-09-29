@@ -8,15 +8,15 @@ namespace Vitals.Maui.ViewModels;
 public partial class OnboardingVitalPreferencesViewModel : ObservableObject
 {
     private readonly UserPreferencesService _preferences;
+    private readonly PatientStateService _patientState;
 
     // Wired by the page's code-behind, same pattern as the other onboarding VMs.
     public Action? OnContinue { get; set; }
     public Action? OnBack { get; set; }
 
-    // Same Preferences keys SettingsViewModel and VitalsEntryViewModel already
-    // use — setting these here means Settings and the real Vitals Entry
-    // screen are immediately consistent with whatever's chosen during
-    // onboarding, not a separate onboarding-only preference.
+    // Initial per-patient vital selection. In a multi-patient onboarding
+    // flow these choices seed each newly created patient, and can later be
+    // customized independently in Settings.
     // Blood pressure has no toggle here either, matching VitalsEntryPage —
     // it's always tracked.
     [ObservableProperty] private bool _showHeartRate = true;
@@ -25,9 +25,12 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     [ObservableProperty] private bool _showWeight = false;
     [ObservableProperty] private bool _showGlucose = false;
 
-    public OnboardingVitalPreferencesViewModel(UserPreferencesService preferences)
+    public OnboardingVitalPreferencesViewModel(
+        UserPreferencesService preferences,
+        PatientStateService patientState)
     {
         _preferences = preferences;
+        _patientState = patientState;
         var current = _preferences.LocalSnapshot();
         ShowHeartRate = current.ShowHeartRate;
         ShowSpo2 = current.ShowSpo2;
@@ -36,27 +39,33 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
         ShowGlucose = current.ShowGlucose;
     }
 
-    partial void OnShowHeartRateChanged(bool value) => Preferences.Set("show_heart_rate", value);
-    partial void OnShowSpo2Changed(bool value) => Preferences.Set("show_spo2", value);
-    partial void OnShowTemperatureChanged(bool value) => Preferences.Set("show_temperature", value);
-    partial void OnShowWeightChanged(bool value) => Preferences.Set("show_weight", value);
-    partial void OnShowGlucoseChanged(bool value) => Preferences.Set("show_glucose", value);
-
     [RelayCommand]
     public async Task ContinueAsync()
     {
+        // Onboarding has one initial vital-selection screen even for a
+        // Family household. Seed every newly created patient with the chosen
+        // starting set; afterward Settings can customize each patient
+        // independently.
+        _patientState.Reset();
+        await _patientState.InitializeAsync();
+
         var current = _preferences.LocalSnapshot();
-        await _preferences.SaveAsync(
-            new UserPreferences
-            {
-                UserId = current.UserId,
-                Theme = current.Theme,
-                ShowHeartRate = ShowHeartRate,
-                ShowSpo2 = ShowSpo2,
-                ShowTemperature = ShowTemperature,
-                ShowWeight = ShowWeight,
-                ShowGlucose = ShowGlucose,
-            });
+        var selected = new UserPreferences
+        {
+            UserId = current.UserId,
+            Theme = current.Theme,
+            ShowHeartRate = ShowHeartRate,
+            ShowSpo2 = ShowSpo2,
+            ShowTemperature = ShowTemperature,
+            ShowWeight = ShowWeight,
+            ShowGlucose = ShowGlucose,
+        };
+
+        foreach (var patient in _patientState.Patients)
+        {
+            selected.PatientId = patient.PatientId;
+            await _preferences.SaveAsync(selected, patient.PatientId);
+        }
 
         OnContinue?.Invoke();
     }
