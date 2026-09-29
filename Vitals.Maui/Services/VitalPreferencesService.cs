@@ -88,7 +88,7 @@ public partial class VitalPreferencesService : ObservableObject
     /// <summary>
     /// Flushes the latest in-memory snapshot to the current user's server row.
     /// Useful at onboarding boundaries where navigation should wait until the
-    /// selected preferences have definitely been persisted.
+    /// persistence attempt has completed before moving to the next screen.
     /// </summary>
     public async Task SaveAsync()
     {
