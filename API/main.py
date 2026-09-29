@@ -2791,12 +2791,280 @@ def _run_descriptive_scalar_analysis(
 
 
 def run_weight_analysis(rows: list) -> dict | None:
-    return _run_descriptive_scalar_analysis(
-        rows,
-        vital_type="weight",
-        unit="lb",
-        allow_longitudinal_trend=True,
+    """
+    Dedicated Weight analysis engine.
+
+    Weight is different from the other spot vitals in two important ways:
+    repeated measurements are directly comparable over time, but same-day
+    repeats and ordinary short-term fluctuation can easily distort a naive
+    regression. The engine therefore keeps the raw latest/summary values for
+    transparency while using one median value per local calendar day for
+    baseline change, recent-period comparison, variability, and trend.
+
+    The trend uses a Theil-Sen slope over daily medians. That estimator is
+    deliberately more resistant to an isolated bad scale reading or entry
+    typo than ordinary least squares. OLS R²/p are retained only as secondary
+    fit diagnostics for backwards-compatible report rendering; the trend
+    direction itself is determined from the Theil-Sen 95% slope interval.
+
+    No BMI, "healthy weight" classification, weight-loss goal judgment, or
+    disease-specific fluid-retention alert is produced here. The current
+    patient record does not contain height, a weight goal, or a diagnosis /
+    clinician-configured threshold, so assigning those interpretations would
+    overstate what the captured data supports.
+    """
+    if not rows:
+        return None
+
+    points = [
+        {
+            "recorded_at": r[0],
+            "local_offset_minutes": r[1],
+            "value": float(r[2]),
+        }
+        for r in rows
+        if r[2] is not None
+    ]
+    if not points:
+        return None
+
+    raw_values = np.array([p["value"] for p in points], dtype=float)
+    first = points[0]
+    latest = points[-1]
+    raw_span_days = max(
+        0.0,
+        (latest["recorded_at"] - first["recorded_at"]).total_seconds() / 86400.0,
     )
+
+    # Collapse repeated measurements on the same LOCAL calendar day to one
+    # daily median. This prevents a day with several checks from carrying more
+    # statistical weight than a day with one check.
+    by_day: dict = {}
+    for p in points:
+        local_day = _hr_local_datetime(p).date()
+        by_day.setdefault(local_day, []).append(float(p["value"]))
+
+    daily_points = [
+        {
+            "date": day,
+            "value": float(np.median(values)),
+            "reading_count": len(values),
+        }
+        for day, values in sorted(by_day.items())
+    ]
+    daily_values = np.array([p["value"] for p in daily_points], dtype=float)
+    distinct_days = len(daily_points)
+    daily_span_days = (
+        float((daily_points[-1]["date"] - daily_points[0]["date"]).days)
+        if distinct_days >= 2
+        else 0.0
+    )
+
+    summary = {
+        "mean": round(float(np.mean(raw_values)), 1),
+        "median": round(float(np.median(raw_values)), 1),
+        "min": round(float(np.min(raw_values)), 1),
+        "max": round(float(np.max(raw_values)), 1),
+    }
+    daily_summary = {
+        "mean": round(float(np.mean(daily_values)), 1),
+        "median": round(float(np.median(daily_values)), 1),
+        "min": round(float(np.min(daily_values)), 1),
+        "max": round(float(np.max(daily_values)), 1),
+    }
+
+    # Kept for compatibility with the first Weight/PDF pass. New UI should
+    # prefer baseline_change below because a single first reading is a weak
+    # reference point.
+    change_from_first = None
+    if len(points) >= 2:
+        absolute_change = float(latest["value"] - first["value"])
+        pct_change = (
+            absolute_change / float(first["value"]) * 100.0
+            if float(first["value"]) != 0
+            else None
+        )
+        change_from_first = {
+            "first_value": round(float(first["value"]), 1),
+            "first_at": first["recorded_at"].isoformat(),
+            "latest_value": round(float(latest["value"]), 1),
+            "latest_at": latest["recorded_at"].isoformat(),
+            "absolute_change": round(absolute_change, 1),
+            "pct_change": round(pct_change, 1) if pct_change is not None else None,
+        }
+
+    # Baseline = median of the first up-to-three DISTINCT days, never
+    # including the latest day itself. This is much less sensitive to an
+    # unusually high/low first measurement.
+    baseline_change = None
+    if distinct_days >= 2:
+        baseline_days_used = min(3, distinct_days - 1)
+        baseline_values = np.array(
+            [p["value"] for p in daily_points[:baseline_days_used]], dtype=float
+        )
+        baseline_value = float(np.median(baseline_values))
+        latest_daily_value = float(daily_points[-1]["value"])
+        absolute_change = latest_daily_value - baseline_value
+        pct_change = (
+            absolute_change / baseline_value * 100.0
+            if baseline_value != 0
+            else None
+        )
+        baseline_change = {
+            "baseline_value": round(baseline_value, 1),
+            "baseline_days_used": baseline_days_used,
+            "baseline_start_date": daily_points[0]["date"].isoformat(),
+            "baseline_end_date": daily_points[baseline_days_used - 1]["date"].isoformat(),
+            "latest_daily_value": round(latest_daily_value, 1),
+            "latest_date": daily_points[-1]["date"].isoformat(),
+            "absolute_change": round(float(absolute_change), 1),
+            "pct_change": round(float(pct_change), 1) if pct_change is not None else None,
+        }
+
+    # Recent seven-day median versus the seven days immediately before it.
+    # Two distinct measurement days are required in each block so a single
+    # isolated reading is not presented as a period-to-period shift.
+    recent_change = None
+    if distinct_days >= 4:
+        latest_day = daily_points[-1]["date"]
+        recent_start = latest_day - timedelta(days=6)
+        prior_start = latest_day - timedelta(days=13)
+        prior_end = latest_day - timedelta(days=7)
+
+        recent_vals = [
+            p["value"] for p in daily_points
+            if recent_start <= p["date"] <= latest_day
+        ]
+        prior_vals = [
+            p["value"] for p in daily_points
+            if prior_start <= p["date"] <= prior_end
+        ]
+
+        if len(recent_vals) >= 2 and len(prior_vals) >= 2:
+            recent_median = float(np.median(np.array(recent_vals, dtype=float)))
+            prior_median = float(np.median(np.array(prior_vals, dtype=float)))
+            absolute_change = recent_median - prior_median
+            pct_change = (
+                absolute_change / prior_median * 100.0
+                if prior_median != 0
+                else None
+            )
+            recent_change = {
+                "recent_median": round(recent_median, 1),
+                "prior_median": round(prior_median, 1),
+                "recent_days_with_readings": len(recent_vals),
+                "prior_days_with_readings": len(prior_vals),
+                "absolute_change": round(float(absolute_change), 1),
+                "pct_change": round(float(pct_change), 1) if pct_change is not None else None,
+            }
+
+    variation = None
+    if distinct_days >= 3:
+        q1, q3 = np.percentile(daily_values, [25, 75])
+        median_daily = float(np.median(daily_values))
+        mad = float(np.median(np.abs(daily_values - median_daily)))
+        variation = {
+            "sd": round(float(np.std(daily_values, ddof=1)), 1),
+            "iqr": round(float(q3 - q1), 1),
+            "q1": round(float(q1), 1),
+            "q3": round(float(q3), 1),
+            "mad": round(mad, 1),
+        }
+
+    trend = None
+    unavailable = []
+
+    # A robust trend needs enough independent DAYS and enough calendar span
+    # to represent more than a few adjacent measurements.
+    if distinct_days >= 5 and daily_span_days >= 14.0:
+        origin = daily_points[0]["date"]
+        t = np.array(
+            [(p["date"] - origin).days for p in daily_points],
+            dtype=float,
+        )
+
+        ts_slope, _, ts_low, ts_high = stats.theilslopes(
+            daily_values, t, 0.95
+        )
+        ols = stats.linregress(t, daily_values)
+
+        low_week = float(ts_low) * 7.0
+        high_week = float(ts_high) * 7.0
+        if low_week > 0:
+            direction = "increasing"
+        elif high_week < 0:
+            direction = "decreasing"
+        else:
+            direction = "no_clear_trend"
+
+        trend = {
+            "method": "theil_sen_daily_medians",
+            "n": distinct_days,
+            "span_days": round(daily_span_days, 1),
+            "slope_per_day": round(float(ts_slope), 3),
+            "slope_per_week": round(float(ts_slope) * 7.0, 2),
+            "ci95_low_per_week": round(low_week, 2),
+            "ci95_high_per_week": round(high_week, 2),
+            "direction": direction,
+            # Secondary OLS diagnostics retained for the existing PDF helper.
+            "r2": round(float(ols.rvalue ** 2), 2),
+            "p_value": round(float(ols.pvalue), 3),
+        }
+    else:
+        unavailable.append({
+            "analysis": "robust_longitudinal_trend",
+            "reason_code": "insufficient_longitudinal_support",
+            "reason": "needs >=5 distinct measurement days spanning >=14 days",
+        })
+
+    if recent_change is None:
+        unavailable.append({
+            "analysis": "recent_7_day_comparison",
+            "reason_code": "insufficient_period_coverage",
+            "reason": (
+                "needs >=2 measurement days in the most recent 7 days and "
+                ">=2 measurement days in the 7 days before that"
+            ),
+        })
+
+    support_state = (
+        "trend"
+        if trend is not None
+        else "descriptive"
+        if distinct_days >= 2
+        else "snapshot"
+    )
+
+    return {
+        "analysis_version": 2,
+        "vital_type": "weight",
+        "unit": "lb",
+        "latest": {
+            "value": round(float(latest["value"]), 1),
+            "recorded_at": latest["recorded_at"].isoformat(),
+        },
+        "reading_count": len(points),
+        "summary": summary,
+        "daily_summary": daily_summary,
+        "change_from_first": change_from_first,
+        "baseline_change": baseline_change,
+        "recent_change": recent_change,
+        "variation": variation,
+        "trend": trend,
+        "data_support": {
+            "n": len(points),
+            "distinct_days": distinct_days,
+            "span_days": round(raw_span_days, 1),
+            "daily_span_days": round(daily_span_days, 1),
+            "support_state": support_state,
+            "unavailable_analyses": unavailable,
+        },
+        "limitations": [
+            "BMI and weight-status classification are not calculated because height is not collected.",
+            "Vitals does not judge whether weight gain or loss is desirable without an individualized goal.",
+            "Disease-specific rapid-weight-change alerts require diagnosis or clinician-configured thresholds and are not applied automatically.",
+        ],
+    }
 
 
 def run_glucose_analysis(rows: list) -> dict | None:
@@ -2913,6 +3181,9 @@ VITAL_ANALYSIS_REGISTRY = {
         "columns": "vitals.recorded_at, vitals.local_offset_minutes, vitals.weight",
         "where_clause": "vitals.weight IS NOT NULL",
         "analysis_fn": run_weight_analysis,
+        # Increment when the Weight contract changes. The read path uses this
+        # to ignore an older JSON cache row and recompute it immediately.
+        "analysis_version": 2,
     },
     "glucose": {
         "from_clause": "vitals",
@@ -3050,7 +3321,18 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
             """, (patient_id, vital_type, days))
             row = cur.fetchone()
             if row is not None:
-                return row[0]  # cache hit
+                cached = row[0]
+                required_version = entry.get("analysis_version")
+                if (
+                    required_version is None
+                    or (
+                        isinstance(cached, dict)
+                        and cached.get("analysis_version") == required_version
+                    )
+                ):
+                    return cached  # valid cache hit
+                # Contract changed (currently used by Weight v2). Fall through
+                # and recompute this window instead of serving stale JSON.
 
         # Cache miss on a standard window, or a custom range — compute now.
         baseline_rows = None
