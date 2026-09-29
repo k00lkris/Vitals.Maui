@@ -2786,6 +2786,7 @@ def _run_descriptive_scalar_analysis(
             "recorded_at": latest["recorded_at"].isoformat(),
         },
         "reading_count": len(points),
+        "anthropometrics": anthropometrics,
         "summary": summary,
         "change_from_first": change,
         "trend": trend,
@@ -2799,7 +2800,10 @@ def _run_descriptive_scalar_analysis(
     }
 
 
-def run_weight_analysis(rows: list) -> dict | None:
+def run_weight_analysis(
+    rows: list,
+    patient_demographics: dict | None = None,
+) -> dict | None:
     """
     Dedicated Weight analysis engine.
 
@@ -2816,11 +2820,11 @@ def run_weight_analysis(rows: list) -> dict | None:
     fit diagnostics for backwards-compatible report rendering; the trend
     direction itself is determined from the Theil-Sen 95% slope interval.
 
-    No BMI, "healthy weight" classification, weight-loss goal judgment, or
-    disease-specific fluid-retention alert is produced here. The current
-    patient record does not contain height, a weight goal, or a diagnosis /
-    clinician-configured threshold, so assigning those interpretations would
-    overstate what the captured data supports.
+    Adult current BMI is calculated only when the patient's date of birth
+    establishes age >=20 on the latest weight date and a current profile
+    height is available. BMI is presented as screening context, never as a
+    diagnosis or body-composition estimate. Historical BMI is intentionally
+    deferred until dated height observations exist.
     """
     if not rows:
         return None
@@ -2840,6 +2844,84 @@ def run_weight_analysis(rows: list) -> dict | None:
     raw_values = np.array([p["value"] for p in points], dtype=float)
     first = points[0]
     latest = points[-1]
+
+    # ------------------------------------------------------------------
+    # Adult CURRENT BMI (P0 §7.1 / §7.7)
+    # ------------------------------------------------------------------
+    # The patient table currently stores one CURRENT profile height. That is
+    # sufficient for a current adult BMI, but it is not enough to reconstruct
+    # historical BMI. Historical BMI remains unavailable until dated height
+    # observations are implemented.
+    anthropometrics = {
+        "bmi_available": False,
+        "reason_unavailable": None,
+        "height_inches": None,
+        "height_cm": None,
+        "height_source": None,
+        "height_measured_at": None,
+        "age_years": None,
+        "bmi": None,
+        "adult_category": None,
+    }
+
+    demographics = patient_demographics or {}
+    dob = demographics.get("dob")
+    height_inches = demographics.get("height_inches")
+    latest_local_date = _hr_local_datetime(latest).date()
+
+    if height_inches is not None:
+        height_inches = int(height_inches)
+        anthropometrics["height_inches"] = height_inches
+        anthropometrics["height_cm"] = round(height_inches * 2.54, 1)
+        anthropometrics["height_source"] = "current_profile"
+
+    if dob is None:
+        anthropometrics["reason_unavailable"] = "missing_date_of_birth"
+    else:
+        if isinstance(dob, str):
+            dob = date.fromisoformat(dob)
+
+        age_years = (
+            latest_local_date.year
+            - dob.year
+            - (
+                (latest_local_date.month, latest_local_date.day)
+                < (dob.month, dob.day)
+            )
+        )
+        anthropometrics["age_years"] = age_years
+
+        if age_years < 20:
+            # Adult categories must never be applied to pediatric patients.
+            # Pediatric BMI-for-age is a separate gated strategy in the spec.
+            anthropometrics["reason_unavailable"] = "pediatric_strategy_required"
+        elif height_inches is None:
+            anthropometrics["reason_unavailable"] = "missing_height"
+        elif height_inches <= 0:
+            anthropometrics["reason_unavailable"] = "invalid_height"
+        else:
+            bmi = 703.0 * float(latest["value"]) / float(height_inches ** 2)
+
+            if bmi < 18.5:
+                category = "underweight"
+            elif bmi < 25.0:
+                category = "healthy_weight"
+            elif bmi < 30.0:
+                category = "overweight"
+            elif bmi < 35.0:
+                category = "obesity_class_1"
+            elif bmi < 40.0:
+                category = "obesity_class_2"
+            else:
+                category = "obesity_class_3"
+
+            anthropometrics.update({
+                "bmi_available": True,
+                "reason_unavailable": None,
+                "bmi": round(float(bmi), 1),
+                "adult_category": category,
+            })
+
     raw_span_days = max(
         0.0,
         (latest["recorded_at"] - first["recorded_at"]).total_seconds() / 86400.0,
@@ -3069,7 +3151,20 @@ def run_weight_analysis(rows: list) -> dict | None:
             "unavailable_analyses": unavailable,
         },
         "limitations": [
-            "BMI and weight-status classification are not calculated because height is not collected.",
+            (
+                "BMI is a screening measure and should be interpreted with other health information."
+                if anthropometrics["bmi_available"]
+                else {
+                    "missing_height": "Add a current height in Patient Profile to calculate adult BMI.",
+                    "missing_date_of_birth": "A date of birth is required before adult BMI can be age-gated.",
+                    "pediatric_strategy_required": "Adult BMI screening categories are not shown for patients under age 20; pediatric BMI-for-age requires a separate age- and reference-sex-specific strategy.",
+                    "invalid_height": "The stored height is not usable for BMI calculation.",
+                }.get(
+                    anthropometrics["reason_unavailable"],
+                    "Adult BMI is unavailable for the current patient profile.",
+                )
+            ),
+            "Historical BMI is not calculated until dated height history is available.",
             "Vitals does not judge whether weight gain or loss is desirable without an individualized goal.",
             "Disease-specific rapid-weight-change alerts require diagnosis or clinician-configured thresholds and are not applied automatically.",
         ],
@@ -3190,9 +3285,10 @@ VITAL_ANALYSIS_REGISTRY = {
         "columns": "vitals.recorded_at, vitals.local_offset_minutes, vitals.weight",
         "where_clause": "vitals.weight IS NOT NULL",
         "analysis_fn": run_weight_analysis,
+        "needs_patient_demographics": True,
         # Increment when the Weight contract changes. The read path uses this
         # to ignore an older JSON cache row and recompute it immediately.
-        "analysis_version": 2,
+        "analysis_version": 3,
     },
     "glucose": {
         "from_clause": "vitals",
@@ -3266,10 +3362,43 @@ def recompute_vital_cache(patient_id: str, household_id: str, vital_type: str):
             """, (patient_id, household_id, prior_lookback))
             prior_period_rows = cur.fetchall()
 
+        # Patient demographics are fetched only for analyses that declare
+        # the dependency. Weight currently uses DOB + current profile height
+        # for age-gated adult current BMI.
+        patient_demographics = None
+        if entry.get("needs_patient_demographics"):
+            cur.execute("""
+                SELECT dob, height_inches
+                FROM patients
+                WHERE patient_id = %s
+                  AND household_id = %s;
+            """, (patient_id, household_id))
+            demographic_row = cur.fetchone()
+            if demographic_row is not None:
+                patient_demographics = {
+                    "dob": demographic_row[0],
+                    "height_inches": demographic_row[1],
+                }
+
         # Built generically so any combination of optional extra datasets
         # works without a combinatorial chain of if/else branches — a
         # future vital needing two or three of these just adds its own
         # registry flag, no changes needed here.
+        patient_demographics = None
+        if entry.get("needs_patient_demographics"):
+            cur.execute("""
+                SELECT dob, height_inches
+                FROM patients
+                WHERE patient_id = %s
+                  AND household_id = %s;
+            """, (patient_id, household_id))
+            demographic_row = cur.fetchone()
+            if demographic_row is not None:
+                patient_demographics = {
+                    "dob": demographic_row[0],
+                    "height_inches": demographic_row[1],
+                }
+
         extra_kwargs = {}
         if lookback:
             extra_kwargs["baseline_rows"] = baseline_rows
@@ -3277,6 +3406,8 @@ def recompute_vital_cache(patient_id: str, household_id: str, vital_type: str):
             extra_kwargs["medication_changes"] = medication_changes
         if prior_lookback:
             extra_kwargs["prior_period_rows"] = prior_period_rows
+        if entry.get("needs_patient_demographics"):
+            extra_kwargs["patient_demographics"] = patient_demographics
 
         for days in ANALYSIS_WINDOWS:
             cur.execute(f"""
@@ -3390,6 +3521,8 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
             extra_kwargs["medication_changes"] = medication_changes
         if prior_lookback:
             extra_kwargs["prior_period_rows"] = prior_period_rows
+        if entry.get("needs_patient_demographics"):
+            extra_kwargs["patient_demographics"] = patient_demographics
 
         cur.execute(f"""
             SELECT {entry['columns']}
@@ -4262,6 +4395,15 @@ def update_patient_demographics(
 
         if not row:
             raise HTTPException(status_code=404, detail="Patient not found")
+
+        # Weight analysis v3 depends on current profile height. Clear cached
+        # Weight windows whenever demographics are saved so the next Analysis
+        # read recomputes BMI using the newly stored height.
+        cur.execute("""
+            DELETE FROM vitals_analysis_cache
+            WHERE patient_id = %s
+              AND vital_type = 'weight';
+        """, (str(patient_id),))
 
         conn.commit()
         return {
