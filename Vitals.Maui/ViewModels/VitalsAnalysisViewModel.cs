@@ -35,6 +35,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _isInsufficient;
     [ObservableProperty] private bool _isOk;
+    [ObservableProperty] private bool _hasAnalysisResponse;
     [ObservableProperty] private bool _hasAnalysisResults;
 
     // Day buttons — background colors
@@ -240,12 +241,14 @@ public partial class VitalsAnalysisViewModel : ObservableObject
                 StatusMessage = "Could not load analysis. Check your connection.";
                 IsInsufficient = false;
                 IsOk = false;
+                HasAnalysisResponse = false;
                 HasAnalysisResults = false;
                 return;
             }
 
             IsInsufficient = result.IsInsufficient;
             IsOk = result.IsOk;
+            HasAnalysisResponse = true;
             HasAnalysisResults =
                 result.IsOk ||
                 (TrackHeartRate && result.HeartRate is not null) ||
