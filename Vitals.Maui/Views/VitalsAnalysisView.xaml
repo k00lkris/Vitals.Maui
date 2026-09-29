@@ -1851,6 +1851,42 @@
 
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Weight.HasBmi}">
+                            <VerticalStackLayout Spacing="7">
+                                <Label Text="BMI Screening Context" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Weight.BmiDisplay}"
+                                       FontSize="22" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Weight.BmiCategoryDisplay, StringFormat='BMI screening category: {0}'}"
+                                       FontSize="13" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextSecondary}" />
+                                <Label Text="{Binding Analysis.Weight.BmiContextDisplay}"
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="BMI is a screening measure, not a diagnosis or a direct measure of body fat."
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       FontAttributes="Italic" LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Weight.HasBmiUnavailable}">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="BMI Screening Context" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="BMI unavailable"
+                                       FontSize="14" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Weight.BmiUnavailableDisplay}"
+                                       FontSize="12" TextColor="{DynamicResource TextSecondary}"
+                                       LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
                                 IsVisible="{Binding Analysis.Weight.HasSummary}">
                             <VerticalStackLayout Spacing="8">
                                 <Label Text="Logged Reading Summary" FontSize="11"
