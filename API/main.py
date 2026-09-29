@@ -2900,7 +2900,13 @@ def run_weight_analysis(
         elif height_inches <= 0:
             anthropometrics["reason_unavailable"] = "invalid_height"
         else:
-            bmi = 703.0 * float(latest["value"]) / float(height_inches ** 2)
+            # Normalize to metric internally per the Weight engineering spec.
+            # The familiar 703*lb/in² form is mathematically equivalent, but
+            # keeping one internal unit convention avoids future mixed-unit
+            # drift when metric entry is added.
+            weight_kg = float(latest["value"]) / 2.2046226218
+            height_m = (float(height_inches) * 2.54) / 100.0
+            bmi = weight_kg / (height_m ** 2)
 
             if bmi < 18.5:
                 category = "underweight"
