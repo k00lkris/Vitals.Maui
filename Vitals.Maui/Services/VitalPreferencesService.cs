@@ -115,7 +115,17 @@ public partial class VitalPreferencesService : ObservableObject
         // App.xaml.cs still reads this global key before authentication, so
         // keep it current even though all vital flags are cached per user.
         Preferences.Set("theme", value);
-        ThemeService.Apply(value);
+
+        // Session restoration loads preferences on a background task. Theme
+        // resources are UI state, so marshal that part back to the main thread.
+        if (Application.Current is not null)
+        {
+            if (MainThread.IsMainThread)
+                ThemeService.Apply(value);
+            else
+                MainThread.BeginInvokeOnMainThread(() => ThemeService.Apply(value));
+        }
+
         HandlePreferenceChanged();
     }
 
