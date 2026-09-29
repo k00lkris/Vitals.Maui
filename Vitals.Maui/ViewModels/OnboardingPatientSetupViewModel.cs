@@ -22,6 +22,8 @@ public partial class OnboardingPatientSetupViewModel : ObservableObject
     [ObservableProperty] private string _lastName = string.Empty;
     [ObservableProperty] private DateTime _dob = DateTime.Today.AddYears(-40);
     [ObservableProperty] private string _gender = string.Empty;
+    [ObservableProperty] private string _heightFeet = string.Empty;
+    [ObservableProperty] private string _heightInches = string.Empty;
 
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
@@ -70,6 +72,13 @@ public partial class OnboardingPatientSetupViewModel : ObservableObject
             return;
         }
 
+        int? heightInches = null;
+        if (!TryGetHeightInches(out heightInches, out var heightError))
+        {
+            StatusMessage = heightError;
+            return;
+        }
+
         IsBusy = true;
         StatusMessage = string.Empty;
 
@@ -81,6 +90,7 @@ public partial class OnboardingPatientSetupViewModel : ObservableObject
                 last_name = LastName.Trim(),
                 dob = Dob.ToString("yyyy-MM-dd"),
                 gender = string.IsNullOrWhiteSpace(Gender) ? null : Gender,
+                height_inches = heightInches,
                 relationship = IsSelf ? "self" : "caregiver",
             };
 
@@ -98,6 +108,37 @@ public partial class OnboardingPatientSetupViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    private bool TryGetHeightInches(out int? totalInches, out string error)
+    {
+        totalInches = null;
+        error = string.Empty;
+
+        var feetText = HeightFeet?.Trim() ?? string.Empty;
+        var inchesText = HeightInches?.Trim() ?? string.Empty;
+
+        // Height is optional during onboarding because a caregiver may not
+        // know it yet. Settings provides a persistent place to add/update it.
+        if (string.IsNullOrEmpty(feetText) && string.IsNullOrEmpty(inchesText))
+            return true;
+
+        if (!int.TryParse(feetText, out var feet) || feet < 1 || feet > 8)
+        {
+            error = "Height feet must be between 1 and 8.";
+            return false;
+        }
+
+        var inches = 0;
+        if (!string.IsNullOrEmpty(inchesText) &&
+            (!int.TryParse(inchesText, out inches) || inches < 0 || inches > 11))
+        {
+            error = "Height inches must be between 0 and 11.";
+            return false;
+        }
+
+        totalInches = feet * 12 + inches;
+        return true;
     }
 
     [RelayCommand]
