@@ -14,9 +14,10 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     public Action? OnContinue { get; set; }
     public Action? OnBack { get; set; }
 
-    // Initial per-patient vital selection. In a multi-patient onboarding
-    // flow these choices seed each newly created patient, and can later be
-    // customized independently in Settings.
+    public Patient? SelectedPatient => _patientState.SelectedPatient;
+
+    // Initial per-patient vital selection for the active patient. Other
+    // patients retain their own defaults until configured independently.
     // Blood pressure has no toggle here either, matching VitalsEntryPage —
     // it's always tracked.
     [ObservableProperty] private bool _showHeartRate = true;
@@ -31,7 +32,18 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     {
         _preferences = preferences;
         _patientState = patientState;
-        var current = _preferences.LocalSnapshot();
+    }
+
+    public async Task LoadAsync()
+    {
+        await _patientState.InitializeAsync();
+        OnPropertyChanged(nameof(SelectedPatient));
+
+        var patientId = SelectedPatient?.PatientId;
+        if (string.IsNullOrWhiteSpace(patientId))
+            return;
+
+        var current = await _preferences.RefreshAsync(patientId);
         ShowHeartRate = current.ShowHeartRate;
         ShowSpo2 = current.ShowSpo2;
         ShowTemperature = current.ShowTemperature;
@@ -42,30 +54,27 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     [RelayCommand]
     public async Task ContinueAsync()
     {
-        // Onboarding has one initial vital-selection screen even for a
-        // Family household. Seed every newly created patient with the chosen
-        // starting set; afterward Settings can customize each patient
-        // independently.
-        _patientState.Reset();
-        await _patientState.InitializeAsync();
-
-        var current = _preferences.LocalSnapshot();
-        var selected = new UserPreferences
+        var patientId = SelectedPatient?.PatientId;
+        if (string.IsNullOrWhiteSpace(patientId))
         {
-            UserId = current.UserId,
-            Theme = current.Theme,
-            ShowHeartRate = ShowHeartRate,
-            ShowSpo2 = ShowSpo2,
-            ShowTemperature = ShowTemperature,
-            ShowWeight = ShowWeight,
-            ShowGlucose = ShowGlucose,
-        };
-
-        foreach (var patient in _patientState.Patients)
-        {
-            selected.PatientId = patient.PatientId;
-            await _preferences.SaveAsync(selected, patient.PatientId);
+            OnContinue?.Invoke();
+            return;
         }
+
+        var current = _preferences.LocalSnapshot(patientId);
+        await _preferences.SaveAsync(
+            new UserPreferences
+            {
+                UserId = current.UserId,
+                PatientId = patientId,
+                Theme = current.Theme,
+                ShowHeartRate = ShowHeartRate,
+                ShowSpo2 = ShowSpo2,
+                ShowTemperature = ShowTemperature,
+                ShowWeight = ShowWeight,
+                ShowGlucose = ShowGlucose,
+            },
+            patientId);
 
         OnContinue?.Invoke();
     }
