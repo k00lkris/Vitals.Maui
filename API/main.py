@@ -4219,7 +4219,14 @@ def create_patient(
     conn.commit()
     cur.close()
     conn.close()
-    return {"patient_id": row[0], "first_name": row[1], "last_name": row[2], "dob": row[3], "gender": row[4]}
+    return {
+        "patient_id": str(row[0]),
+        "first_name": row[1],
+        "last_name": row[2],
+        "dob": row[3],
+        "gender": row[4],
+        "height_inches": row[5],
+    }
 
 
 @app.patch("/api/patients/{patient_id}", response_model=PatientOut)
