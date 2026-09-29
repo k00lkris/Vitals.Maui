@@ -158,12 +158,17 @@ public partial class VitalsEntryViewModel : ObservableObject
         _patientState = patientState;
         _preferences = preferences;
 
-        _patientState.PropertyChanged += (s, e) =>
+        _patientState.PropertyChanged += async (s, e) =>
         {
             if (e.PropertyName == nameof(PatientStateService.SelectedPatient))
+            {
                 OnPropertyChanged(nameof(SelectedPatient));
+                await LoadSelectedPatientPreferencesAsync();
+            }
             else if (e.PropertyName == nameof(PatientStateService.Patients))
+            {
                 OnPropertyChanged(nameof(Patients));
+            }
         };
 
         LoadDisplayPreferences();
@@ -178,7 +183,22 @@ public partial class VitalsEntryViewModel : ObservableObject
     /// </summary>
     private void LoadDisplayPreferences()
     {
-        ApplyPreferences(_preferences.LocalSnapshot());
+        ApplyPreferences(
+            _preferences.LocalSnapshot(_patientState.SelectedPatient?.PatientId));
+    }
+
+    private async Task LoadSelectedPatientPreferencesAsync()
+    {
+        var patientId = _patientState.SelectedPatient?.PatientId;
+        if (string.IsNullOrWhiteSpace(patientId))
+            return;
+
+        var preferences = await _preferences.RefreshAsync(patientId);
+
+        if (_patientState.SelectedPatient?.PatientId != patientId)
+            return;
+
+        ApplyPreferences(preferences);
     }
 
     private void ApplyPreferences(UserPreferences preferences)
@@ -193,10 +213,10 @@ public partial class VitalsEntryViewModel : ObservableObject
     [RelayCommand]
     public async Task LoadAsync()
     {
-        ApplyPreferences(await _preferences.RefreshAsync());
         await _patientState.InitializeAsync();
         OnPropertyChanged(nameof(Patients));
         OnPropertyChanged(nameof(SelectedPatient));
+        await LoadSelectedPatientPreferencesAsync();
     }
 
     [RelayCommand]
