@@ -541,6 +541,9 @@
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.IsBusy">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._isBusy"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.IsLoadingAnalysis">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._isLoadingAnalysis"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.DashboardViewModel.StatusMessage">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.DashboardViewModel._statusMessage"/>
         </member>
@@ -3145,6 +3148,9 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.BtnDay60TextColor">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "BtnDay60TextColor" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsLoadingAnalysis">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsLoadingAnalysis" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ChartsExpanded">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ChartsExpanded" generated properties.</summary>
         </member>
@@ -3903,6 +3909,9 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.BtnDay60TextColor">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "BtnDay60TextColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsLoadingAnalysis">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsLoadingAnalysis" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ChartsExpanded">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ChartsExpanded" generated properties.</summary>
