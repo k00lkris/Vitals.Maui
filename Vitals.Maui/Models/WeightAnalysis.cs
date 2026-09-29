@@ -55,6 +55,7 @@ public class WeightAnalysis
     public bool HasLatest => Latest is not null;
     public bool HasSummary => (DailySummary ?? Summary) is not null;
     public bool HasBaselineChange => BaselineChange is not null;
+    public bool HasChange => HasBaselineChange;
     public bool HasRecentChange => RecentChange is not null;
     public bool HasVariation => Variation is not null;
     public bool HasTrend => Trend is not null;
@@ -143,6 +144,13 @@ public class WeightAnalysis
                 $"{Trend.Ci95HighPerWeek:+0.00;-0.00;0.00} {Unit}/week) across {Trend.SpanDays:F0} days.";
         }
     }
+
+    public string UnavailableAnalysesDisplay =>
+        DataSupport is null || DataSupport.UnavailableAnalyses.Count == 0
+            ? string.Empty
+            : string.Join(
+                Environment.NewLine,
+                DataSupport.UnavailableAnalyses.Select(x => $"• {x.DisplayText}"));
 
     public string LimitationsDisplay =>
         Limitations.Count == 0
