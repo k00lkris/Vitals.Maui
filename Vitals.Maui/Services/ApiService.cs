@@ -74,6 +74,38 @@ public class ApiService
     }
 
     /// <summary>
+    /// Updates mutable patient demographics. Height is sent as total inches;
+    /// feet/inches are presentation-only in the mobile UI.
+    /// </summary>
+    public async Task<Patient?> UpdatePatientDemographicsAsync(
+        string patientId,
+        object payload)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(payload, _jsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _http.PatchAsync(
+                $"/api/patients/{Uri.EscapeDataString(patientId)}",
+                content);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== UPDATE PATIENT DEMOGRAPHICS STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            return JsonSerializer.Deserialize<Patient>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== UPDATE PATIENT DEMOGRAPHICS ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Links the caller to an existing patient as 'self' — called after
     /// the user confirms (via a DOB/gender verification prompt) that an
     /// existing patient in the Join flow's "attach to existing" list

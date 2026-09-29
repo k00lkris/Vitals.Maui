@@ -1345,34 +1345,80 @@ public partial class VitalsAnalysisViewModel : ObservableObject
             $"The latest recorded weight was {latest.Value:F1} lb."
         };
 
-        if (weight.Summary is not null)
+        var summary = weight.DailySummary ?? weight.Summary;
+        if (summary is not null && weight.DataSupport is not null)
         {
             parts.Add(
-                $"Across {weight.ReadingCount} logged readings, the median was " +
-                $"{weight.Summary.Median:F1} lb with a recorded range of " +
-                $"{weight.Summary.Min:F1}–{weight.Summary.Max:F1} lb.");
+                $"Across {weight.ReadingCount} logged readings on " +
+                $"{weight.DataSupport.DistinctDays} distinct days, the daily-median " +
+                $"weight was {summary.Median:F1} lb with a range of " +
+                $"{summary.Min:F1}–{summary.Max:F1} lb.");
         }
 
-        if (weight.ChangeFromFirst is not null)
+        if (weight.BaselineChange is not null)
         {
-            var change = weight.ChangeFromFirst;
-            var direction = change.AbsoluteChange > 0 ? "higher" :
-                            change.AbsoluteChange < 0 ? "lower" : "the same";
-            var magnitude = Math.Abs(change.AbsoluteChange);
+            var change = weight.BaselineChange;
+            if (Math.Abs(change.AbsoluteChange) < 0.05)
+            {
+                parts.Add(
+                    "The latest daily weight is essentially unchanged from the " +
+                    "multi-day baseline in this selected period.");
+            }
+            else
+            {
+                var direction = change.AbsoluteChange > 0 ? "higher" : "lower";
+                var pct = change.PctChange is null
+                    ? string.Empty
+                    : $" ({Math.Abs(change.PctChange.Value):F1}%)";
 
-            parts.Add(change.AbsoluteChange == 0
-                ? "The latest weight matches the first logged weight in this window."
-                : $"The latest weight is {magnitude:F1} lb {direction} than the first logged weight in this window.");
+                parts.Add(
+                    $"The latest daily weight is {Math.Abs(change.AbsoluteChange):F1} lb " +
+                    $"{direction}{pct} than the baseline median built from the first " +
+                    $"{change.BaselineDaysUsed} measurement day" +
+                    $"{(change.BaselineDaysUsed == 1 ? "" : "s")} in this period.");
+            }
+        }
+
+        if (weight.RecentChange is not null)
+        {
+            var recent = weight.RecentChange;
+            var direction = recent.AbsoluteChange > 0 ? "higher" :
+                            recent.AbsoluteChange < 0 ? "lower" : "the same as";
+
+            parts.Add(
+                $"The most recent 7-day median is {Math.Abs(recent.AbsoluteChange):F1} lb " +
+                $"{direction} the median from the preceding 7 days.");
         }
 
         if (weight.Trend is not null)
         {
+            var directionText = weight.Trend.Direction switch
+            {
+                "increasing" => "shows an increasing pattern",
+                "decreasing" => "shows a decreasing pattern",
+                _ => "does not show a clear directional trend"
+            };
+
             parts.Add(
-                $"The modeled longitudinal rate of change is " +
-                $"{weight.Trend.SlopePerWeek:+0.00;-0.00;0.00} lb per week across " +
-                $"{weight.Trend.SpanDays:F1} days. This describes the recorded pattern " +
-                "and does not by itself determine whether the change is medically desirable.");
+                $"Using one median weight per day and a robust trend estimator, the data " +
+                $"{directionText} at {weight.Trend.SlopePerWeek:+0.00;-0.00;0.00} lb per week " +
+                $"across {weight.Trend.SpanDays:F0} days. The 95% slope interval is " +
+                $"{weight.Trend.Ci95LowPerWeek:+0.00;-0.00;0.00} to " +
+                $"{weight.Trend.Ci95HighPerWeek:+0.00;-0.00;0.00} lb per week.");
         }
+
+        if (weight.Variation is not null)
+        {
+            parts.Add(
+                $"Day-to-day variability is summarized with an IQR of " +
+                $"{weight.Variation.Iqr:F1} lb and a median absolute deviation of " +
+                $"{weight.Variation.Mad:F1} lb.");
+        }
+
+        parts.Add(
+            "Vitals treats these as descriptive weight patterns. It does not calculate BMI, " +
+            "label a weight as healthy or unhealthy, or decide whether gain or loss is desirable " +
+            "without height, goals, and clinical context.");
 
         WeightSummary = string.Join(
             " ",

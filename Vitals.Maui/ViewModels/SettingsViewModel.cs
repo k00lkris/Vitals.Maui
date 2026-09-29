@@ -11,6 +11,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly UserPreferencesService _preferences;
     private readonly AuthService _auth;
     private readonly PatientStateService _patientState;
+    private readonly ApiService _api;
     private bool _suppressPreferenceSave;
 
     [ObservableProperty] string _currentTheme = "vitals_blue";
@@ -19,6 +20,18 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] bool _showTemperature = true;
     [ObservableProperty] bool _showWeight = false;
     [ObservableProperty] bool _showGlucose = false;
+
+    // Mutable demographics belong to the currently selected PATIENT, not
+    // the signed-in account. This matters in caregiver households where one
+    // user can manage several people.
+    [ObservableProperty] string _profilePatientName = "No patient selected";
+    [ObservableProperty] string _profileGender = string.Empty;
+    [ObservableProperty] string _profileHeightFeet = string.Empty;
+    [ObservableProperty] string _profileHeightInches = string.Empty;
+    [ObservableProperty] bool _isSavingProfile;
+    [ObservableProperty] string _profileStatusMessage = string.Empty;
+
+    public bool HasSelectedPatient => _patientState.SelectedPatient is not null;
 
     public string DisplayName => _auth.DisplayName ?? "Unknown";
     public string Email => _auth.Email ?? "";
@@ -43,12 +56,15 @@ public partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(
         UserPreferencesService preferences,
         AuthService auth,
-        PatientStateService patientState)
+        PatientStateService patientState,
+        ApiService api)
     {
         _preferences = preferences;
         _auth = auth;
         _patientState = patientState;
+        _api = api;
         LoadPreferences();
+        LoadPatientProfile();
     }
 
     /// <summary>
@@ -77,6 +93,108 @@ public partial class SettingsViewModel : ObservableObject
     {
         var preferences = await _preferences.RefreshAsync();
         ApplyPreferences(preferences);
+        LoadPatientProfile();
+    }
+
+    private void LoadPatientProfile()
+    {
+        var patient = _patientState.SelectedPatient;
+
+        ProfileStatusMessage = string.Empty;
+        ProfilePatientName = patient?.FullName ?? "No patient selected";
+        ProfileGender = patient?.Gender ?? string.Empty;
+
+        if (patient?.HeightInches is int totalInches)
+        {
+            ProfileHeightFeet = (totalInches / 12).ToString();
+            ProfileHeightInches = (totalInches % 12).ToString();
+        }
+        else
+        {
+            ProfileHeightFeet = string.Empty;
+            ProfileHeightInches = string.Empty;
+        }
+
+        OnPropertyChanged(nameof(HasSelectedPatient));
+    }
+
+    [RelayCommand]
+    async Task SavePatientProfileAsync()
+    {
+        var patient = _patientState.SelectedPatient;
+        if (patient is null)
+        {
+            ProfileStatusMessage = "Select a patient first.";
+            return;
+        }
+
+        if (!TryGetProfileHeightInches(out var heightInches, out var heightError))
+        {
+            ProfileStatusMessage = heightError;
+            return;
+        }
+
+        IsSavingProfile = true;
+        ProfileStatusMessage = string.Empty;
+
+        try
+        {
+            var updated = await _api.UpdatePatientDemographicsAsync(
+                patient.PatientId,
+                new
+                {
+                    gender = string.IsNullOrWhiteSpace(ProfileGender)
+                        ? null
+                        : ProfileGender,
+                    height_inches = heightInches,
+                });
+
+            if (updated is null)
+            {
+                ProfileStatusMessage = "Could not update the patient profile.";
+                return;
+            }
+
+            _patientState.ApplyUpdatedPatient(updated);
+            LoadPatientProfile();
+            ProfileStatusMessage = "Patient profile updated.";
+        }
+        finally
+        {
+            IsSavingProfile = false;
+        }
+    }
+
+    private bool TryGetProfileHeightInches(
+        out int? totalInches,
+        out string error)
+    {
+        totalInches = null;
+        error = string.Empty;
+
+        var feetText = ProfileHeightFeet?.Trim() ?? string.Empty;
+        var inchesText = ProfileHeightInches?.Trim() ?? string.Empty;
+
+        // Clearing both fields intentionally clears the stored height.
+        if (string.IsNullOrEmpty(feetText) && string.IsNullOrEmpty(inchesText))
+            return true;
+
+        if (!int.TryParse(feetText, out var feet) || feet < 1 || feet > 8)
+        {
+            error = "Height feet must be between 1 and 8.";
+            return false;
+        }
+
+        var inches = 0;
+        if (!string.IsNullOrEmpty(inchesText) &&
+            (!int.TryParse(inchesText, out inches) || inches < 0 || inches > 11))
+        {
+            error = "Height inches must be between 0 and 11.";
+            return false;
+        }
+
+        totalInches = feet * 12 + inches;
+        return true;
     }
 
     private void ApplyPreferences(UserPreferences preferences)
