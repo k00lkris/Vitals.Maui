@@ -271,19 +271,10 @@ public partial class VitalsAnalysisViewModel : ObservableObject
             BuildWeightSummary(result);
             BuildGlucoseSummary(result);
 
-            if (!result.IsOk)
-            {
-                if (TrackHeartRate && result.HeartRate is not null)
-                    SelectTab("hr");
-                else if (TrackSpo2 && result.Spo2 is not null)
-                    SelectTab("spo2");
-                else if (TrackTemperature && result.Temperature is not null)
-                    SelectTab("temp");
-                else if (TrackWeight && result.Weight is not null)
-                    SelectTab("weight");
-                else if (TrackGlucose && result.Glucose is not null)
-                    SelectTab("glucose");
-            }
+            // Blood Pressure is the app's primary vital, so Analysis always
+            // opens on BP even when BP has not yet met its own data threshold.
+            // The BP tab can show its scoped "Not Enough Data Yet" state while
+            // the user deliberately chooses another available vital if desired.
         }
         catch (Exception ex)
         {
