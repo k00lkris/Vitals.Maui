@@ -1361,6 +1361,19 @@ public partial class VitalsAnalysisViewModel : ObservableObject
             $"The latest recorded weight was {latest.Value:F1} lb."
         };
 
+        if (weight.HasBmi)
+        {
+            parts.Add(
+                $"Using the current profile height, adult BMI is " +
+                $"{weight.Anthropometrics!.Bmi!.Value:F1} kg/m² " +
+                $"({weight.BmiCategoryDisplay.ToLowerInvariant()} BMI screening category). " +
+                "BMI is a screening measure and should be interpreted with other health information.");
+        }
+        else if (weight.HasBmiUnavailable)
+        {
+            parts.Add(weight.BmiUnavailableDisplay);
+        }
+
         var summary = weight.DailySummary ?? weight.Summary;
         if (summary is not null && weight.DataSupport is not null)
         {
@@ -1432,9 +1445,9 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         }
 
         parts.Add(
-            "Vitals treats these as descriptive weight patterns. It does not calculate BMI, " +
-            "label a weight as healthy or unhealthy, or decide whether gain or loss is desirable " +
-            "without height, goals, and clinical context.");
+            "Vitals treats weight change as a descriptive pattern and does not decide whether " +
+            "gain or loss is desirable without goals and clinical context. BMI is screening " +
+            "context only and is not a diagnosis or body-composition measurement.");
 
         WeightSummary = string.Join(
             " ",
