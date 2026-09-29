@@ -63,9 +63,8 @@ public partial class OnboardingVitalPreferencesViewModel : ObservableObject
     [RelayCommand]
     public async Task ContinueAsync()
     {
-        // This boundary is worth awaiting: the first-reading screen and any
-        // later app launch should see the same server-backed choices even if
-        // the app is suspended immediately after onboarding.
+        // This boundary is worth awaiting so the server persistence attempt
+        // completes before the first-reading screen starts loading preferences.
         await _preferences.SaveAsync();
         OnContinue?.Invoke();
     }
