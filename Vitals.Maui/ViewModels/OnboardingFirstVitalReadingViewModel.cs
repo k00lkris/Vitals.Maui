@@ -9,6 +9,7 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
 {
     private readonly ApiService _api;
     private readonly PatientStateService _patientState;
+    private readonly VitalPreferencesService _preferences;
 
     public System.Collections.ObjectModel.ObservableCollection<Patient> Patients =>
         new(_patientState.Patients);
@@ -21,12 +22,12 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
         set => _patientState.SelectedPatient = value;
     }
 
-    // Same show/hide preferences just set on the previous screen.
-    [ObservableProperty] private bool _showHeartRate = true;
-    [ObservableProperty] private bool _showSpo2 = true;
-    [ObservableProperty] private bool _showTemperature = true;
-    [ObservableProperty] private bool _showWeight = false;
-    [ObservableProperty] private bool _showGlucose = false;
+    // Same shared preferences just set on the previous screen.
+    public bool ShowHeartRate => _preferences.ShowHeartRate;
+    public bool ShowSpo2 => _preferences.ShowSpo2;
+    public bool ShowTemperature => _preferences.ShowTemperature;
+    public bool ShowWeight => _preferences.ShowWeight;
+    public bool ShowGlucose => _preferences.ShowGlucose;
 
     [ObservableProperty] private string _systolic = string.Empty;
     [ObservableProperty] private string _diastolic = string.Empty;
@@ -40,10 +41,26 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
 
-    public OnboardingFirstVitalReadingViewModel(ApiService api, PatientStateService patientState)
+    public OnboardingFirstVitalReadingViewModel(
+        ApiService api,
+        PatientStateService patientState,
+        VitalPreferencesService preferences)
     {
         _api = api;
         _patientState = patientState;
+        _preferences = preferences;
+
+        _preferences.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(VitalPreferencesService.ShowHeartRate)
+                or nameof(VitalPreferencesService.ShowSpo2)
+                or nameof(VitalPreferencesService.ShowTemperature)
+                or nameof(VitalPreferencesService.ShowWeight)
+                or nameof(VitalPreferencesService.ShowGlucose))
+            {
+                OnPropertyChanged(e.PropertyName);
+            }
+        };
     }
 
     /// <summary>
@@ -64,11 +81,7 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
     /// </summary>
     public async Task LoadAsync()
     {
-        ShowHeartRate = Preferences.Get("show_heart_rate", true);
-        ShowSpo2 = Preferences.Get("show_spo2", true);
-        ShowTemperature = Preferences.Get("show_temperature", true);
-        ShowWeight = Preferences.Get("show_weight", false);
-        ShowGlucose = Preferences.Get("show_glucose", false);
+        await _preferences.LoadAsync();
 
         _patientState.Reset();
         await _patientState.InitializeAsync();
