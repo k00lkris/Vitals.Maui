@@ -2473,6 +2473,9 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.IsOk">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._isOk"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.HasAnalysisResponse">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._hasAnalysisResponse"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsAnalysisViewModel.HasAnalysisResults">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsAnalysisViewModel._hasAnalysisResults"/>
         </member>
@@ -3601,6 +3604,9 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsOk">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsOk" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasAnalysisResponse">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HasAnalysisResponse" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HasAnalysisResults">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HasAnalysisResults" generated properties.</summary>
         </member>
@@ -4356,6 +4362,9 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsOk">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsOk" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasAnalysisResponse">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HasAnalysisResponse" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HasAnalysisResults">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HasAnalysisResults" generated properties.</summary>
