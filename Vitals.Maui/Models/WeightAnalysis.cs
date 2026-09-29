@@ -24,6 +24,9 @@ public class WeightAnalysis
     [JsonPropertyName("reading_count")]
     public int ReadingCount { get; set; }
 
+    [JsonPropertyName("anthropometrics")]
+    public WeightAnthropometrics? Anthropometrics { get; set; }
+
     [JsonPropertyName("summary")]
     public DescriptiveVitalSummary? Summary { get; set; }
 
@@ -53,6 +56,8 @@ public class WeightAnalysis
     public List<string> Limitations { get; set; } = new();
 
     public bool HasLatest => Latest is not null;
+    public bool HasBmi => Anthropometrics?.BmiAvailable == true && Anthropometrics.Bmi is not null;
+    public bool HasBmiUnavailable => Latest is not null && Anthropometrics is not null && !Anthropometrics.BmiAvailable;
     public bool HasSummary => (DailySummary ?? Summary) is not null;
     public bool HasBaselineChange => BaselineChange is not null;
     public bool HasChange => HasBaselineChange;
@@ -65,6 +70,50 @@ public class WeightAnalysis
 
     public string LatestDisplay =>
         Latest is null ? string.Empty : $"{Latest.Value:F1} {Unit}";
+
+    public string BmiDisplay =>
+        !HasBmi
+            ? string.Empty
+            : $"{Anthropometrics!.Bmi!.Value:F1} kg/m²";
+
+    public string BmiCategoryDisplay =>
+        Anthropometrics?.AdultCategory switch
+        {
+            "underweight" => "Underweight",
+            "healthy_weight" => "Healthy weight",
+            "overweight" => "Overweight",
+            "obesity_class_1" => "Obesity — Class 1",
+            "obesity_class_2" => "Obesity — Class 2",
+            "obesity_class_3" => "Obesity — Class 3",
+            _ => string.Empty
+        };
+
+    public string BmiContextDisplay
+    {
+        get
+        {
+            if (!HasBmi || Anthropometrics?.HeightInches is not int totalInches)
+                return string.Empty;
+
+            var feet = totalInches / 12;
+            var inches = totalInches % 12;
+            var age = Anthropometrics.AgeYears is int years
+                ? $" · age {years} on weight date"
+                : string.Empty;
+
+            return $"Current profile height used: {feet}' {inches}\"{age}";
+        }
+    }
+
+    public string BmiUnavailableDisplay =>
+        Anthropometrics?.ReasonUnavailable switch
+        {
+            "missing_height" => "Add a current height in Settings → Patient Profile to calculate adult BMI.",
+            "missing_date_of_birth" => "A date of birth is required before adult BMI can be age-gated.",
+            "pediatric_strategy_required" => "Adult BMI screening categories are not shown for patients under age 20. Pediatric BMI-for-age is a separate analysis.",
+            "invalid_height" => "The stored height is not usable for BMI calculation.",
+            _ => "Adult BMI is unavailable for the current patient profile."
+        };
 
     public string SummaryDisplay
     {
@@ -156,6 +205,38 @@ public class WeightAnalysis
         Limitations.Count == 0
             ? string.Empty
             : string.Join(Environment.NewLine, Limitations.Select(x => $"• {x}"));
+}
+
+public class WeightAnthropometrics
+{
+    [JsonPropertyName("bmi_available")]
+    public bool BmiAvailable { get; set; }
+
+    [JsonPropertyName("reason_unavailable")]
+    public string? ReasonUnavailable { get; set; }
+
+    [JsonPropertyName("height_inches")]
+    public int? HeightInches { get; set; }
+
+    [JsonPropertyName("height_cm")]
+    public double? HeightCm { get; set; }
+
+    [JsonPropertyName("height_source")]
+    public string? HeightSource { get; set; }
+
+    // Null for the current scalar profile-height implementation. Historical
+    // BMI stays disabled until dated height observations are introduced.
+    [JsonPropertyName("height_measured_at")]
+    public string? HeightMeasuredAt { get; set; }
+
+    [JsonPropertyName("age_years")]
+    public int? AgeYears { get; set; }
+
+    [JsonPropertyName("bmi")]
+    public double? Bmi { get; set; }
+
+    [JsonPropertyName("adult_category")]
+    public string? AdultCategory { get; set; }
 }
 
 public class WeightBaselineChange
