@@ -7,6 +7,9 @@ public class UserPreferences
     [JsonPropertyName("user_id")]
     public string UserId { get; set; } = string.Empty;
 
+    [JsonPropertyName("patient_id")]
+    public string? PatientId { get; set; }
+
     [JsonPropertyName("display_name")]
     public string? DisplayName { get; set; }
 

@@ -129,8 +129,8 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     public bool ShowBpInsufficient => ShowBp && IsInsufficient;
     public bool ShowBpAnalysis => ShowBp && IsOk;
 
-    // Which optional analysis tabs the signed-in user chose to track.
-    // These come from the users table through UserPreferencesService.
+    // Which optional analysis tabs the selected patient tracks.
+    // These are patient-scoped through UserPreferencesService.
     [ObservableProperty] private bool _trackHeartRate = true;
     [ObservableProperty] private bool _trackSpo2 = true;
     [ObservableProperty] private bool _trackTemperature = true;
@@ -182,7 +182,11 @@ public partial class VitalsAnalysisViewModel : ObservableObject
     {
         SelectedDays = days;
         UpdateButtonColors(days);
-        ApplyPreferences(await _preferences.RefreshAsync());
+
+        var patientId = _patientState.SelectedPatient?.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            ApplyPreferences(await _preferences.RefreshAsync(patientId));
+
         SelectTab("bp");
         await RunAnalysisAsync();
     }

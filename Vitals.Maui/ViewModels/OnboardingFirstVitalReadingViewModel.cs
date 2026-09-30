@@ -9,6 +9,7 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
 {
     private readonly ApiService _api;
     private readonly PatientStateService _patientState;
+    private readonly UserPreferencesService _preferences;
 
     public System.Collections.ObjectModel.ObservableCollection<Patient> Patients =>
         new(_patientState.Patients);
@@ -40,10 +41,23 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
 
-    public OnboardingFirstVitalReadingViewModel(ApiService api, PatientStateService patientState)
+    public OnboardingFirstVitalReadingViewModel(
+        ApiService api,
+        PatientStateService patientState,
+        UserPreferencesService preferences)
     {
         _api = api;
         _patientState = patientState;
+        _preferences = preferences;
+
+        _patientState.PropertyChanged += async (s, e) =>
+        {
+            if (e.PropertyName == nameof(PatientStateService.SelectedPatient))
+            {
+                OnPropertyChanged(nameof(SelectedPatient));
+                await LoadSelectedPatientPreferencesAsync();
+            }
+        };
     }
 
     /// <summary>
@@ -64,17 +78,43 @@ public partial class OnboardingFirstVitalReadingViewModel : ObservableObject
     /// </summary>
     public async Task LoadAsync()
     {
-        ShowHeartRate = Preferences.Get("show_heart_rate", true);
-        ShowSpo2 = Preferences.Get("show_spo2", true);
-        ShowTemperature = Preferences.Get("show_temperature", true);
-        ShowWeight = Preferences.Get("show_weight", false);
-        ShowGlucose = Preferences.Get("show_glucose", false);
+        // Preserve the patient chosen during onboarding/join while still
+        // forcing a clean patient-list reload for the current household.
+        var intendedPatientId = _patientState.SelectedPatient?.PatientId;
 
         _patientState.Reset();
         await _patientState.InitializeAsync();
+
+        if (!string.IsNullOrWhiteSpace(intendedPatientId))
+        {
+            var intended = _patientState.Patients
+                .FirstOrDefault(p => p.PatientId == intendedPatientId);
+            if (intended is not null)
+                _patientState.SelectedPatient = intended;
+        }
+
         OnPropertyChanged(nameof(Patients));
         OnPropertyChanged(nameof(HasMultiplePatients));
         OnPropertyChanged(nameof(SelectedPatient));
+        await LoadSelectedPatientPreferencesAsync();
+    }
+
+    private async Task LoadSelectedPatientPreferencesAsync()
+    {
+        var patientId = _patientState.SelectedPatient?.PatientId;
+        if (string.IsNullOrWhiteSpace(patientId))
+            return;
+
+        var preferences = await _preferences.RefreshAsync(patientId);
+
+        if (_patientState.SelectedPatient?.PatientId != patientId)
+            return;
+
+        ShowHeartRate = preferences.ShowHeartRate;
+        ShowSpo2 = preferences.ShowSpo2;
+        ShowTemperature = preferences.ShowTemperature;
+        ShowWeight = preferences.ShowWeight;
+        ShowGlucose = preferences.ShowGlucose;
     }
 
     [RelayCommand]

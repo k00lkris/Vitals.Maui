@@ -277,7 +277,11 @@
                     <Label Text="VITAL FIELDS"
                            FontSize="11" FontAttributes="Bold"
                            TextColor="{DynamicResource PrimaryAccent}" />
-                    <Label Text="Choose which vitals you track across entry, dashboard, analysis, and reports."
+                    <Label Text="{Binding ProfilePatientName, StringFormat='These vital settings apply to {0}.'}"
+                           FontSize="12" FontAttributes="Bold"
+                           TextColor="{DynamicResource TextPrimary}"
+                           LineBreakMode="WordWrap" />
+                    <Label Text="Choose which vitals this patient tracks across entry, dashboard, analysis, and reports."
                            FontSize="12"
                            TextColor="{DynamicResource TextSecondary}"
                            LineBreakMode="WordWrap" />
