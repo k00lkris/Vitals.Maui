@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Vitals.Maui.Models;
@@ -77,7 +78,10 @@ public partial class SettingsViewModel : ObservableObject
         _patientState.PropertyChanged += async (s, e) =>
         {
             if (e.PropertyName == nameof(PatientStateService.SelectedPatient))
+            {
+                HeightStatusMessage = string.Empty;
                 await LoadSelectedPatientAsync();
+            }
         };
 
         LoadPreferences();
