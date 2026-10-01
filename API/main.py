@@ -6845,22 +6845,38 @@ def export_medications_pdf(
         pdf.setStrokeColorRGB(0, 0, 0)
         y -= 14
 
-    # Optional vital analyses are independent of BP readiness. When BP
-    # has fewer than its own analysis gate, start a dedicated analysis
-    # page here instead of suppressing every other tracked metric.
-    optional_analysis_present = any([
-        hr_analysis,
-        spo2_analysis,
-        temp_analysis,
-        weight_analysis,
-        glucose_analysis,
-    ])
-    if bp is None and optional_analysis_present:
+    # Blood pressure is the core vital and uses its own >=7-reading gate.
+    # Mirror the app's scoped "Not Enough Data Yet" behavior in the PDF
+    # instead of silently omitting BP whenever optional-vital analysis exists.
+    if bp is None:
         pdf.showPage()
         y = height - 50
         pdf.setFont("Helvetica-Bold", 13)
         pdf.drawString(LEFT, y, f"Vitals Analysis (Last {days} Days)")
         y -= 20
+
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(LEFT, y, "Blood Pressure Clinical Analysis")
+        y -= 14
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT + 10, y, "Not Enough Data Yet")
+        y -= 14
+        pdf.setFont("Helvetica", 9)
+        bp_count = len(bp_analysis_rows)
+        y = draw_wrapped_line(
+            y,
+            f"{bp_count} blood pressure reading(s) are available in this report window. "
+            f"Blood pressure analysis requires at least 7 readings. Other tracked vitals "
+            f"below are analyzed independently when their own data requirements are met.",
+            fontsize=9,
+            indent=10,
+            line_spacing=12,
+        )
+        y -= 10
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
 
     # =====================================================
     # HEART RATE — CLINICAL ANALYSIS
