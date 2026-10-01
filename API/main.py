@@ -4455,14 +4455,24 @@ def update_patient_demographics(
 
     New app builds record height through the dated /height endpoint below.
     height_inches remains accepted here for backward compatibility; when an
-    older build changes it, a dated measurement is automatically captured so
-    the history cannot silently diverge from patients.height_inches.
+    older build explicitly changes it, a dated measurement is automatically
+    captured so history cannot silently diverge from patients.height_inches.
+    Fields omitted from PATCH are preserved; an explicit null can still clear
+    the legacy current-height cache if an older client requests that.
     """
+    fields_set = getattr(
+        body,
+        "model_fields_set",
+        getattr(body, "__fields_set__", set()),
+    )
+    gender_was_sent = "gender" in fields_set
+    height_was_sent = "height_inches" in fields_set
+
     conn = get_conn()
     cur = conn.cursor()
     try:
         cur.execute("""
-            SELECT height_inches
+            SELECT gender, height_inches
             FROM patients
             WHERE patient_id = %s
               AND household_id = %s
@@ -4472,7 +4482,9 @@ def update_patient_demographics(
         if not existing:
             raise HTTPException(status_code=404, detail="Patient not found")
 
-        old_height = existing[0]
+        old_gender, old_height = existing
+        next_gender = body.gender if gender_was_sent else old_gender
+        next_height = body.height_inches if height_was_sent else old_height
 
         cur.execute("""
             UPDATE patients
@@ -4482,14 +4494,14 @@ def update_patient_demographics(
               AND household_id = %s
             RETURNING patient_id, first_name, last_name, dob, gender, height_inches;
         """, (
-            body.gender,
-            body.height_inches,
+            next_gender,
+            next_height,
             str(patient_id),
             household_id,
         ))
         row = cur.fetchone()
 
-        if body.height_inches is not None and body.height_inches != old_height:
+        if height_was_sent and next_height is not None and next_height != old_height:
             created_by = None if auth.get("type") == "api_key" else auth.get("sub")
             cur.execute("""
                 INSERT INTO patient_height_history
@@ -4500,11 +4512,11 @@ def update_patient_demographics(
             """, (
                 str(patient_id),
                 household_id,
-                body.height_inches,
+                next_height,
                 created_by,
             ))
 
-        if body.height_inches != old_height:
+        if height_was_sent and next_height != old_height:
             cur.execute("""
                 DELETE FROM vitals_analysis_cache
                 WHERE patient_id = %s
