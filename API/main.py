@@ -292,7 +292,25 @@ class PatientOut(BaseModel):
 
 class PatientDemographicsUpdate(BaseModel):
     gender: Optional[str] = None
+    # Kept for backward compatibility with older app builds. New builds use
+    # the dated /height endpoint for explicit height measurements/corrections.
     height_inches: Optional[int] = Field(None, ge=12, le=107)
+
+class PatientHeightCreate(BaseModel):
+    height_inches: int = Field(..., ge=12, le=107)
+    effective_date: Optional[date] = None
+    update_type: Literal["measurement", "correction"] = "measurement"
+
+class PatientHeightOut(BaseModel):
+    height_id: str
+    patient_id: str
+    height_inches: int
+    effective_date: date
+    entry_type: str
+    source: str
+    supersedes_height_id: Optional[str]
+    is_active: bool
+    created_at: datetime
 
 class MedicationCreate(BaseModel):
     patient_id: UUID
@@ -2872,7 +2890,16 @@ def run_weight_analysis(
         height_inches = int(height_inches)
         anthropometrics["height_inches"] = height_inches
         anthropometrics["height_cm"] = round(height_inches * 2.54, 1)
-        anthropometrics["height_source"] = "current_profile"
+        anthropometrics["height_source"] = (
+            demographics.get("height_source") or "current_profile"
+        )
+        height_effective_date = demographics.get("height_effective_date")
+        if height_effective_date is not None:
+            anthropometrics["height_measured_at"] = (
+                height_effective_date.isoformat()
+                if hasattr(height_effective_date, "isoformat")
+                else str(height_effective_date)
+            )
 
     if dob is None:
         anthropometrics["reason_unavailable"] = "missing_date_of_birth"
@@ -3132,7 +3159,7 @@ def run_weight_analysis(
     )
 
     return {
-        "analysis_version": 4,
+        "analysis_version": 5,
         "vital_type": "weight",
         "unit": "lb",
         "latest": {
@@ -3294,7 +3321,7 @@ VITAL_ANALYSIS_REGISTRY = {
         "needs_patient_demographics": True,
         # Increment when the Weight contract changes. The read path uses this
         # to ignore an older JSON cache row and recompute it immediately.
-        "analysis_version": 4,
+        "analysis_version": 5,
     },
     "glucose": {
         "from_clause": "vitals",
@@ -3369,21 +3396,37 @@ def recompute_vital_cache(patient_id: str, household_id: str, vital_type: str):
             prior_period_rows = cur.fetchall()
 
         # Patient demographics are fetched only for analyses that declare
-        # the dependency. Weight currently uses DOB + current profile height
-        # for age-gated adult current BMI.
+        # the dependency. Weight uses DOB + current profile height plus the
+        # dated height-history metadata for age-gated adult current BMI.
         patient_demographics = None
         if entry.get("needs_patient_demographics"):
             cur.execute("""
-                SELECT dob, height_inches
-                FROM patients
-                WHERE patient_id = %s
-                  AND household_id = %s;
+                SELECT
+                    p.dob,
+                    p.height_inches,
+                    h.effective_date,
+                    h.entry_type
+                FROM patients p
+                LEFT JOIN LATERAL (
+                    SELECT effective_date, entry_type
+                    FROM patient_height_history
+                    WHERE patient_id = p.patient_id
+                      AND household_id = p.household_id
+                      AND is_active = true
+                      AND height_inches = p.height_inches
+                    ORDER BY effective_date DESC, created_at DESC
+                    LIMIT 1
+                ) h ON true
+                WHERE p.patient_id = %s
+                  AND p.household_id = %s;
             """, (patient_id, household_id))
             demographic_row = cur.fetchone()
             if demographic_row is not None:
                 patient_demographics = {
                     "dob": demographic_row[0],
                     "height_inches": demographic_row[1],
+                    "height_effective_date": demographic_row[2],
+                    "height_source": demographic_row[3],
                 }
 
         # Built generically so any combination of optional extra datasets
@@ -3462,7 +3505,7 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
                     )
                 ):
                     return cached  # valid cache hit
-                # Contract changed (currently used by Weight v4). Fall through
+                # Contract changed (currently used by Weight v5). Fall through
                 # and recompute this window instead of serving stale JSON.
 
         # Cache miss on a standard window, or a custom range — compute now.
@@ -3508,16 +3551,32 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
         patient_demographics = None
         if entry.get("needs_patient_demographics"):
             cur.execute("""
-                SELECT dob, height_inches
-                FROM patients
-                WHERE patient_id = %s
-                  AND household_id = %s;
+                SELECT
+                    p.dob,
+                    p.height_inches,
+                    h.effective_date,
+                    h.entry_type
+                FROM patients p
+                LEFT JOIN LATERAL (
+                    SELECT effective_date, entry_type
+                    FROM patient_height_history
+                    WHERE patient_id = p.patient_id
+                      AND household_id = p.household_id
+                      AND is_active = true
+                      AND height_inches = p.height_inches
+                    ORDER BY effective_date DESC, created_at DESC
+                    LIMIT 1
+                ) h ON true
+                WHERE p.patient_id = %s
+                  AND p.household_id = %s;
             """, (patient_id, household_id))
             demographic_row = cur.fetchone()
             if demographic_row is not None:
                 patient_demographics = {
                     "dob": demographic_row[0],
                     "height_inches": demographic_row[1],
+                    "height_effective_date": demographic_row[2],
+                    "height_source": demographic_row[3],
                 }
 
         extra_kwargs = {}
@@ -4340,6 +4399,23 @@ def create_patient(
     """, (p.first_name, p.last_name, p.dob, p.gender, p.height_inches, household_id))
     row = cur.fetchone()
 
+    creating_user_id = None
+    if auth.get("type") != "api_key":
+        creating_user_id = auth.get("sub")
+
+    if p.height_inches is not None:
+        cur.execute("""
+            INSERT INTO patient_height_history
+                (patient_id, household_id, height_inches, effective_date,
+                 entry_type, source, created_by)
+            VALUES (%s, %s, %s, current_date, 'measurement', 'onboarding', %s);
+        """, (
+            row[0],
+            household_id,
+            p.height_inches,
+            creating_user_id,
+        ))
+
     # Record who created this patient and how they relate to them. Not an
     # access-control mechanism — household-wide access is still the model —
     # just relationship metadata (see PatientCreate.relationship) so a
@@ -4349,7 +4425,6 @@ def create_patient(
     # JWT-authenticated users; the legacy API-key path (Home Assistant) has
     # no actual user_id to link, so it's skipped there.
     if auth.get("type") != "api_key":
-        creating_user_id = auth.get("sub")
         if creating_user_id:
             cur.execute("""
                 INSERT INTO patient_users (patient_id, user_id, relationship, created_at)
@@ -4373,17 +4448,32 @@ def update_patient_demographics(
     patient_id: UUID,
     body: PatientDemographicsUpdate,
     household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
 ):
     """
-    Updates patient-level demographics that can legitimately change over time.
+    Updates patient demographics.
 
-    Height is stored as total inches even though the mobile UI displays
-    feet/inches. The household predicate is part of the UPDATE itself so a
-    caller can never update a patient from another household by guessing an ID.
+    New app builds record height through the dated /height endpoint below.
+    height_inches remains accepted here for backward compatibility; when an
+    older build changes it, a dated measurement is automatically captured so
+    the history cannot silently diverge from patients.height_inches.
     """
     conn = get_conn()
     cur = conn.cursor()
     try:
+        cur.execute("""
+            SELECT height_inches
+            FROM patients
+            WHERE patient_id = %s
+              AND household_id = %s
+            FOR UPDATE;
+        """, (str(patient_id), household_id))
+        existing = cur.fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        old_height = existing[0]
+
         cur.execute("""
             UPDATE patients
             SET gender = %s,
@@ -4399,17 +4489,27 @@ def update_patient_demographics(
         ))
         row = cur.fetchone()
 
-        if not row:
-            raise HTTPException(status_code=404, detail="Patient not found")
+        if body.height_inches is not None and body.height_inches != old_height:
+            created_by = None if auth.get("type") == "api_key" else auth.get("sub")
+            cur.execute("""
+                INSERT INTO patient_height_history
+                    (patient_id, household_id, height_inches, effective_date,
+                     entry_type, source, created_by)
+                VALUES (%s, %s, %s, current_date, 'measurement',
+                        'legacy_profile_update', %s);
+            """, (
+                str(patient_id),
+                household_id,
+                body.height_inches,
+                created_by,
+            ))
 
-        # Weight analysis v3 depends on current profile height. Clear cached
-        # Weight windows whenever demographics are saved so the next Analysis
-        # read recomputes BMI using the newly stored height.
-        cur.execute("""
-            DELETE FROM vitals_analysis_cache
-            WHERE patient_id = %s
-              AND vital_type = 'weight';
-        """, (str(patient_id),))
+        if body.height_inches != old_height:
+            cur.execute("""
+                DELETE FROM vitals_analysis_cache
+                WHERE patient_id = %s
+                  AND vital_type = 'weight';
+            """, (str(patient_id),))
 
         conn.commit()
         return {
@@ -4426,6 +4526,196 @@ def update_patient_demographics(
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=500, detail=f"Patient update error: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.get(
+    "/api/patients/{patient_id}/height-history",
+    response_model=list[PatientHeightOut],
+)
+def get_patient_height_history(
+    patient_id: UUID,
+    household_id: str = Depends(get_household_id),
+):
+    """Returns the complete auditable height history, including superseded rows."""
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        verify_patient_household(cur, str(patient_id), household_id)
+        cur.execute("""
+            SELECT
+                height_id,
+                patient_id,
+                height_inches,
+                effective_date,
+                entry_type,
+                source,
+                supersedes_height_id,
+                is_active,
+                created_at
+            FROM patient_height_history
+            WHERE patient_id = %s
+              AND household_id = %s
+            ORDER BY effective_date DESC, created_at DESC;
+        """, (str(patient_id), household_id))
+
+        rows = cur.fetchall()
+        return [
+            {
+                "height_id": str(r[0]),
+                "patient_id": str(r[1]),
+                "height_inches": r[2],
+                "effective_date": r[3],
+                "entry_type": r[4],
+                "source": r[5],
+                "supersedes_height_id": str(r[6]) if r[6] else None,
+                "is_active": r[7],
+                "created_at": r[8],
+            }
+            for r in rows
+        ]
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.post(
+    "/api/patients/{patient_id}/height",
+    response_model=PatientHeightOut,
+)
+def record_patient_height(
+    patient_id: UUID,
+    body: PatientHeightCreate,
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    """
+    Records a new dated height measurement or corrects the current/latest
+    active height record. Corrections preserve the superseded row for audit.
+
+    patients.height_inches remains a denormalized current-value cache and is
+    synchronized to the most recent active height observation.
+    """
+    requested_date = body.effective_date or date.today()
+    if requested_date > date.today():
+        raise HTTPException(
+            status_code=400,
+            detail="Height effective date cannot be in the future",
+        )
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        verify_patient_household(cur, str(patient_id), household_id)
+        created_by = None if auth.get("type") == "api_key" else auth.get("sub")
+
+        supersedes_height_id = None
+        effective_date = requested_date
+        entry_type = "measurement"
+
+        if body.update_type == "correction":
+            cur.execute("""
+                SELECT height_id, effective_date
+                FROM patient_height_history
+                WHERE patient_id = %s
+                  AND household_id = %s
+                  AND is_active = true
+                ORDER BY effective_date DESC, created_at DESC
+                LIMIT 1
+                FOR UPDATE;
+            """, (str(patient_id), household_id))
+            prior = cur.fetchone()
+
+            if prior is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="There is no existing height record to correct",
+                )
+
+            supersedes_height_id = prior[0]
+            if body.effective_date is None:
+                effective_date = prior[1]
+            entry_type = "correction"
+
+            cur.execute("""
+                UPDATE patient_height_history
+                SET is_active = false
+                WHERE height_id = %s;
+            """, (supersedes_height_id,))
+
+        cur.execute("""
+            INSERT INTO patient_height_history
+                (patient_id, household_id, height_inches, effective_date,
+                 entry_type, source, supersedes_height_id, created_by)
+            VALUES (%s, %s, %s, %s, %s, 'manual_profile', %s, %s)
+            RETURNING
+                height_id,
+                patient_id,
+                height_inches,
+                effective_date,
+                entry_type,
+                source,
+                supersedes_height_id,
+                is_active,
+                created_at;
+        """, (
+            str(patient_id),
+            household_id,
+            body.height_inches,
+            effective_date,
+            entry_type,
+            supersedes_height_id,
+            created_by,
+        ))
+        inserted = cur.fetchone()
+
+        # Current profile height = most recent active observation as of today.
+        cur.execute("""
+            SELECT height_inches
+            FROM patient_height_history
+            WHERE patient_id = %s
+              AND household_id = %s
+              AND is_active = true
+              AND effective_date <= current_date
+            ORDER BY effective_date DESC, created_at DESC
+            LIMIT 1;
+        """, (str(patient_id), household_id))
+        latest_active = cur.fetchone()
+        current_height = latest_active[0] if latest_active else None
+
+        cur.execute("""
+            UPDATE patients
+            SET height_inches = %s
+            WHERE patient_id = %s
+              AND household_id = %s;
+        """, (current_height, str(patient_id), household_id))
+
+        cur.execute("""
+            DELETE FROM vitals_analysis_cache
+            WHERE patient_id = %s
+              AND vital_type = 'weight';
+        """, (str(patient_id),))
+
+        conn.commit()
+        return {
+            "height_id": str(inserted[0]),
+            "patient_id": str(inserted[1]),
+            "height_inches": inserted[2],
+            "effective_date": inserted[3],
+            "entry_type": inserted[4],
+            "source": inserted[5],
+            "supersedes_height_id": str(inserted[6]) if inserted[6] else None,
+            "is_active": inserted[7],
+            "created_at": inserted[8],
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Height update error: {e}")
     finally:
         cur.close()
         conn.close()
