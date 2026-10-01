@@ -2844,8 +2844,8 @@ def run_weight_analysis(
     Adult current BMI is calculated only when the patient's date of birth
     establishes age >=20 on the latest weight date and a current profile
     height is available. BMI is presented as screening context, never as a
-    diagnosis or body-composition estimate. Historical BMI is intentionally
-    deferred until dated height observations exist.
+    diagnosis or body-composition estimate. Dated height observations are now
+    retained; historical BMI trajectory remains a separate analysis set.
     """
     if not rows:
         return None
