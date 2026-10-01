@@ -5175,36 +5175,63 @@ def export_medications_pdf(
     """, (str(patient_id), household_id))
     pref_row = cur.fetchone()
 
-    # The database remains the persistent source of truth, but a current
-    # mobile build can also pass the exact visibility state it is showing at
-    # report-generation time. This prevents a stale/failed preference write
-    # from producing a PDF that silently omits a vital the user is actively
-    # viewing in Dashboard/Analysis. Older clients omit these query flags and
-    # continue to use the stored patient preferences below.
+    # PR #11 intentionally kept older app builds working by leaving their
+    # optional-vital settings in users when they omit patient_id. PR #14 then
+    # made the clinician PDF read ONLY the new patient-scoped columns. That
+    # created a split-brain state for old-but-still-supported clients: Settings
+    # could show Weight/Glucose enabled from users while the API-built PDF saw
+    # the patient's default false value and silently omitted the section.
+    #
+    # Resolve that compatibility gap entirely on the API side. Weight and
+    # Glucose are the two false-by-default optional vitals, so when a caller
+    # has not supplied the newer explicit include_* flags, a legacy TRUE is
+    # allowed to opt the section in. A patient TRUE always remains sufficient.
+    # Newer clients that do send include_* keep exact per-patient control.
+    legacy_weight = False
+    legacy_glucose = False
+    caller_user_id = None if auth.get("type") == "api_key" else auth.get("sub")
+    if caller_user_id:
+        cur.execute("""
+            SELECT show_weight, show_glucose
+            FROM users
+            WHERE user_id = %s
+              AND household_id = %s;
+        """, (caller_user_id, household_id))
+        legacy_pref_row = cur.fetchone()
+        if legacy_pref_row:
+            legacy_weight = bool(legacy_pref_row[0])
+            legacy_glucose = bool(legacy_pref_row[1])
+
+    patient_show_hr = bool(pref_row[0]) if pref_row else True
+    patient_show_spo2 = bool(pref_row[1]) if pref_row else True
+    patient_show_temp = bool(pref_row[2]) if pref_row else True
+    patient_show_weight = bool(pref_row[3]) if pref_row else False
+    patient_show_glucose = bool(pref_row[4]) if pref_row else False
+
     show_hr = (
         bool(include_heart_rate)
         if include_heart_rate is not None
-        else (bool(pref_row[0]) if pref_row else True)
+        else patient_show_hr
     )
     show_spo2 = (
         bool(include_spo2)
         if include_spo2 is not None
-        else (bool(pref_row[1]) if pref_row else True)
+        else patient_show_spo2
     )
     show_temp = (
         bool(include_temperature)
         if include_temperature is not None
-        else (bool(pref_row[2]) if pref_row else True)
+        else patient_show_temp
     )
     show_weight = (
         bool(include_weight)
         if include_weight is not None
-        else (bool(pref_row[3]) if pref_row else False)
+        else (patient_show_weight or legacy_weight)
     )
     show_glucose = (
         bool(include_glucose)
         if include_glucose is not None
-        else (bool(pref_row[4]) if pref_row else False)
+        else (patient_show_glucose or legacy_glucose)
     )
 
     tracked_conditions = [
