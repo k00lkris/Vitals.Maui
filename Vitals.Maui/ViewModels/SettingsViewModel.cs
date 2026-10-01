@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Vitals.Maui.Models;
@@ -28,10 +29,19 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] string _profileGender = string.Empty;
     [ObservableProperty] string _profileHeightFeet = string.Empty;
     [ObservableProperty] string _profileHeightInches = string.Empty;
+    [ObservableProperty] DateTime _profileHeightEffectiveDate = DateTime.Today;
     [ObservableProperty] bool _isSavingProfile;
+    [ObservableProperty] bool _isSavingHeight;
     [ObservableProperty] string _profileStatusMessage = string.Empty;
+    [ObservableProperty] string _heightStatusMessage = string.Empty;
+
+    public ObservableCollection<PatientHeightRecord> HeightHistory { get; } = new();
 
     public bool HasSelectedPatient => _patientState.SelectedPatient is not null;
+    public bool HasHeightHistory => HeightHistory.Count > 0;
+    public bool CanCorrectHeight => HeightHistory.Any(h => h.IsActive);
+    public string ProfileCurrentHeightDisplay =>
+        _patientState.SelectedPatient?.HeightDisplay ?? "Not set";
 
     public string DisplayName => _auth.DisplayName ?? "Unknown";
     public string Email => _auth.Email ?? "";
@@ -109,7 +119,10 @@ public partial class SettingsViewModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(patientId))
         {
+            HeightHistory.Clear();
             LoadPatientProfile();
+            OnPropertyChanged(nameof(HasHeightHistory));
+            OnPropertyChanged(nameof(CanCorrectHeight));
             return;
         }
 
@@ -120,6 +133,7 @@ public partial class SettingsViewModel : ObservableObject
 
         ApplyPreferences(preferences);
         LoadPatientProfile();
+        await LoadHeightHistoryAsync(patientId);
     }
 
     private void LoadPatientProfile()
@@ -129,6 +143,7 @@ public partial class SettingsViewModel : ObservableObject
         ProfileStatusMessage = string.Empty;
         ProfilePatientName = patient?.FullName ?? "No patient selected";
         ProfileGender = patient?.Gender ?? string.Empty;
+        ProfileHeightEffectiveDate = DateTime.Today;
 
         if (patient?.HeightInches is int totalInches)
         {
@@ -142,6 +157,22 @@ public partial class SettingsViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(HasSelectedPatient));
+        OnPropertyChanged(nameof(ProfileCurrentHeightDisplay));
+    }
+
+    private async Task LoadHeightHistoryAsync(string patientId)
+    {
+        var history = await _api.GetPatientHeightHistoryAsync(patientId);
+
+        if (_patientState.SelectedPatient?.PatientId != patientId)
+            return;
+
+        HeightHistory.Clear();
+        foreach (var item in history)
+            HeightHistory.Add(item);
+
+        OnPropertyChanged(nameof(HasHeightHistory));
+        OnPropertyChanged(nameof(CanCorrectHeight));
     }
 
     [RelayCommand]
@@ -154,17 +185,14 @@ public partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        if (!TryGetProfileHeightInches(out var heightInches, out var heightError))
-        {
-            ProfileStatusMessage = heightError;
-            return;
-        }
-
         IsSavingProfile = true;
         ProfileStatusMessage = string.Empty;
 
         try
         {
+            // Height now has its own dated/auditable workflow below. Patient
+            // Profile saves only the demographic fields that are not part of
+            // the height timeline.
             var updated = await _api.UpdatePatientDemographicsAsync(
                 patient.PatientId,
                 new
@@ -172,7 +200,6 @@ public partial class SettingsViewModel : ObservableObject
                     gender = string.IsNullOrWhiteSpace(ProfileGender)
                         ? null
                         : ProfileGender,
-                    height_inches = heightInches,
                 });
 
             if (updated is null)
@@ -182,7 +209,6 @@ public partial class SettingsViewModel : ObservableObject
             }
 
             _patientState.ApplyUpdatedPatient(updated);
-            LoadPatientProfile();
             ProfileStatusMessage = "Patient profile updated.";
         }
         finally
@@ -191,19 +217,131 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    async Task RecordHeightMeasurementAsync()
+    {
+        await SaveHeightAsync(
+            updateType: "measurement",
+            effectiveDate: ProfileHeightEffectiveDate);
+    }
+
+    [RelayCommand]
+    async Task CorrectCurrentHeightAsync()
+    {
+        if (!CanCorrectHeight)
+        {
+            HeightStatusMessage = "There is no height record to correct yet.";
+            return;
+        }
+
+        var confirm = await Shell.Current.DisplayAlert(
+            "Correct Current Height",
+            "Use correction only when the latest stored height was entered incorrectly. " +
+            "A real newer measurement should be recorded as a new height instead.",
+            "Correct",
+            "Cancel");
+
+        if (!confirm)
+            return;
+
+        // Null tells the API to preserve the original effective date of the
+        // record being corrected.
+        await SaveHeightAsync(
+            updateType: "correction",
+            effectiveDate: null);
+    }
+
+    private async Task SaveHeightAsync(string updateType, DateTime? effectiveDate)
+    {
+        var patient = _patientState.SelectedPatient;
+        if (patient is null)
+        {
+            HeightStatusMessage = "Select a patient first.";
+            return;
+        }
+
+        if (!TryGetProfileHeightInches(out var heightInches, out var heightError))
+        {
+            HeightStatusMessage = heightError;
+            return;
+        }
+
+        if (effectiveDate is DateTime date && date.Date > DateTime.Today)
+        {
+            HeightStatusMessage = "Height date cannot be in the future.";
+            return;
+        }
+
+        if (IsSavingHeight)
+            return;
+
+        IsSavingHeight = true;
+        HeightStatusMessage = string.Empty;
+
+        try
+        {
+            var saved = await _api.RecordPatientHeightAsync(
+                patient.PatientId,
+                heightInches,
+                effectiveDate,
+                updateType);
+
+            if (saved?.Record is null)
+            {
+                HeightStatusMessage = "Could not save the height record.";
+                return;
+            }
+
+            // Replace the selected Patient instance so Dashboard/Analysis and
+            // any other bindings immediately see the newly synchronized
+            // current profile height.
+            var updatedPatient = new Patient
+            {
+                PatientId = patient.PatientId,
+                FirstName = patient.FirstName,
+                LastName = patient.LastName,
+                Dob = patient.Dob,
+                Gender = patient.Gender,
+                HeightInches = saved.CurrentHeightInches,
+            };
+            _patientState.ApplyUpdatedPatient(updatedPatient);
+
+            await LoadHeightHistoryAsync(patient.PatientId);
+
+            if (saved.CurrentHeightInches is int currentHeight)
+            {
+                ProfileHeightFeet = (currentHeight / 12).ToString();
+                ProfileHeightInches = (currentHeight % 12).ToString();
+            }
+
+            ProfileHeightEffectiveDate = DateTime.Today;
+            OnPropertyChanged(nameof(ProfileCurrentHeightDisplay));
+
+            HeightStatusMessage = updateType == "correction"
+                ? "Current height corrected. The superseded record remains in history."
+                : "New dated height measurement recorded.";
+        }
+        finally
+        {
+            IsSavingHeight = false;
+        }
+    }
+
     private bool TryGetProfileHeightInches(
-        out int? totalInches,
+        out int totalInches,
         out string error)
     {
-        totalInches = null;
+        totalInches = 0;
         error = string.Empty;
 
         var feetText = ProfileHeightFeet?.Trim() ?? string.Empty;
         var inchesText = ProfileHeightInches?.Trim() ?? string.Empty;
 
-        // Clearing both fields intentionally clears the stored height.
         if (string.IsNullOrEmpty(feetText) && string.IsNullOrEmpty(inchesText))
-            return true;
+        {
+            error = "Enter a height before recording a measurement.";
+            return false;
+        }
 
         if (!int.TryParse(feetText, out var feet) || feet < 1 || feet > 8)
         {
