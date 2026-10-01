@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Vitals.Maui.Models;
@@ -14,6 +15,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly AuthService _auth;
     private readonly PatientStateService _patientState;
     private readonly ApiService _api;
+    private readonly SemaphoreSlim _preferenceSaveLock = new(1, 1);
     private bool _suppressPreferenceSave;
 
     [ObservableProperty] string _currentTheme = "vitals_blue";
@@ -399,7 +401,7 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(ThemeLightColor));
         OnPropertyChanged(nameof(ThemeVitalsBlueColor));
         OnPropertyChanged(nameof(ThemeSystemColor));
-        await SavePreferencesAsync();
+        await _preferences.SaveThemeAsync(theme);
     }
 
     /// <summary>
@@ -475,28 +477,61 @@ public partial class SettingsViewModel : ObservableObject
 
     private async Task SavePreferencesAsync()
     {
+        var patientId = _patientState.SelectedPatient?.PatientId;
+        if (string.IsNullOrWhiteSpace(patientId))
+            return;
+
+        // Switch PropertyChanged callbacks are fire-and-forget. Serialize the
+        // writes so rapid Weight/Glucose toggles cannot arrive out of order and
+        // overwrite one another with stale full-state payloads.
+        await _preferenceSaveLock.WaitAsync();
         try
         {
-            var patientId = _patientState.SelectedPatient?.PatientId;
+            // Re-check after waiting in case the user switched patients.
+            if (_patientState.SelectedPatient?.PatientId != patientId)
+                return;
 
-            await _preferences.SaveAsync(
-                new UserPreferences
-                {
-                    UserId = _auth.UserId ?? string.Empty,
-                    PatientId = patientId,
-                    DisplayName = _auth.DisplayName,
-                    Theme = CurrentTheme,
-                    ShowHeartRate = ShowHeartRate,
-                    ShowSpo2 = ShowSpo2,
-                    ShowTemperature = ShowTemperature,
-                    ShowWeight = ShowWeight,
-                    ShowGlucose = ShowGlucose,
-                },
-                patientId);
+            var requested = new UserPreferences
+            {
+                UserId = _auth.UserId ?? string.Empty,
+                PatientId = patientId,
+                DisplayName = _auth.DisplayName,
+                Theme = CurrentTheme,
+                ShowHeartRate = ShowHeartRate,
+                ShowSpo2 = ShowSpo2,
+                ShowTemperature = ShowTemperature,
+                ShowWeight = ShowWeight,
+                ShowGlucose = ShowGlucose,
+            };
+
+            var saved = await _preferences.SaveAsync(requested, patientId);
+            if (saved)
+                return;
+
+            // A failed write must not leave a switch visually ON from only a
+            // local cache. Reload the server's actual state and put the UI back
+            // in sync so the failure is visible instead of silent.
+            var actual = await _preferences.RefreshAsync(patientId);
+            if (_patientState.SelectedPatient?.PatientId == patientId)
+            {
+                ApplyPreferences(actual);
+                await Shell.Current.DisplayAlert(
+                    "Could Not Save Vital Settings",
+                    "Your vital selections were not saved. Please try again.",
+                    "OK");
+            }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"=== SAVE PREFS ERROR: {ex.Message}");
+
+            var actual = await _preferences.RefreshAsync(patientId);
+            if (_patientState.SelectedPatient?.PatientId == patientId)
+                ApplyPreferences(actual);
+        }
+        finally
+        {
+            _preferenceSaveLock.Release();
         }
     }
 }

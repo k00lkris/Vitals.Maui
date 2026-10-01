@@ -880,6 +880,58 @@ public class ApiService
         return "Something went wrong. Please try again.";
     }
 
+    public async Task<UserPreferences?> GetPatientVitalPreferencesAsync(
+        string patientId)
+    {
+        try
+        {
+            var response = await _http.GetAsync(
+                $"/api/patients/{Uri.EscapeDataString(patientId)}/vital-preferences");
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== PATIENT VITAL PREFS STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            return JsonSerializer.Deserialize<UserPreferences>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== PATIENT VITAL PREFS ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
+    public async Task<UserPreferences?> UpdatePatientVitalPreferencesAsync(
+        string patientId,
+        object payload)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(payload, _jsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _http.PatchAsync(
+                $"/api/patients/{Uri.EscapeDataString(patientId)}/vital-preferences",
+                content);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== UPDATE PATIENT VITAL PREFS STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            return JsonSerializer.Deserialize<UserPreferences>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== UPDATE PATIENT VITAL PREFS ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
     public async Task<UserPreferences?> GetUserPreferencesAsync(
         string userId,
         string? patientId = null)
