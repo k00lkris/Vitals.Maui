@@ -3622,6 +3622,108 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
         cur.close()
         conn.close()
 
+
+def get_weight_analysis_for_window(
+    patient_id: str,
+    household_id: str,
+    days: int,
+) -> dict | None:
+    """
+    Weight is normally sparse (weekly/monthly is common), so a short report
+    window must not make the entire Weight section disappear.
+
+    First use the normal windowed/cache path. If that window contains no
+    Weight reading at all, fall back to the patient's most recent known Weight
+    as a SNAPSHOT only. Longitudinal calculations remain unavailable because
+    run_weight_analysis receives exactly one point in that fallback case.
+
+    This wrapper is shared by the app Analysis endpoint and the clinician PDF
+    so the two surfaces cannot disagree about whether a Weight snapshot exists.
+    """
+    result = get_cached_or_compute_analysis(
+        patient_id,
+        household_id,
+        "weight",
+        days,
+    )
+    if result is not None:
+        return result
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT recorded_at, local_offset_minutes, weight
+            FROM vitals
+            WHERE patient_id = %s
+              AND household_id = %s
+              AND weight IS NOT NULL
+            ORDER BY recorded_at DESC
+            LIMIT 1;
+        """, (patient_id, household_id))
+        latest_weight = cur.fetchone()
+
+        if latest_weight is None:
+            return None
+
+        cur.execute("""
+            SELECT
+                p.dob,
+                p.height_inches,
+                h.effective_date,
+                h.source
+            FROM patients p
+            LEFT JOIN LATERAL (
+                SELECT effective_date, source
+                FROM patient_height_history
+                WHERE patient_id = p.patient_id
+                  AND household_id = p.household_id
+                  AND is_active = true
+                  AND height_inches = p.height_inches
+                ORDER BY effective_date DESC, created_at DESC
+                LIMIT 1
+            ) h ON true
+            WHERE p.patient_id = %s
+              AND p.household_id = %s;
+        """, (patient_id, household_id))
+        demographic_row = cur.fetchone()
+
+        patient_demographics = None
+        if demographic_row is not None:
+            patient_demographics = {
+                "dob": demographic_row[0],
+                "height_inches": demographic_row[1],
+                "height_effective_date": demographic_row[2],
+                "height_source": demographic_row[3],
+            }
+
+        result = run_weight_analysis(
+            [latest_weight],
+            patient_demographics=patient_demographics,
+        )
+        if result is None:
+            return None
+
+        support = result.setdefault("data_support", {})
+        support["support_state"] = "snapshot"
+        support["outside_report_window"] = True
+        support["report_window_days"] = int(days)
+
+        limitations = result.setdefault("limitations", [])
+        limitations.insert(
+            0,
+            (
+                f"No weight reading falls within the selected {days}-day window. "
+                "The most recent known weight is shown as a current snapshot; "
+                "change, variability, and trend calculations require additional "
+                "measurements in the selected analysis period."
+            ),
+        )
+        return result
+    finally:
+        cur.close()
+        conn.close()
+
 # --------------------
 # JWT helper
 # --------------------
@@ -4177,7 +4279,7 @@ def get_vitals_averages(
 @app.get("/api/vitals/analysis")
 def get_vitals_analysis(
     patient_id: str,
-    days: int = 30,
+    days: int = 15,
     x_api_key: str = Header(...),
     household_id: str = Depends(get_household_id)
 ):
@@ -4251,7 +4353,7 @@ def get_vitals_analysis(
     hr_analysis      = get_cached_or_compute_analysis(patient_id, household_id, "heart_rate", days)
     spo2_analysis    = get_cached_or_compute_analysis(patient_id, household_id, "spo2", days)
     temp_analysis    = get_cached_or_compute_analysis(patient_id, household_id, "temperature", days)
-    weight_analysis  = get_cached_or_compute_analysis(patient_id, household_id, "weight", days)
+    weight_analysis  = get_weight_analysis_for_window(patient_id, household_id, days)
     glucose_analysis = get_cached_or_compute_analysis(patient_id, household_id, "glucose", days)
 
     pcp_name      = pcp[0] if pcp else None
@@ -5215,7 +5317,7 @@ def export_medications_pdf(
         if show_temp else None
     )
     weight_analysis = (
-        get_cached_or_compute_analysis(str(patient_id), household_id, "weight", days)
+        get_weight_analysis_for_window(str(patient_id), household_id, days)
         if show_weight else None
     )
     glucose_analysis = (
@@ -5937,7 +6039,28 @@ def export_medications_pdf(
         variability, and a Theil-Sen trend that need dedicated rendering.
         """
         if analysis is None:
-            return y
+            y = check_page_break(y, needed=105)
+            pdf.setFont("Helvetica-Bold", 13)
+            pdf.drawString(LEFT, y, "Weight Clinical Analysis")
+            y -= 20
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "No Weight Data Yet")
+            y -= 14
+            y = draw_wrapped_line(
+                y,
+                "Weight tracking is enabled for this patient, but no weight reading "
+                "has been recorded yet. One reading is enough to establish a current "
+                "Weight snapshot and, when height/date-of-birth permit it, adult BMI "
+                "screening context.",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+            y -= 10
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            return y - 14
 
         unit_w = analysis.get("unit") or "lb"
         latest_w = analysis.get("latest") or {}
@@ -7908,7 +8031,7 @@ def export_medications_pdf(
     # =====================================================
     # WEIGHT — DEDICATED ANALYSIS CONTRACT
     # =====================================================
-    if weight_analysis is not None:
+    if show_weight:
         y = draw_weight_clinical_analysis(y, weight_analysis)
 
     # Glucose remains descriptive until measurement context is collected.
