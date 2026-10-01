@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             xmlns:models="clr-namespace:Vitals.Maui.Models"
              x:Class="Vitals.Maui.Views.SettingsPage"
              x:DataType="vm:SettingsViewModel"
              Title="Settings"
@@ -144,7 +145,7 @@
                 </VerticalStackLayout>
             </Border>
 
-            <!-- Patient Demographics -->
+            <!-- Patient Demographics + dated height history -->
             <Border Padding="16"
                     BackgroundColor="{DynamicResource CardBackground}"
                     StrokeShape="RoundRectangle 12"
@@ -160,11 +161,12 @@
                            FontAttributes="Bold"
                            TextColor="{DynamicResource TextPrimary}" />
 
-                    <Label Text="Demographics for the currently selected patient. Height is stored as one total-inch value but displayed and edited as feet/inches."
+                    <Label Text="Demographics for the currently selected patient. Height measurements are dated so future BMI history can use the height that was appropriate at that time."
                            FontSize="11"
                            TextColor="{DynamicResource TextSecondary}"
                            LineBreakMode="WordWrap" />
 
+                    <!-- Gender remains a normal profile demographic. -->
                     <VerticalStackLayout Spacing="4"
                                          IsEnabled="{Binding HasSelectedPatient}">
                         <Label Text="Gender"
@@ -185,14 +187,58 @@
                         </Picker>
                     </VerticalStackLayout>
 
-                    <BoxView HeightRequest="0.5"
-                             BackgroundColor="{DynamicResource DividerColor}" />
+                    <Button Text="Save Patient Profile"
+                            Command="{Binding SavePatientProfileCommand}"
+                            IsEnabled="{Binding HasSelectedPatient}"
+                            BackgroundColor="{DynamicResource ButtonBackground}"
+                            TextColor="{DynamicResource TextPrimary}"
+                            FontSize="13"
+                            FontAttributes="Bold"
+                            HeightRequest="44"
+                            CornerRadius="8" />
 
-                    <VerticalStackLayout Spacing="6"
+                    <ActivityIndicator IsRunning="{Binding IsSavingProfile}"
+                                       IsVisible="{Binding IsSavingProfile}"
+                                       Color="{DynamicResource PrimaryAccent}"
+                                       HorizontalOptions="Center" />
+
+                    <Label Text="{Binding ProfileStatusMessage}"
+                           IsVisible="{Binding ProfileStatusMessage, Converter={StaticResource StringToBoolConverter}}"
+                           FontSize="11"
+                           TextColor="{DynamicResource TextSecondary}"
+                           HorizontalOptions="Center"
+                           HorizontalTextAlignment="Center" />
+
+                    <BoxView HeightRequest="0.5"
+                             BackgroundColor="{DynamicResource DividerColor}"
+                             Margin="0,4" />
+
+                    <!-- Height is intentionally separate from Save Patient Profile.
+                         Recording a measurement and correcting a bad entry are
+                         different audit events. -->
+                    <VerticalStackLayout Spacing="8"
                                          IsEnabled="{Binding HasSelectedPatient}">
-                        <Label Text="Height"
-                               FontSize="12"
-                               TextColor="{DynamicResource TextSecondary}" />
+                        <Label Text="HEIGHT"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource PrimaryAccent}" />
+
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Label Grid.Column="0"
+                                   Text="Current profile height"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextSecondary}" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding ProfileCurrentHeightDisplay}"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                        </Grid>
+
+                        <Label Text="Record a new measurement when height is measured again. Use correction only when the latest stored height was entered incorrectly."
+                               FontSize="10"
+                               TextColor="{DynamicResource TextMuted}"
+                               LineBreakMode="WordWrap" />
 
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                             <VerticalStackLayout Grid.Column="0" Spacing="2">
@@ -238,33 +284,91 @@
                             </VerticalStackLayout>
                         </Grid>
 
-                        <Label Text="Height can change over time. Update it here when a newer measured height is available."
-                               FontSize="10"
-                               TextColor="{DynamicResource TextMuted}"
-                               LineBreakMode="WordWrap" />
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <Label Grid.Column="0"
+                                   Text="Measured date"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextSecondary}"
+                                   VerticalOptions="Center" />
+                            <DatePicker Grid.Column="1"
+                                        Date="{Binding ProfileHeightEffectiveDate}"
+                                        TextColor="{DynamicResource TextPrimary}"
+                                        BackgroundColor="Transparent"
+                                        HorizontalOptions="End" />
+                        </Grid>
+
+                        <Button Text="Record New Height"
+                                Command="{Binding RecordHeightMeasurementCommand}"
+                                BackgroundColor="{DynamicResource ButtonBackground}"
+                                TextColor="{DynamicResource TextPrimary}"
+                                FontSize="13"
+                                FontAttributes="Bold"
+                                HeightRequest="44"
+                                CornerRadius="8" />
+
+                        <Button Text="Correct Current Height"
+                                Command="{Binding CorrectCurrentHeightCommand}"
+                                IsEnabled="{Binding CanCorrectHeight}"
+                                BackgroundColor="Transparent"
+                                BorderColor="{DynamicResource CardStroke}"
+                                BorderWidth="1"
+                                TextColor="{DynamicResource PrimaryAccent}"
+                                FontSize="12"
+                                HeightRequest="42"
+                                CornerRadius="8" />
+
+                        <ActivityIndicator IsRunning="{Binding IsSavingHeight}"
+                                           IsVisible="{Binding IsSavingHeight}"
+                                           Color="{DynamicResource PrimaryAccent}"
+                                           HorizontalOptions="Center" />
+
+                        <Label Text="{Binding HeightStatusMessage}"
+                               IsVisible="{Binding HeightStatusMessage, Converter={StaticResource StringToBoolConverter}}"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextSecondary}"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center" />
+
+                        <BoxView HeightRequest="0.5"
+                                 BackgroundColor="{DynamicResource DividerColor}"
+                                 Margin="0,4" />
+
+                        <Label Text="Height History"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}" />
+
+                        <Label Text="No dated height records yet."
+                               IsVisible="{Binding HasHeightHistory, Converter={StaticResource InvertedBoolConverter}}"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextMuted}" />
+
+                        <VerticalStackLayout Spacing="0"
+                                             BindableLayout.ItemsSource="{Binding HeightHistory}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="models:PatientHeightRecord">
+                                    <Grid ColumnDefinitions="110,*,Auto"
+                                          ColumnSpacing="8"
+                                          Padding="0,8">
+                                        <Label Grid.Column="0"
+                                               Text="{Binding EffectiveDateDisplay}"
+                                               FontSize="11"
+                                               TextColor="{DynamicResource TextSecondary}" />
+                                        <Label Grid.Column="1"
+                                               Text="{Binding StatusDisplay}"
+                                               FontSize="11"
+                                               TextColor="{DynamicResource TextMuted}" />
+                                        <Label Grid.Column="2"
+                                               Text="{Binding HeightDisplay}"
+                                               FontSize="12"
+                                               FontAttributes="Bold"
+                                               TextColor="{DynamicResource TextPrimary}"
+                                               HorizontalTextAlignment="End" />
+                                    </Grid>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
                     </VerticalStackLayout>
-
-                    <Button Text="Save Patient Profile"
-                            Command="{Binding SavePatientProfileCommand}"
-                            IsEnabled="{Binding HasSelectedPatient}"
-                            BackgroundColor="{DynamicResource ButtonBackground}"
-                            TextColor="{DynamicResource TextPrimary}"
-                            FontSize="13"
-                            FontAttributes="Bold"
-                            HeightRequest="44"
-                            CornerRadius="8" />
-
-                    <ActivityIndicator IsRunning="{Binding IsSavingProfile}"
-                                       IsVisible="{Binding IsSavingProfile}"
-                                       Color="{DynamicResource PrimaryAccent}"
-                                       HorizontalOptions="Center" />
-
-                    <Label Text="{Binding ProfileStatusMessage}"
-                           IsVisible="{Binding ProfileStatusMessage, Converter={StaticResource StringToBoolConverter}}"
-                           FontSize="11"
-                           TextColor="{DynamicResource TextSecondary}"
-                           HorizontalOptions="Center"
-                           HorizontalTextAlignment="Center" />
                 </VerticalStackLayout>
             </Border>
 

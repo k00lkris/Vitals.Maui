@@ -608,6 +608,59 @@ GRANT ALL ON TABLE public.users TO bcbauser;
 
 GRANT ALL ON TABLE public.users TO vitals_user;
 
+-- Table: public.patient_height_history
+
+-- DROP TABLE IF EXISTS public.patient_height_history;
+
+CREATE TABLE IF NOT EXISTS public.patient_height_history
+(
+    height_id uuid NOT NULL DEFAULT gen_random_uuid(),
+    patient_id uuid NOT NULL,
+    household_id uuid NOT NULL,
+    height_inches smallint NOT NULL,
+    effective_date date NOT NULL,
+    entry_type text COLLATE pg_catalog."default" NOT NULL DEFAULT 'measurement'::text,
+    source text COLLATE pg_catalog."default" NOT NULL DEFAULT 'manual_profile'::text,
+    supersedes_height_id uuid,
+    is_active boolean NOT NULL DEFAULT true,
+    created_by uuid,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT patient_height_history_pkey PRIMARY KEY (height_id),
+    CONSTRAINT patient_height_history_height_check CHECK (height_inches BETWEEN 12 AND 107),
+    CONSTRAINT patient_height_history_entry_type_check CHECK (entry_type = ANY (ARRAY['measurement'::text, 'correction'::text, 'profile_backfill'::text])),
+    CONSTRAINT patient_height_history_patient_fkey FOREIGN KEY (patient_id)
+        REFERENCES public.patients (patient_id)
+        ON DELETE CASCADE,
+    CONSTRAINT patient_height_history_household_fkey FOREIGN KEY (household_id)
+        REFERENCES public.households (household_id)
+        ON DELETE CASCADE,
+    CONSTRAINT patient_height_history_created_by_fkey FOREIGN KEY (created_by)
+        REFERENCES public.users (user_id)
+        ON DELETE SET NULL,
+    CONSTRAINT patient_height_history_supersedes_fkey FOREIGN KEY (supersedes_height_id)
+        REFERENCES public.patient_height_history (height_id)
+        ON DELETE SET NULL
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.patient_height_history
+    OWNER to postgres;
+
+GRANT ALL ON TABLE public.patient_height_history TO postgres;
+GRANT ALL ON TABLE public.patient_height_history TO vitals_user;
+
+CREATE INDEX IF NOT EXISTS idx_patient_height_history_patient_date
+    ON public.patient_height_history USING btree
+    (patient_id ASC NULLS LAST, effective_date DESC NULLS FIRST, created_at DESC NULLS FIRST)
+    TABLESPACE pg_default;
+
+CREATE INDEX IF NOT EXISTS idx_patient_height_history_household
+    ON public.patient_height_history USING btree
+    (household_id ASC NULLS LAST)
+    TABLESPACE pg_default;
+
+
 -- Table: public.visit_logs
 
 -- DROP TABLE IF EXISTS public.visit_logs;

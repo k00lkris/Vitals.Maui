@@ -97,11 +97,18 @@ public class WeightAnalysis
 
             var feet = totalInches / 12;
             var inches = totalInches % 12;
+            var measured = string.Empty;
+            if (!string.IsNullOrWhiteSpace(Anthropometrics.HeightMeasuredAt) &&
+                DateTime.TryParse(Anthropometrics.HeightMeasuredAt, out var measuredAt))
+            {
+                measured = $" · height effective {measuredAt:MMM d, yyyy}";
+            }
+
             var age = Anthropometrics.AgeYears is int years
                 ? $" · age {years} on weight date"
                 : string.Empty;
 
-            return $"Current profile height used: {feet}' {inches}\"{age}";
+            return $"Height used: {feet}' {inches}\"{measured}{age}";
         }
     }
 

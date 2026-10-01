@@ -105,6 +105,72 @@ public class ApiService
         }
     }
 
+    public async Task<List<PatientHeightRecord>> GetPatientHeightHistoryAsync(
+        string patientId)
+    {
+        try
+        {
+            var response = await _http.GetAsync(
+                $"/api/patients/{Uri.EscapeDataString(patientId)}/height-history");
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== HEIGHT HISTORY STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode)
+                return new List<PatientHeightRecord>();
+
+            return JsonSerializer.Deserialize<List<PatientHeightRecord>>(
+                       raw,
+                       _jsonOptions)
+                   ?? new List<PatientHeightRecord>();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== HEIGHT HISTORY ERROR: {ex.Message}");
+            return new List<PatientHeightRecord>();
+        }
+    }
+
+    public async Task<PatientHeightSaveResponse?> RecordPatientHeightAsync(
+        string patientId,
+        int heightInches,
+        DateTime? effectiveDate,
+        string updateType)
+    {
+        try
+        {
+            var payload = new
+            {
+                height_inches = heightInches,
+                effective_date = effectiveDate?.ToString("yyyy-MM-dd"),
+                update_type = updateType,
+            };
+
+            var json = JsonSerializer.Serialize(payload, _jsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _http.PostAsync(
+                $"/api/patients/{Uri.EscapeDataString(patientId)}/height",
+                content);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== RECORD HEIGHT STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            return JsonSerializer.Deserialize<PatientHeightSaveResponse>(
+                raw,
+                _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== RECORD HEIGHT ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
     /// <summary>
     /// Links the caller to an existing patient as 'self' — called after
     /// the user confirms (via a DOB/gender verification prompt) that an
