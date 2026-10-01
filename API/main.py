@@ -4746,30 +4746,24 @@ def export_medications_pdf(
     cur = conn.cursor()
     verify_patient_household(cur, str(patient_id), household_id)
 
-    # The PDF is generated for the signed-in user's chosen vital set.
-    # Blood pressure is always tracked. Legacy API-key callers have no
-    # per-user preference row, so preserve the pre-mobile default set and
-    # leave the newer Weight/Glucose sections off for that path.
-    show_hr = True
-    show_spo2 = True
-    show_temp = True
-    show_weight = False
-    show_glucose = False
+    # Optional-vital tracking is PATIENT-scoped. The PDF must use the same
+    # selected-patient configuration as Entry, Dashboard, Analysis, and
+    # Settings; otherwise two patients in one household could receive reports
+    # with the wrong vital sections. Blood pressure remains always enabled.
+    cur.execute("""
+        SELECT show_heart_rate, show_spo2, show_temperature,
+               show_weight, show_glucose
+        FROM patients
+        WHERE patient_id = %s
+          AND household_id = %s;
+    """, (str(patient_id), household_id))
+    pref_row = cur.fetchone()
 
-    if auth.get("type") != "api_key":
-        user_id = auth.get("sub")
-        if user_id:
-            cur.execute("""
-                SELECT show_heart_rate, show_spo2, show_temperature,
-                       show_weight, show_glucose
-                FROM users
-                WHERE user_id = %s AND household_id = %s;
-            """, (user_id, household_id))
-            pref_row = cur.fetchone()
-            if pref_row:
-                show_hr, show_spo2, show_temp, show_weight, show_glucose = [
-                    bool(v) for v in pref_row
-                ]
+    show_hr = bool(pref_row[0]) if pref_row else True
+    show_spo2 = bool(pref_row[1]) if pref_row else True
+    show_temp = bool(pref_row[2]) if pref_row else True
+    show_weight = bool(pref_row[3]) if pref_row else False
+    show_glucose = bool(pref_row[4]) if pref_row else False
 
     tracked_conditions = [
         "(systolic IS NOT NULL AND diastolic IS NOT NULL)"
@@ -5625,6 +5619,457 @@ def export_medications_pdf(
 
         return paragraphs
 
+    def draw_weight_clinical_analysis(y, analysis):
+        """
+        Clinician-facing Weight section built directly from the SAME Weight
+        analysis contract used by Vitals Analysis. Do not fall back to the
+        older generic scalar helper here: Weight v4 has BMI context,
+        daily-median summaries, robust baseline/recent comparisons,
+        variability, and a Theil-Sen trend that need dedicated rendering.
+        """
+        if analysis is None:
+            return y
+
+        unit_w = analysis.get("unit") or "lb"
+        latest_w = analysis.get("latest") or {}
+        anthropometrics = analysis.get("anthropometrics") or {}
+        summary_w = analysis.get("daily_summary") or analysis.get("summary") or {}
+        baseline_w = analysis.get("baseline_change")
+        recent_w = analysis.get("recent_change")
+        variation_w = analysis.get("variation")
+        trend_w = analysis.get("trend")
+        support_w = analysis.get("data_support") or {}
+        limitations_w = analysis.get("limitations") or []
+
+        y = check_page_break(y, needed=210)
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(LEFT, y, "Weight Clinical Analysis")
+        y -= 20
+
+        # -------------------------------------------------
+        # CLINICAL SUMMARY
+        # -------------------------------------------------
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(LEFT, y, "Clinical Summary")
+        y -= 4
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 12
+
+        latest_value = latest_w.get("value")
+        if latest_value is not None:
+            summary_line = f"Latest recorded weight: {latest_value:.1f} {unit_w}."
+            if anthropometrics.get("bmi_available") and anthropometrics.get("bmi") is not None:
+                category_display = {
+                    "underweight": "Underweight",
+                    "healthy_weight": "Healthy weight",
+                    "overweight": "Overweight",
+                    "obesity_class_1": "Obesity - Class 1",
+                    "obesity_class_2": "Obesity - Class 2",
+                    "obesity_class_3": "Obesity - Class 3",
+                }.get(
+                    anthropometrics.get("adult_category"),
+                    str(anthropometrics.get("adult_category") or "").replace("_", " ").title(),
+                )
+                summary_line += (
+                    f" Adult BMI: {anthropometrics['bmi']:.1f} kg/m2 "
+                    f"({category_display} screening category)."
+                )
+            y = draw_wrapped_line(
+                y,
+                summary_line,
+                fontsize=9,
+                indent=0,
+                line_spacing=13,
+            )
+            y -= 4
+
+        if trend_w:
+            direction_display = {
+                "increasing": "increasing",
+                "decreasing": "decreasing",
+                "no_clear_trend": "no clear directional",
+            }.get(trend_w.get("direction"), "descriptive")
+            y = draw_wrapped_line(
+                y,
+                f"Robust longitudinal pattern: {direction_display}; "
+                f"Theil-Sen slope {trend_w.get('slope_per_week', 0):+.2f} {unit_w}/week "
+                f"with 95% slope interval "
+                f"{trend_w.get('ci95_low_per_week', 0):+.2f} to "
+                f"{trend_w.get('ci95_high_per_week', 0):+.2f} {unit_w}/week.",
+                fontsize=9,
+                indent=0,
+                line_spacing=13,
+            )
+            y -= 4
+        elif support_w:
+            y = draw_wrapped_line(
+                y,
+                f"Data support: {(support_w.get('support_state') or 'snapshot').replace('_', ' ')} "
+                f"with {support_w.get('n', 0)} logged reading(s) across "
+                f"{support_w.get('distinct_days', 0)} distinct day(s).",
+                fontsize=9,
+                indent=0,
+                line_spacing=13,
+            )
+            y -= 4
+
+        pdf.setFont("Helvetica-Oblique", 8)
+        pdf.setFillColorRGB(0.4, 0.4, 0.4)
+        y = draw_wrapped_line(
+            y,
+            "BMI is screening context only. Weight changes are described without "
+            "judging whether gain or loss is desirable unless individualized goals "
+            "and clinical context are available.",
+            fontsize=8,
+            indent=0,
+            line_spacing=11,
+        )
+        pdf.setFillColorRGB(0, 0, 0)
+        y -= 8
+
+        # -------------------------------------------------
+        # CURRENT WEIGHT
+        # -------------------------------------------------
+        y = check_page_break(y, needed=65)
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT, y, "Current Weight")
+        y -= 14
+        pdf.setFont("Helvetica", 9)
+        if latest_value is not None:
+            pdf.drawString(LEFT + 10, y, f"{latest_value:.1f} {unit_w}")
+        else:
+            pdf.drawString(LEFT + 10, y, "n/a")
+        y -= 12
+        if latest_w.get("recorded_at"):
+            y = draw_wrapped_line(
+                y,
+                f"Recorded: {latest_w['recorded_at']}",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+        y -= 6
+
+        # -------------------------------------------------
+        # BMI SCREENING CONTEXT
+        # -------------------------------------------------
+        y = check_page_break(y, needed=95)
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT, y, "BMI Screening Context")
+        y -= 14
+
+        if anthropometrics.get("bmi_available") and anthropometrics.get("bmi") is not None:
+            category_display = {
+                "underweight": "Underweight",
+                "healthy_weight": "Healthy weight",
+                "overweight": "Overweight",
+                "obesity_class_1": "Obesity - Class 1",
+                "obesity_class_2": "Obesity - Class 2",
+                "obesity_class_3": "Obesity - Class 3",
+            }.get(
+                anthropometrics.get("adult_category"),
+                str(anthropometrics.get("adult_category") or "").replace("_", " ").title(),
+            )
+
+            bmi_rows = [
+                ["BMI", f"{anthropometrics['bmi']:.1f} kg/m2"],
+                ["Adult screening category", category_display],
+            ]
+
+            total_inches = anthropometrics.get("height_inches")
+            if total_inches is not None:
+                total_inches = int(total_inches)
+                bmi_rows.append([
+                    "Current profile height used",
+                    f"{total_inches // 12} ft {total_inches % 12} in",
+                ])
+            if anthropometrics.get("age_years") is not None:
+                bmi_rows.append([
+                    "Age on latest weight date",
+                    str(anthropometrics["age_years"]),
+                ])
+
+            bmi_widths = [210, 302]
+            y = draw_table_row(
+                y,
+                ["Metric", "Value"],
+                bmi_widths,
+                fontsize=8,
+                bold=True,
+                fill_bg=True,
+            )
+            for row in bmi_rows:
+                y = check_page_break(y, needed=32)
+                y = draw_table_row(y, row, bmi_widths, fontsize=8)
+
+            y -= 6
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            y = draw_wrapped_line(
+                y,
+                "BMI is a screening measure, not a diagnosis or a direct measure of body fat.",
+                fontsize=8,
+                indent=10,
+                line_spacing=11,
+            )
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 6
+        else:
+            reason = {
+                "missing_height": "Current height is not available.",
+                "missing_date_of_birth": "Date of birth is not available for adult age gating.",
+                "pediatric_strategy_required": (
+                    "Adult BMI categories are not applied to patients under age 20; "
+                    "pediatric BMI-for-age requires a separate strategy."
+                ),
+                "invalid_height": "The stored height is not usable for BMI calculation.",
+            }.get(
+                anthropometrics.get("reason_unavailable"),
+                "Adult BMI is unavailable for the current patient profile.",
+            )
+            pdf.setFont("Helvetica", 9)
+            y = draw_wrapped_line(
+                y,
+                f"BMI unavailable: {reason}",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+            y -= 6
+
+        # -------------------------------------------------
+        # LOGGED READING SUMMARY (same daily-median view as the app)
+        # -------------------------------------------------
+        if summary_w:
+            y = check_page_break(y, needed=135)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Logged Reading Summary")
+            y -= 14
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            pdf.drawString(
+                LEFT + 10,
+                y,
+                "Daily median values" if analysis.get("daily_summary") else "Logged reading values",
+            )
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 12
+
+            summary_widths = [210, 302]
+            y = draw_table_row(
+                y,
+                ["Metric", "Weight"],
+                summary_widths,
+                fontsize=8,
+                bold=True,
+                fill_bg=True,
+            )
+            summary_rows = [
+                ["Mean", f"{summary_w.get('mean', 0):.1f} {unit_w}"],
+                ["Median", f"{summary_w.get('median', 0):.1f} {unit_w}"],
+                ["Minimum", f"{summary_w.get('min', 0):.1f} {unit_w}"],
+                ["Maximum", f"{summary_w.get('max', 0):.1f} {unit_w}"],
+            ]
+            for row in summary_rows:
+                y = check_page_break(y, needed=32)
+                y = draw_table_row(y, row, summary_widths, fontsize=8)
+            y -= 8
+
+        # -------------------------------------------------
+        # BASELINE CHANGE
+        # -------------------------------------------------
+        if baseline_w:
+            y = check_page_break(y, needed=75)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Baseline Change")
+            y -= 14
+            pct = (
+                f" ({baseline_w['pct_change']:+.1f}%)"
+                if baseline_w.get("pct_change") is not None
+                else ""
+            )
+            y = draw_wrapped_line(
+                y,
+                f"Baseline median: {baseline_w.get('baseline_value', 0):.1f} {unit_w} "
+                f"using {baseline_w.get('baseline_days_used', 0)} distinct day(s) "
+                f"({baseline_w.get('baseline_start_date', 'n/a')} to "
+                f"{baseline_w.get('baseline_end_date', 'n/a')}). "
+                f"Latest daily median: {baseline_w.get('latest_daily_value', 0):.1f} {unit_w}. "
+                f"Change: {baseline_w.get('absolute_change', 0):+.1f} {unit_w}{pct}.",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+            y -= 7
+
+        # -------------------------------------------------
+        # RECENT 7-DAY COMPARISON
+        # -------------------------------------------------
+        if recent_w:
+            y = check_page_break(y, needed=70)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Recent 7-Day Comparison")
+            y -= 14
+            pct = (
+                f" ({recent_w['pct_change']:+.1f}%)"
+                if recent_w.get("pct_change") is not None
+                else ""
+            )
+            y = draw_wrapped_line(
+                y,
+                f"Recent 7-day median: {recent_w.get('recent_median', 0):.1f} {unit_w} "
+                f"({recent_w.get('recent_days_with_readings', 0)} measured day(s)); "
+                f"previous 7-day median: {recent_w.get('prior_median', 0):.1f} {unit_w} "
+                f"({recent_w.get('prior_days_with_readings', 0)} measured day(s)). "
+                f"Change: {recent_w.get('absolute_change', 0):+.1f} {unit_w}{pct}.",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+            y -= 7
+
+        # -------------------------------------------------
+        # LONGITUDINAL TREND
+        # -------------------------------------------------
+        if trend_w:
+            y = check_page_break(y, needed=95)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Longitudinal Trend")
+            y -= 14
+
+            direction_display = {
+                "increasing": "Increasing pattern",
+                "decreasing": "Decreasing pattern",
+                "no_clear_trend": "No clear directional trend",
+            }.get(trend_w.get("direction"), "Descriptive trend")
+
+            y = draw_wrapped_line(
+                y,
+                f"{direction_display}: Theil-Sen slope "
+                f"{trend_w.get('slope_per_week', 0):+.2f} {unit_w}/week "
+                f"(95% slope interval "
+                f"{trend_w.get('ci95_low_per_week', 0):+.2f} to "
+                f"{trend_w.get('ci95_high_per_week', 0):+.2f} {unit_w}/week) "
+                f"across {trend_w.get('n', 0)} distinct measurement day(s) and "
+                f"{trend_w.get('span_days', 0):.1f} calendar days.",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+            if trend_w.get("r2") is not None or trend_w.get("p_value") is not None:
+                y = draw_wrapped_line(
+                    y,
+                    f"Secondary OLS fit diagnostics: "
+                    f"R2={trend_w.get('r2', 0):.2f}, "
+                    f"p={trend_w.get('p_value', 0):.3f}. "
+                    f"Trend direction is determined from the Theil-Sen slope interval, "
+                    f"not from the OLS p-value.",
+                    fontsize=8,
+                    indent=10,
+                    line_spacing=11,
+                )
+            y -= 7
+
+        # -------------------------------------------------
+        # DAILY VARIABILITY
+        # -------------------------------------------------
+        if variation_w:
+            y = check_page_break(y, needed=105)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Daily Variability")
+            y -= 14
+            var_widths = [210, 302]
+            y = draw_table_row(
+                y,
+                ["Metric", "Value"],
+                var_widths,
+                fontsize=8,
+                bold=True,
+                fill_bg=True,
+            )
+            var_rows = [
+                ["Standard deviation", f"{variation_w.get('sd', 0):.1f} {unit_w}"],
+                ["Interquartile range", f"{variation_w.get('iqr', 0):.1f} {unit_w}"],
+                ["Median absolute deviation", f"{variation_w.get('mad', 0):.1f} {unit_w}"],
+            ]
+            for row in var_rows:
+                y = check_page_break(y, needed=32)
+                y = draw_table_row(y, row, var_widths, fontsize=8)
+            y -= 8
+
+        # -------------------------------------------------
+        # DATA SUPPORT / CONFIDENCE
+        # -------------------------------------------------
+        if support_w:
+            y = check_page_break(y, needed=90)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Data Support")
+            y -= 14
+            y = draw_wrapped_line(
+                y,
+                f"State: {(support_w.get('support_state') or 'snapshot').replace('_', ' ')}. "
+                f"{support_w.get('n', 0)} logged reading(s), "
+                f"{support_w.get('distinct_days', 0)} distinct measurement day(s), "
+                f"{support_w.get('span_days', 0):.1f}-day raw span, "
+                f"{support_w.get('daily_span_days', 0):.1f}-day daily-median span.",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+
+            for item in support_w.get("unavailable_analyses") or []:
+                y = check_page_break(y, needed=32)
+                name = (item.get("analysis") or "analysis").replace("_", " ").title()
+                reason = item.get("reason") or item.get("reason_code") or "not available"
+                y = draw_wrapped_line(
+                    y,
+                    f"- {name}: {reason}",
+                    fontsize=8,
+                    indent=10,
+                    line_spacing=11,
+                )
+            y -= 8
+
+        # -------------------------------------------------
+        # INTERPRETATION LIMITS
+        # -------------------------------------------------
+        if limitations_w:
+            y = check_page_break(y, needed=70)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Interpretation Limits")
+            y -= 14
+            for limitation in limitations_w:
+                y = check_page_break(y, needed=30)
+                y = draw_wrapped_line(
+                    y,
+                    f"- {limitation}",
+                    fontsize=8,
+                    indent=10,
+                    line_spacing=11,
+                )
+            y -= 8
+
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+        return y
+
+
     def draw_scalar_clinical_analysis(
         y,
         title,
@@ -6400,22 +6845,38 @@ def export_medications_pdf(
         pdf.setStrokeColorRGB(0, 0, 0)
         y -= 14
 
-    # Optional vital analyses are independent of BP readiness. When BP
-    # has fewer than its own analysis gate, start a dedicated analysis
-    # page here instead of suppressing every other tracked metric.
-    optional_analysis_present = any([
-        hr_analysis,
-        spo2_analysis,
-        temp_analysis,
-        weight_analysis,
-        glucose_analysis,
-    ])
-    if bp is None and optional_analysis_present:
+    # Blood pressure is the core vital and uses its own >=7-reading gate.
+    # Mirror the app's scoped "Not Enough Data Yet" behavior in the PDF
+    # instead of silently omitting BP whenever optional-vital analysis exists.
+    if bp is None:
         pdf.showPage()
         y = height - 50
         pdf.setFont("Helvetica-Bold", 13)
         pdf.drawString(LEFT, y, f"Vitals Analysis (Last {days} Days)")
         y -= 20
+
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(LEFT, y, "Blood Pressure Clinical Analysis")
+        y -= 14
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT + 10, y, "Not Enough Data Yet")
+        y -= 14
+        pdf.setFont("Helvetica", 9)
+        bp_count = len(bp_analysis_rows)
+        y = draw_wrapped_line(
+            y,
+            f"{bp_count} blood pressure reading(s) are available in this report window. "
+            f"Blood pressure analysis requires at least 7 readings. Other tracked vitals "
+            f"below are analyzed independently when their own data requirements are met.",
+            fontsize=9,
+            indent=10,
+            line_spacing=12,
+        )
+        y -= 10
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
 
     # =====================================================
     # HEART RATE — CLINICAL ANALYSIS
@@ -7131,16 +7592,12 @@ def export_medications_pdf(
         y -= 14
 
     # =====================================================
-    # WEIGHT / GLUCOSE — DESCRIPTIVE CLINICAL SUMMARY
+    # WEIGHT — DEDICATED ANALYSIS CONTRACT
     # =====================================================
     if weight_analysis is not None:
-        y = draw_scalar_clinical_analysis(
-            y,
-            "Weight Clinical Analysis",
-            weight_analysis,
-            show_trend=True,
-        )
+        y = draw_weight_clinical_analysis(y, weight_analysis)
 
+    # Glucose remains descriptive until measurement context is collected.
     if glucose_analysis is not None:
         y = draw_scalar_clinical_analysis(
             y,
