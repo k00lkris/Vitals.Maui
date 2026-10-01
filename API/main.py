@@ -6468,19 +6468,29 @@ def export_medications_pdf(
                 bmi_change = historical_bmi_w.get("absolute_change")
                 span_days_hist = historical_bmi_w.get("span_days") or 0
 
-                summary_text = (
-                    f"{point_count} historically valid adult BMI point(s) across "
-                    f"{span_days_hist:.0f} day(s)."
-                )
-                if first_bmi is not None and latest_bmi_hist is not None:
-                    summary_text += (
-                        f" First BMI {first_bmi:.1f}; latest BMI "
-                        f"{latest_bmi_hist:.1f} kg/m2."
+                if point_count == 1:
+                    single_bmi = (
+                        latest_bmi_hist
+                        if latest_bmi_hist is not None
+                        else first_bmi
                     )
-                if bmi_change is not None:
-                    summary_text += (
-                        f" Change across valid points: {bmi_change:+.1f} kg/m2."
+                    summary_text = "1 historically valid adult BMI point."
+                    if single_bmi is not None:
+                        summary_text += f" BMI {single_bmi:.1f} kg/m2."
+                else:
+                    summary_text = (
+                        f"{point_count} historically valid adult BMI points across "
+                        f"{span_days_hist:.0f} day(s)."
                     )
+                    if first_bmi is not None and latest_bmi_hist is not None:
+                        summary_text += (
+                            f" First BMI {first_bmi:.1f}; latest BMI "
+                            f"{latest_bmi_hist:.1f} kg/m2."
+                        )
+                    if bmi_change is not None:
+                        summary_text += (
+                            f" Change across valid points: {bmi_change:+.1f} kg/m2."
+                        )
 
                 y = draw_wrapped_line(
                     y,
