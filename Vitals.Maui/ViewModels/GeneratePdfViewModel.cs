@@ -10,6 +10,7 @@ public partial class GeneratePdfViewModel : ObservableObject
 {
     private readonly ApiService _api;
     private readonly PatientStateService _patientState;
+    private readonly UserPreferencesService _preferences;
 
     public Patient? SelectedPatient => _patientState.SelectedPatient;
 
@@ -58,10 +59,14 @@ public partial class GeneratePdfViewModel : ObservableObject
     private string ReportsFolder =>
         Path.Combine(FileSystem.AppDataDirectory, "VitalsReports");
 
-    public GeneratePdfViewModel(ApiService api, PatientStateService patientState)
+    public GeneratePdfViewModel(
+        ApiService api,
+        PatientStateService patientState,
+        UserPreferencesService preferences)
     {
         _api = api;
         _patientState = patientState;
+        _preferences = preferences;
 
         _patientState.PropertyChanged += (s, e) =>
         {
@@ -119,7 +124,11 @@ public partial class GeneratePdfViewModel : ObservableObject
         try
         {
             var patient = _patientState.SelectedPatient;
-            var bytes = await _api.GetPdfAsync(patient.PatientId, SelectedDays);
+            var preferences = _preferences.LocalSnapshot(patient.PatientId);
+            var bytes = await _api.GetPdfAsync(
+                patient.PatientId,
+                SelectedDays,
+                preferences);
 
             if (bytes is null || bytes.Length == 0)
             {

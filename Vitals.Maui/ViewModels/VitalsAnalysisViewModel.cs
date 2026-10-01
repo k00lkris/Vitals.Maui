@@ -178,7 +178,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         _preferences = preferences;
     }
 
-    public async Task LoadAsync(int days = 30)
+    public async Task LoadAsync(int days = 15)
     {
         SelectedDays = days;
         UpdateButtonColors(days);
