@@ -79,5 +79,8 @@ WHERE p.height_inches IS NOT NULL
       WHERE h.patient_id = p.patient_id
   );
 
+ALTER TABLE IF EXISTS public.patient_height_history
+    OWNER TO postgres;
+
 GRANT ALL ON TABLE public.patient_height_history TO postgres;
 GRANT ALL ON TABLE public.patient_height_history TO vitals_user;
