@@ -2844,8 +2844,13 @@ def run_weight_analysis(
     Adult current BMI is calculated only when the patient's date of birth
     establishes age >=20 on the latest weight date and a current profile
     height is available. BMI is presented as screening context, never as a
-    diagnosis or body-composition estimate. Dated height observations are now
-    retained; historical BMI trajectory remains a separate analysis set.
+    diagnosis or body-composition estimate.
+
+    Historical BMI is calculated separately using one median Weight per local
+    calendar day. Each Weight day is paired only with the newest ACTIVE height
+    observation whose effective_date is on or before that Weight date. A newer
+    height is never backfilled into older Weight dates, and profile-backfilled
+    heights therefore do not fabricate BMI values for pre-migration Weight.
     """
     if not rows:
         return None
@@ -2987,6 +2992,159 @@ def run_weight_analysis(
         else 0.0
     )
 
+    # ------------------------------------------------------------------
+    # HISTORICAL ADULT BMI TRAJECTORY
+    # ------------------------------------------------------------------
+    # Use one daily-median Weight point, matching the rest of Weight's
+    # longitudinal analysis. For each Weight date, select ONLY the newest
+    # active height observation effective on/before that date. Never apply a
+    # later height backward in time.
+    height_history = demographics.get("height_history") or []
+    normalized_height_history = []
+    for h in height_history:
+        effective = h.get("effective_date")
+        if effective is None:
+            continue
+        if isinstance(effective, str):
+            effective = date.fromisoformat(effective)
+        normalized_height_history.append({
+            "height_inches": int(h["height_inches"]),
+            "effective_date": effective,
+            "source": h.get("source"),
+            "entry_type": h.get("entry_type"),
+            "created_at": h.get("created_at"),
+        })
+
+    # SQL already orders same-date observations by created_at; Python's sort
+    # is stable, so sorting by effective date keeps the newest same-day active
+    # record last and therefore selected below.
+    normalized_height_history.sort(key=lambda h: h["effective_date"])
+
+    historical_points = []
+    skipped_missing_height = 0
+    skipped_pediatric = 0
+    skipped_missing_dob = 0
+    adult_candidate_days = 0
+
+    for daily in daily_points:
+        weight_date = daily["date"]
+
+        if dob is None:
+            skipped_missing_dob += 1
+            continue
+
+        age_years = (
+            weight_date.year
+            - dob.year
+            - (
+                (weight_date.month, weight_date.day)
+                < (dob.month, dob.day)
+            )
+        )
+        if age_years < 20:
+            skipped_pediatric += 1
+            continue
+
+        adult_candidate_days += 1
+
+        effective_height = None
+        for h in normalized_height_history:
+            if h["effective_date"] <= weight_date:
+                effective_height = h
+            else:
+                break
+
+        if effective_height is None:
+            skipped_missing_height += 1
+            continue
+
+        hist_height_inches = int(effective_height["height_inches"])
+        if hist_height_inches <= 0:
+            skipped_missing_height += 1
+            continue
+
+        weight_kg = float(daily["value"]) / 2.2046226218
+        height_m = (float(hist_height_inches) * 2.54) / 100.0
+        hist_bmi = weight_kg / (height_m ** 2)
+
+        if hist_bmi < 18.5:
+            hist_category = "underweight"
+        elif hist_bmi < 25.0:
+            hist_category = "healthy_weight"
+        elif hist_bmi < 30.0:
+            hist_category = "overweight"
+        elif hist_bmi < 35.0:
+            hist_category = "obesity_class_1"
+        elif hist_bmi < 40.0:
+            hist_category = "obesity_class_2"
+        else:
+            hist_category = "obesity_class_3"
+
+        historical_points.append({
+            "local_date": weight_date.isoformat(),
+            "weight_lb": round(float(daily["value"]), 1),
+            "source_reading_count": int(daily["reading_count"]),
+            "height_inches": hist_height_inches,
+            "height_effective_date": effective_height["effective_date"].isoformat(),
+            "height_source": effective_height.get("source"),
+            "height_entry_type": effective_height.get("entry_type"),
+            "age_years": age_years,
+            "bmi": round(float(hist_bmi), 1),
+            "adult_category": hist_category,
+        })
+
+    historical_reason_code = None
+    historical_reason = None
+    if not historical_points:
+        if dob is None:
+            historical_reason_code = "missing_date_of_birth"
+            historical_reason = (
+                "A date of birth is required before historical adult BMI can be age-gated."
+            )
+        elif adult_candidate_days == 0:
+            historical_reason_code = "pediatric_strategy_required"
+            historical_reason = (
+                "No Weight day in this period occurred at age 20 or older; "
+                "pediatric BMI-for-age requires a separate strategy."
+            )
+        else:
+            historical_reason_code = "no_historically_valid_height"
+            historical_reason = (
+                "No active height observation was effective on or before the eligible "
+                "Weight date(s). Newer heights are not applied backward in time."
+            )
+
+    historical_bmi = {
+        "available": len(historical_points) > 0,
+        "reason_unavailable": historical_reason_code,
+        "reason": historical_reason,
+        "point_count": len(historical_points),
+        "candidate_weight_days": distinct_days,
+        "adult_candidate_days": adult_candidate_days,
+        "skipped_missing_historical_height": skipped_missing_height,
+        "skipped_pediatric": skipped_pediatric,
+        "skipped_missing_date_of_birth": skipped_missing_dob,
+        "points": historical_points,
+        "first_bmi": None,
+        "latest_bmi": None,
+        "absolute_change": None,
+        "span_days": 0.0,
+    }
+    if historical_points:
+        historical_bmi["first_bmi"] = historical_points[0]["bmi"]
+        historical_bmi["latest_bmi"] = historical_points[-1]["bmi"]
+        historical_bmi["span_days"] = float(
+            (
+                date.fromisoformat(historical_points[-1]["local_date"])
+                - date.fromisoformat(historical_points[0]["local_date"])
+            ).days
+        )
+        if len(historical_points) >= 2:
+            historical_bmi["absolute_change"] = round(
+                float(historical_points[-1]["bmi"] - historical_points[0]["bmi"]),
+                1,
+            )
+
     summary = {
         "mean": round(float(np.mean(raw_values)), 1),
         "median": round(float(np.median(raw_values)), 1),
@@ -3101,6 +3259,13 @@ def run_weight_analysis(
     trend = None
     unavailable = []
 
+    if not historical_bmi["available"]:
+        unavailable.append({
+            "analysis": "historical_bmi_trajectory",
+            "reason_code": historical_bmi["reason_unavailable"],
+            "reason": historical_bmi["reason"],
+        })
+
     # A robust trend needs enough independent DAYS and enough calendar span
     # to represent more than a few adjacent measurements.
     if distinct_days >= 5 and daily_span_days >= 14.0:
@@ -3163,7 +3328,7 @@ def run_weight_analysis(
     )
 
     return {
-        "analysis_version": 5,
+        "analysis_version": 6,
         "vital_type": "weight",
         "unit": "lb",
         "latest": {
@@ -3172,6 +3337,7 @@ def run_weight_analysis(
         },
         "reading_count": len(points),
         "anthropometrics": anthropometrics,
+        "historical_bmi": historical_bmi,
         "summary": summary,
         "daily_summary": daily_summary,
         "change_from_first": change_from_first,
@@ -3201,7 +3367,11 @@ def run_weight_analysis(
                     "Adult BMI is unavailable for the current patient profile.",
                 )
             ),
-            "Historical BMI trajectory is not calculated yet; dated height history is now retained for that future analysis.",
+            (
+                "Historical BMI uses only active height observations effective on or before each Weight date; newer heights are never backfilled into older dates."
+                if historical_bmi["available"]
+                else historical_bmi["reason"]
+            ),
             "Vitals does not judge whether weight gain or loss is desirable without an individualized goal.",
             "Disease-specific rapid-weight-change alerts require diagnosis or clinician-configured thresholds and are not applied automatically.",
         ],
@@ -3215,6 +3385,64 @@ def run_glucose_analysis(rows: list) -> dict | None:
         unit="mg/dL",
         allow_longitudinal_trend=False,
     )
+
+
+def _load_weight_patient_demographics(cur, patient_id: str, household_id: str) -> dict | None:
+    """
+    Loads current anthropometrics plus the complete ACTIVE dated height
+    timeline required by Weight v6. Superseded corrections stay auditable in
+    patient_height_history but must never participate in BMI calculations.
+    """
+    cur.execute("""
+        SELECT
+            p.dob,
+            p.height_inches,
+            h.effective_date,
+            h.source
+        FROM patients p
+        LEFT JOIN LATERAL (
+            SELECT effective_date, source
+            FROM patient_height_history
+            WHERE patient_id = p.patient_id
+              AND household_id = p.household_id
+              AND is_active = true
+              AND height_inches = p.height_inches
+            ORDER BY effective_date DESC, created_at DESC
+            LIMIT 1
+        ) h ON true
+        WHERE p.patient_id = %s
+          AND p.household_id = %s;
+    """, (patient_id, household_id))
+    demographic_row = cur.fetchone()
+    if demographic_row is None:
+        return None
+
+    cur.execute("""
+        SELECT height_inches, effective_date, source, entry_type, created_at
+        FROM patient_height_history
+        WHERE patient_id = %s
+          AND household_id = %s
+          AND is_active = true
+        ORDER BY effective_date ASC, created_at ASC;
+    """, (patient_id, household_id))
+    height_rows = cur.fetchall()
+
+    return {
+        "dob": demographic_row[0],
+        "height_inches": demographic_row[1],
+        "height_effective_date": demographic_row[2],
+        "height_source": demographic_row[3],
+        "height_history": [
+            {
+                "height_inches": r[0],
+                "effective_date": r[1],
+                "source": r[2],
+                "entry_type": r[3],
+                "created_at": r[4],
+            }
+            for r in height_rows
+        ],
+    }
 
 
 # --------------------
@@ -3325,7 +3553,7 @@ VITAL_ANALYSIS_REGISTRY = {
         "needs_patient_demographics": True,
         # Increment when the Weight contract changes. The read path uses this
         # to ignore an older JSON cache row and recompute it immediately.
-        "analysis_version": 5,
+        "analysis_version": 6,
     },
     "glucose": {
         "from_clause": "vitals",
@@ -3404,34 +3632,11 @@ def recompute_vital_cache(patient_id: str, household_id: str, vital_type: str):
         # dated height-history metadata for age-gated adult current BMI.
         patient_demographics = None
         if entry.get("needs_patient_demographics"):
-            cur.execute("""
-                SELECT
-                    p.dob,
-                    p.height_inches,
-                    h.effective_date,
-                    h.source
-                FROM patients p
-                LEFT JOIN LATERAL (
-                    SELECT effective_date, source
-                    FROM patient_height_history
-                    WHERE patient_id = p.patient_id
-                      AND household_id = p.household_id
-                      AND is_active = true
-                      AND height_inches = p.height_inches
-                    ORDER BY effective_date DESC, created_at DESC
-                    LIMIT 1
-                ) h ON true
-                WHERE p.patient_id = %s
-                  AND p.household_id = %s;
-            """, (patient_id, household_id))
-            demographic_row = cur.fetchone()
-            if demographic_row is not None:
-                patient_demographics = {
-                    "dob": demographic_row[0],
-                    "height_inches": demographic_row[1],
-                    "height_effective_date": demographic_row[2],
-                    "height_source": demographic_row[3],
-                }
+            patient_demographics = _load_weight_patient_demographics(
+                cur,
+                patient_id,
+                household_id,
+            )
 
         # Built generically so any combination of optional extra datasets
         # works without a combinatorial chain of if/else branches — a
@@ -3509,7 +3714,7 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
                     )
                 ):
                     return cached  # valid cache hit
-                # Contract changed (currently used by Weight v5). Fall through
+                # Contract changed (currently used by Weight v6). Fall through
                 # and recompute this window instead of serving stale JSON.
 
         # Cache miss on a standard window, or a custom range — compute now.
@@ -3554,34 +3759,11 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
 
         patient_demographics = None
         if entry.get("needs_patient_demographics"):
-            cur.execute("""
-                SELECT
-                    p.dob,
-                    p.height_inches,
-                    h.effective_date,
-                    h.source
-                FROM patients p
-                LEFT JOIN LATERAL (
-                    SELECT effective_date, source
-                    FROM patient_height_history
-                    WHERE patient_id = p.patient_id
-                      AND household_id = p.household_id
-                      AND is_active = true
-                      AND height_inches = p.height_inches
-                    ORDER BY effective_date DESC, created_at DESC
-                    LIMIT 1
-                ) h ON true
-                WHERE p.patient_id = %s
-                  AND p.household_id = %s;
-            """, (patient_id, household_id))
-            demographic_row = cur.fetchone()
-            if demographic_row is not None:
-                patient_demographics = {
-                    "dob": demographic_row[0],
-                    "height_inches": demographic_row[1],
-                    "height_effective_date": demographic_row[2],
-                    "height_source": demographic_row[3],
-                }
+            patient_demographics = _load_weight_patient_demographics(
+                cur,
+                patient_id,
+                household_id,
+            )
 
         extra_kwargs = {}
         if lookback:
@@ -3666,36 +3848,11 @@ def get_weight_analysis_for_window(
         if latest_weight is None:
             return None
 
-        cur.execute("""
-            SELECT
-                p.dob,
-                p.height_inches,
-                h.effective_date,
-                h.source
-            FROM patients p
-            LEFT JOIN LATERAL (
-                SELECT effective_date, source
-                FROM patient_height_history
-                WHERE patient_id = p.patient_id
-                  AND household_id = p.household_id
-                  AND is_active = true
-                  AND height_inches = p.height_inches
-                ORDER BY effective_date DESC, created_at DESC
-                LIMIT 1
-            ) h ON true
-            WHERE p.patient_id = %s
-              AND p.household_id = %s;
-        """, (patient_id, household_id))
-        demographic_row = cur.fetchone()
-
-        patient_demographics = None
-        if demographic_row is not None:
-            patient_demographics = {
-                "dob": demographic_row[0],
-                "height_inches": demographic_row[1],
-                "height_effective_date": demographic_row[2],
-                "height_source": demographic_row[3],
-            }
+        patient_demographics = _load_weight_patient_demographics(
+            cur,
+            patient_id,
+            household_id,
+        )
 
         result = run_weight_analysis(
             [latest_weight],
@@ -6075,6 +6232,7 @@ def export_medications_pdf(
         unit_w = analysis.get("unit") or "lb"
         latest_w = analysis.get("latest") or {}
         anthropometrics = analysis.get("anthropometrics") or {}
+        historical_bmi_w = analysis.get("historical_bmi") or {}
         summary_w = analysis.get("daily_summary") or analysis.get("summary") or {}
         baseline_w = analysis.get("baseline_change")
         recent_w = analysis.get("recent_change")
@@ -6289,6 +6447,108 @@ def export_medications_pdf(
                 line_spacing=12,
             )
             y -= 6
+
+        # -------------------------------------------------
+        # HISTORICAL BMI TRAJECTORY
+        # -------------------------------------------------
+        if historical_bmi_w:
+            y = check_page_break(y, needed=95)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Historical BMI Trajectory")
+            y -= 14
+
+            if historical_bmi_w.get("available"):
+                point_count = int(historical_bmi_w.get("point_count") or 0)
+                first_bmi = historical_bmi_w.get("first_bmi")
+                latest_bmi_hist = historical_bmi_w.get("latest_bmi")
+                bmi_change = historical_bmi_w.get("absolute_change")
+                span_days_hist = historical_bmi_w.get("span_days") or 0
+
+                summary_text = (
+                    f"{point_count} historically valid adult BMI point(s) across "
+                    f"{span_days_hist:.0f} day(s)."
+                )
+                if first_bmi is not None and latest_bmi_hist is not None:
+                    summary_text += (
+                        f" First BMI {first_bmi:.1f}; latest BMI "
+                        f"{latest_bmi_hist:.1f} kg/m2."
+                    )
+                if bmi_change is not None:
+                    summary_text += (
+                        f" Change across valid points: {bmi_change:+.1f} kg/m2."
+                    )
+
+                y = draw_wrapped_line(
+                    y,
+                    summary_text,
+                    fontsize=9,
+                    indent=10,
+                    line_spacing=12,
+                )
+                y -= 4
+
+                pdf.setFont("Helvetica-Oblique", 8)
+                pdf.setFillColorRGB(0.4, 0.4, 0.4)
+                y = draw_wrapped_line(
+                    y,
+                    "Each point uses that day's median Weight and the newest active "
+                    "height observation effective on or before that Weight date. "
+                    "Later heights are not backfilled into earlier dates.",
+                    fontsize=8,
+                    indent=10,
+                    line_spacing=11,
+                )
+                pdf.setFillColorRGB(0, 0, 0)
+                y -= 6
+
+                hist_widths = [100, 95, 205, 112]
+                y = draw_table_row(
+                    y,
+                    ["Date", "Weight", "Height used", "BMI"],
+                    hist_widths,
+                    fontsize=8,
+                    bold=True,
+                    fill_bg=True,
+                )
+                for point in historical_bmi_w.get("points") or []:
+                    y = check_page_break(y, needed=32)
+                    total_inches = int(point.get("height_inches") or 0)
+                    height_text = (
+                        f"{total_inches // 12} ft {total_inches % 12} in"
+                        if total_inches > 0
+                        else "n/a"
+                    )
+                    if point.get("height_effective_date"):
+                        height_text += f" (eff {point['height_effective_date']})"
+
+                    y = draw_table_row(
+                        y,
+                        [
+                            str(point.get("local_date") or "n/a"),
+                            f"{point.get('weight_lb', 0):.1f} {unit_w}",
+                            height_text,
+                            f"{point.get('bmi', 0):.1f} kg/m2",
+                        ],
+                        hist_widths,
+                        fontsize=8,
+                    )
+                y -= 7
+            else:
+                reason = historical_bmi_w.get("reason") or (
+                    "Historical BMI is unavailable for the selected Weight dates."
+                )
+                y = draw_wrapped_line(
+                    y,
+                    f"Historical BMI unavailable: {reason}",
+                    fontsize=9,
+                    indent=10,
+                    line_spacing=12,
+                )
+                y -= 7
 
         # -------------------------------------------------
         # LOGGED READING SUMMARY (same daily-median view as the app)
