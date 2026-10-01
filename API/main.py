@@ -2786,7 +2786,6 @@ def _run_descriptive_scalar_analysis(
             "recorded_at": latest["recorded_at"].isoformat(),
         },
         "reading_count": len(points),
-        "anthropometrics": anthropometrics,
         "summary": summary,
         "change_from_first": change,
         "trend": trend,
@@ -3133,7 +3132,7 @@ def run_weight_analysis(
     )
 
     return {
-        "analysis_version": 3,
+        "analysis_version": 4,
         "vital_type": "weight",
         "unit": "lb",
         "latest": {
@@ -3141,6 +3140,7 @@ def run_weight_analysis(
             "recorded_at": latest["recorded_at"].isoformat(),
         },
         "reading_count": len(points),
+        "anthropometrics": anthropometrics,
         "summary": summary,
         "daily_summary": daily_summary,
         "change_from_first": change_from_first,
@@ -3294,7 +3294,7 @@ VITAL_ANALYSIS_REGISTRY = {
         "needs_patient_demographics": True,
         # Increment when the Weight contract changes. The read path uses this
         # to ignore an older JSON cache row and recompute it immediately.
-        "analysis_version": 3,
+        "analysis_version": 4,
     },
     "glucose": {
         "from_clause": "vitals",
@@ -3462,7 +3462,7 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
                     )
                 ):
                     return cached  # valid cache hit
-                # Contract changed (currently used by Weight v3). Fall through
+                # Contract changed (currently used by Weight v4). Fall through
                 # and recompute this window instead of serving stale JSON.
 
         # Cache miss on a standard window, or a custom range — compute now.
