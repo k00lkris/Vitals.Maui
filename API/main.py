@@ -312,6 +312,10 @@ class PatientHeightOut(BaseModel):
     is_active: bool
     created_at: datetime
 
+class PatientHeightSaveResponse(BaseModel):
+    record: PatientHeightOut
+    current_height_inches: Optional[int]
+
 class MedicationCreate(BaseModel):
     patient_id: UUID
     name: str
@@ -4595,7 +4599,7 @@ def get_patient_height_history(
 
 @app.post(
     "/api/patients/{patient_id}/height",
-    response_model=PatientHeightOut,
+    response_model=PatientHeightSaveResponse,
 )
 def record_patient_height(
     patient_id: UUID,
@@ -4712,15 +4716,18 @@ def record_patient_height(
 
         conn.commit()
         return {
-            "height_id": str(inserted[0]),
-            "patient_id": str(inserted[1]),
-            "height_inches": inserted[2],
-            "effective_date": inserted[3],
-            "entry_type": inserted[4],
-            "source": inserted[5],
-            "supersedes_height_id": str(inserted[6]) if inserted[6] else None,
-            "is_active": inserted[7],
-            "created_at": inserted[8],
+            "record": {
+                "height_id": str(inserted[0]),
+                "patient_id": str(inserted[1]),
+                "height_inches": inserted[2],
+                "effective_date": inserted[3],
+                "entry_type": inserted[4],
+                "source": inserted[5],
+                "supersedes_height_id": str(inserted[6]) if inserted[6] else None,
+                "is_active": inserted[7],
+                "created_at": inserted[8],
+            },
+            "current_height_inches": current_height,
         }
     except HTTPException:
         conn.rollback()
