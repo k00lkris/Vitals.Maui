@@ -5140,6 +5140,11 @@ def update_medication(
 def export_medications_pdf(
     patient_id: UUID,
     days: int = Query(default=15),
+    include_heart_rate: Optional[bool] = Query(None),
+    include_spo2: Optional[bool] = Query(None),
+    include_temperature: Optional[bool] = Query(None),
+    include_weight: Optional[bool] = Query(None),
+    include_glucose: Optional[bool] = Query(None),
     x_api_key: str = Header(..., alias="X-API-KEY"),
     auth: dict = Depends(get_auth),
     household_id: str = Depends(get_household_id)
@@ -5170,11 +5175,37 @@ def export_medications_pdf(
     """, (str(patient_id), household_id))
     pref_row = cur.fetchone()
 
-    show_hr = bool(pref_row[0]) if pref_row else True
-    show_spo2 = bool(pref_row[1]) if pref_row else True
-    show_temp = bool(pref_row[2]) if pref_row else True
-    show_weight = bool(pref_row[3]) if pref_row else False
-    show_glucose = bool(pref_row[4]) if pref_row else False
+    # The database remains the persistent source of truth, but a current
+    # mobile build can also pass the exact visibility state it is showing at
+    # report-generation time. This prevents a stale/failed preference write
+    # from producing a PDF that silently omits a vital the user is actively
+    # viewing in Dashboard/Analysis. Older clients omit these query flags and
+    # continue to use the stored patient preferences below.
+    show_hr = (
+        bool(include_heart_rate)
+        if include_heart_rate is not None
+        else (bool(pref_row[0]) if pref_row else True)
+    )
+    show_spo2 = (
+        bool(include_spo2)
+        if include_spo2 is not None
+        else (bool(pref_row[1]) if pref_row else True)
+    )
+    show_temp = (
+        bool(include_temperature)
+        if include_temperature is not None
+        else (bool(pref_row[2]) if pref_row else True)
+    )
+    show_weight = (
+        bool(include_weight)
+        if include_weight is not None
+        else (bool(pref_row[3]) if pref_row else False)
+    )
+    show_glucose = (
+        bool(include_glucose)
+        if include_glucose is not None
+        else (bool(pref_row[4]) if pref_row else False)
+    )
 
     tracked_conditions = [
         "(systolic IS NOT NULL AND diastolic IS NOT NULL)"
