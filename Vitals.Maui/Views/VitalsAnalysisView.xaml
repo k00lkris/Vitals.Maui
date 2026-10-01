@@ -1887,6 +1887,43 @@
 
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Weight.HasHistoricalBmi}">
+                            <VerticalStackLayout Spacing="7">
+                                <Label Text="Historical BMI Trajectory" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="{Binding Analysis.Weight.HistoricalBmiSummaryDisplay}"
+                                       FontSize="14" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="{Binding Analysis.Weight.HistoricalBmiRecentPointsDisplay}"
+                                       FontSize="11" TextColor="{DynamicResource TextSecondary}"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="{Binding Analysis.Weight.HistoricalBmiCoverageDisplay}"
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="Each historical BMI point uses that day's median Weight and the newest active height observation effective on or before that date. Newer heights are never backfilled into older Weight dates."
+                                       FontSize="11" TextColor="{DynamicResource TextMuted}"
+                                       FontAttributes="Italic" LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
+                                IsVisible="{Binding Analysis.Weight.HasHistoricalBmiUnavailable}">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="Historical BMI Trajectory" FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <Label Text="Historical BMI unavailable"
+                                       FontSize="14" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="{Binding Analysis.Weight.HistoricalBmiUnavailableDisplay}"
+                                       FontSize="12" TextColor="{DynamicResource TextSecondary}"
+                                       LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
+                                StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
                                 IsVisible="{Binding Analysis.Weight.HasSummary}">
                             <VerticalStackLayout Spacing="10">
                                 <Label Text="Logged Reading Summary" FontSize="11"

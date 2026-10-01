@@ -1378,6 +1378,32 @@ public partial class VitalsAnalysisViewModel : ObservableObject
             parts.Add(weight.BmiUnavailableDisplay);
         }
 
+        if (weight.HistoricalBmi?.Available == true)
+        {
+            var historical = weight.HistoricalBmi;
+            if (historical.PointCount >= 2 &&
+                historical.FirstBmi is double firstBmi &&
+                historical.LatestBmi is double latestBmi)
+            {
+                var changeText = historical.AbsoluteChange is double bmiChange
+                    ? $" ({bmiChange:+0.0;-0.0;0.0} kg/m²)"
+                    : string.Empty;
+
+                parts.Add(
+                    $"Using the height that was actually effective on each Weight date, " +
+                    $"historical adult BMI spans {historical.PointCount} valid measurement " +
+                    $"days from {firstBmi:F1} to {latestBmi:F1} kg/m²{changeText}. " +
+                    "Newer height measurements are not applied backward to older Weight dates.");
+            }
+            else
+            {
+                parts.Add(
+                    "One historically valid adult BMI point is available using the height " +
+                    "that was effective on that Weight date. Additional valid Weight dates " +
+                    "are needed to show BMI change over time.");
+            }
+        }
+
         var summary = weight.DailySummary ?? weight.Summary;
         if (summary is not null && weight.DataSupport is not null)
         {
