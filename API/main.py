@@ -9025,6 +9025,112 @@ def health_check():
     return {"status": "ok"}
 
 # =====================================================
+# PATIENT VITAL PREFERENCES
+# =====================================================
+# Optional-vital tracking belongs to the selected patient. These endpoints
+# deliberately avoid a user_id query parameter: household auth + patient
+# ownership are sufficient, and keeping patient settings on a patient route
+# prevents a user-preference failure from silently blocking vital saves.
+@app.get("/api/patients/{patient_id}/vital-preferences")
+def get_patient_vital_preferences(
+    patient_id: UUID,
+    household_id: str = Depends(get_household_id),
+):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        verify_patient_household(cur, str(patient_id), household_id)
+        cur.execute("""
+            SELECT show_heart_rate, show_spo2, show_temperature,
+                   show_weight, show_glucose
+            FROM patients
+            WHERE patient_id = %s
+              AND household_id = %s;
+        """, (str(patient_id), household_id))
+        row = cur.fetchone()
+
+        if row is None:
+            raise HTTPException(status_code=404, detail="Patient preferences not found")
+
+        return {
+            "patient_id": str(patient_id),
+            "show_heart_rate": bool(row[0]),
+            "show_spo2": bool(row[1]),
+            "show_temperature": bool(row[2]),
+            "show_weight": bool(row[3]),
+            "show_glucose": bool(row[4]),
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.patch("/api/patients/{patient_id}/vital-preferences")
+def update_patient_vital_preferences(
+    patient_id: UUID,
+    payload: dict = Body(...),
+    household_id: str = Depends(get_household_id),
+):
+    allowed = {
+        "show_heart_rate",
+        "show_spo2",
+        "show_temperature",
+        "show_weight",
+        "show_glucose",
+    }
+    updates = {k: bool(v) for k, v in payload.items() if k in allowed}
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No valid vital preference fields to update")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        verify_patient_household(cur, str(patient_id), household_id)
+
+        fields = ", ".join(f"{key} = %s" for key in updates)
+        values = list(updates.values()) + [str(patient_id), household_id]
+        cur.execute(f"""
+            UPDATE patients
+            SET {fields}
+            WHERE patient_id = %s
+              AND household_id = %s;
+        """, values)
+
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        conn.commit()
+
+        cur.execute("""
+            SELECT show_heart_rate, show_spo2, show_temperature,
+                   show_weight, show_glucose
+            FROM patients
+            WHERE patient_id = %s
+              AND household_id = %s;
+        """, (str(patient_id), household_id))
+        row = cur.fetchone()
+
+        return {
+            "patient_id": str(patient_id),
+            "show_heart_rate": bool(row[0]),
+            "show_spo2": bool(row[1]),
+            "show_temperature": bool(row[2]),
+            "show_weight": bool(row[3]),
+            "show_glucose": bool(row[4]),
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+
+# =====================================================
 # USER + PATIENT PREFERENCES
 # =====================================================
 # Theme remains a signed-in USER preference. Optional-vital tracking is a
