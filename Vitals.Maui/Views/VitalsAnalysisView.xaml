@@ -1888,12 +1888,96 @@
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
                                 IsVisible="{Binding Analysis.Weight.HasSummary}">
-                            <VerticalStackLayout Spacing="8">
+                            <VerticalStackLayout Spacing="10">
                                 <Label Text="Logged Reading Summary" FontSize="11"
                                        TextColor="{DynamicResource PrimaryAccent}" />
-                                <Label Text="{Binding Analysis.Weight.SummaryDisplay}"
-                                       FontSize="13" TextColor="{DynamicResource TextSecondary}"
-                                       LineBreakMode="WordWrap" />
+
+                                <Label Text="{Binding Analysis.Weight.SummarySourceDisplay}"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextMuted}" />
+
+                                <Grid ColumnDefinitions="*,Auto"
+                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                                      ColumnSpacing="16"
+                                      RowSpacing="0">
+
+                                    <!-- Table header -->
+                                    <Label Grid.Row="0" Grid.Column="0"
+                                           Text="Metric"
+                                           Padding="0,5,0,7"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextMuted}" />
+                                    <Label Grid.Row="0" Grid.Column="1"
+                                           Text="Weight"
+                                           Padding="0,5,0,7"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="End"
+                                           TextColor="{DynamicResource TextMuted}" />
+
+                                    <!-- Mean -->
+                                    <Label Grid.Row="1" Grid.Column="0"
+                                           Text="Mean"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextSecondary}" />
+                                    <Label Grid.Row="1" Grid.Column="1"
+                                           Text="{Binding Analysis.Weight.SummaryMeanDisplay}"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="End"
+                                           TextColor="{DynamicResource TextPrimary}" />
+
+                                    <!-- Median -->
+                                    <Label Grid.Row="2" Grid.Column="0"
+                                           Text="Median"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextSecondary}" />
+                                    <Label Grid.Row="2" Grid.Column="1"
+                                           Text="{Binding Analysis.Weight.SummaryMedianDisplay}"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="End"
+                                           TextColor="{DynamicResource TextPrimary}" />
+
+                                    <!-- Minimum -->
+                                    <Label Grid.Row="3" Grid.Column="0"
+                                           Text="Minimum"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextSecondary}" />
+                                    <Label Grid.Row="3" Grid.Column="1"
+                                           Text="{Binding Analysis.Weight.SummaryMinDisplay}"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="End"
+                                           TextColor="{DynamicResource TextPrimary}" />
+
+                                    <!-- Maximum -->
+                                    <Label Grid.Row="4" Grid.Column="0"
+                                           Text="Maximum"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextSecondary}" />
+                                    <Label Grid.Row="4" Grid.Column="1"
+                                           Text="{Binding Analysis.Weight.SummaryMaxDisplay}"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="End"
+                                           TextColor="{DynamicResource TextPrimary}" />
+                                </Grid>
+
+                                <BoxView HeightRequest="1"
+                                         BackgroundColor="{DynamicResource DividerColor}"
+                                         Margin="0,2,0,0"
+                                         IsVisible="{Binding Analysis.Weight.HasBaselineChange}" />
+
                                 <Label Text="{Binding Analysis.Weight.BaselineChangeDisplay}"
                                        IsVisible="{Binding Analysis.Weight.HasBaselineChange}"
                                        FontSize="13" FontAttributes="Bold"

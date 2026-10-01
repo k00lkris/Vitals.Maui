@@ -115,11 +115,30 @@ public class WeightAnalysis
             _ => "Adult BMI is unavailable for the current patient profile."
         };
 
+    private DescriptiveVitalSummary? DisplaySummary =>
+        DailySummary ?? Summary;
+
+    public string SummarySourceDisplay =>
+        DailySummary is not null ? "Daily median values" : "Logged readings";
+
+    public string SummaryMeanDisplay =>
+        DisplaySummary is null ? string.Empty : $"{DisplaySummary.Mean:F1} {Unit}";
+
+    public string SummaryMedianDisplay =>
+        DisplaySummary is null ? string.Empty : $"{DisplaySummary.Median:F1} {Unit}";
+
+    public string SummaryMinDisplay =>
+        DisplaySummary is null ? string.Empty : $"{DisplaySummary.Min:F1} {Unit}";
+
+    public string SummaryMaxDisplay =>
+        DisplaySummary is null ? string.Empty : $"{DisplaySummary.Max:F1} {Unit}";
+
+    // Retained for any existing non-table bindings/reports.
     public string SummaryDisplay
     {
         get
         {
-            var summary = DailySummary ?? Summary;
+            var summary = DisplaySummary;
             if (summary is null)
                 return string.Empty;
 
