@@ -4746,30 +4746,24 @@ def export_medications_pdf(
     cur = conn.cursor()
     verify_patient_household(cur, str(patient_id), household_id)
 
-    # The PDF is generated for the signed-in user's chosen vital set.
-    # Blood pressure is always tracked. Legacy API-key callers have no
-    # per-user preference row, so preserve the pre-mobile default set and
-    # leave the newer Weight/Glucose sections off for that path.
-    show_hr = True
-    show_spo2 = True
-    show_temp = True
-    show_weight = False
-    show_glucose = False
+    # Optional-vital tracking is PATIENT-scoped. The PDF must use the same
+    # selected-patient configuration as Entry, Dashboard, Analysis, and
+    # Settings; otherwise two patients in one household could receive reports
+    # with the wrong vital sections. Blood pressure remains always enabled.
+    cur.execute("""
+        SELECT show_heart_rate, show_spo2, show_temperature,
+               show_weight, show_glucose
+        FROM patients
+        WHERE patient_id = %s
+          AND household_id = %s;
+    """, (str(patient_id), household_id))
+    pref_row = cur.fetchone()
 
-    if auth.get("type") != "api_key":
-        user_id = auth.get("sub")
-        if user_id:
-            cur.execute("""
-                SELECT show_heart_rate, show_spo2, show_temperature,
-                       show_weight, show_glucose
-                FROM users
-                WHERE user_id = %s AND household_id = %s;
-            """, (user_id, household_id))
-            pref_row = cur.fetchone()
-            if pref_row:
-                show_hr, show_spo2, show_temp, show_weight, show_glucose = [
-                    bool(v) for v in pref_row
-                ]
+    show_hr = bool(pref_row[0]) if pref_row else True
+    show_spo2 = bool(pref_row[1]) if pref_row else True
+    show_temp = bool(pref_row[2]) if pref_row else True
+    show_weight = bool(pref_row[3]) if pref_row else False
+    show_glucose = bool(pref_row[4]) if pref_row else False
 
     tracked_conditions = [
         "(systolic IS NOT NULL AND diastolic IS NOT NULL)"
