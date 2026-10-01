@@ -14,7 +14,7 @@ public class PatientHeightRecord
     public int HeightInches { get; set; }
 
     [JsonPropertyName("effective_date")]
-    public DateTime EffectiveDate { get; set; }
+    public string EffectiveDate { get; set; } = string.Empty;
 
     [JsonPropertyName("entry_type")]
     public string EntryType { get; set; } = string.Empty;
@@ -35,7 +35,9 @@ public class PatientHeightRecord
         $"{HeightInches / 12}' {HeightInches % 12}\"";
 
     public string EffectiveDateDisplay =>
-        EffectiveDate.ToString("MMM d, yyyy");
+        DateTime.TryParse(EffectiveDate, out var date)
+            ? date.ToString("MMM d, yyyy")
+            : EffectiveDate;
 
     public string EntryTypeDisplay =>
         EntryType switch
