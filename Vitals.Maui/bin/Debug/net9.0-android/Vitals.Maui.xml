@@ -2120,6 +2120,8 @@
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
         </member>
         <member name="M:Vitals.Maui.ViewModels.SettingsViewModel.RefreshAccountInfo">
             <summary>
@@ -2172,11 +2174,20 @@
         <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.ProfileHeightInches">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._profileHeightInches"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.ProfileHeightEffectiveDate">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._profileHeightEffectiveDate"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.IsSavingProfile">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._isSavingProfile"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.IsSavingHeight">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._isSavingHeight"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.ProfileStatusMessage">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._profileStatusMessage"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.HeightStatusMessage">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.SettingsViewModel._heightStatusMessage"/>
         </member>
         <member name="M:Vitals.Maui.ViewModels.SettingsViewModel.OnShowHeartRateChanged(System.Boolean)">
             <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.ShowHeartRate"/> just changed.</summary>
@@ -2208,6 +2219,18 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.SavePatientProfileCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.SettingsViewModel.SavePatientProfileAsync"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.SettingsViewModel.recordHeightMeasurementCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.RecordHeightMeasurementCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.RecordHeightMeasurementCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.SettingsViewModel.RecordHeightMeasurementAsync"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.SettingsViewModel.correctCurrentHeightCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.CorrectCurrentHeightCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.SettingsViewModel.CorrectCurrentHeightCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.SettingsViewModel.CorrectCurrentHeightAsync"/>.</summary>
         </member>
         <member name="F:Vitals.Maui.ViewModels.SettingsViewModel.setThemeCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.SettingsViewModel.SetThemeCommand"/>.</summary>
@@ -3540,11 +3563,20 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ProfileHeightInches">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ProfileHeightInches" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ProfileHeightEffectiveDate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ProfileHeightEffectiveDate" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsSavingProfile">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsSavingProfile" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsSavingHeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsSavingHeight" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ProfileStatusMessage">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ProfileStatusMessage" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HeightStatusMessage">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HeightStatusMessage" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.DisplayName">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "DisplayName" generated properties.</summary>
@@ -4302,11 +4334,20 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ProfileHeightInches">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ProfileHeightInches" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ProfileHeightEffectiveDate">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ProfileHeightEffectiveDate" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsSavingProfile">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsSavingProfile" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsSavingHeight">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsSavingHeight" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ProfileStatusMessage">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ProfileStatusMessage" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HeightStatusMessage">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HeightStatusMessage" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.DisplayName">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "DisplayName" generated properties.</summary>
