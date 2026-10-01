@@ -41,38 +41,88 @@ public class UserPreferencesService
     public async Task<UserPreferences> RefreshAsync(string? patientId = null)
     {
         var local = LocalSnapshot(patientId);
-        if (string.IsNullOrWhiteSpace(_auth.UserId))
-            return local;
 
-        var remote = await _api.GetUserPreferencesAsync(_auth.UserId, patientId);
-        if (remote is null)
-            return local;
+        if (!string.IsNullOrWhiteSpace(patientId))
+        {
+            // Patient vital visibility has its own patient-scoped API. Do not
+            // make these settings depend on the user-preference endpoint.
+            var patientRemote = await _api.GetPatientVitalPreferencesAsync(patientId);
+            if (patientRemote is not null)
+            {
+                local.PatientId = patientId;
+                local.ShowHeartRate = patientRemote.ShowHeartRate;
+                local.ShowSpo2 = patientRemote.ShowSpo2;
+                local.ShowTemperature = patientRemote.ShowTemperature;
+                local.ShowWeight = patientRemote.ShowWeight;
+                local.ShowGlucose = patientRemote.ShowGlucose;
+                CacheLocal(local, patientId);
+            }
+        }
 
-        CacheLocal(remote, patientId);
-        return remote;
+        // Theme remains user-scoped. Failure here must never erase or block
+        // the independently loaded patient vital preferences.
+        if (!string.IsNullOrWhiteSpace(_auth.UserId))
+        {
+            var userRemote = await _api.GetUserPreferencesAsync(_auth.UserId);
+            if (userRemote is not null)
+            {
+                local.Theme = userRemote.Theme;
+                Preferences.Set("theme", local.Theme);
+            }
+        }
+
+        return local;
     }
 
     public async Task<bool> SaveAsync(
         UserPreferences preferences,
         string? patientId = null)
     {
-        CacheLocal(preferences, patientId);
+        if (string.IsNullOrWhiteSpace(patientId))
+            return false;
+
+        var saved = await _api.UpdatePatientVitalPreferencesAsync(
+            patientId,
+            new
+            {
+                show_heart_rate = preferences.ShowHeartRate,
+                show_spo2 = preferences.ShowSpo2,
+                show_temperature = preferences.ShowTemperature,
+                show_weight = preferences.ShowWeight,
+                show_glucose = preferences.ShowGlucose,
+            });
+
+        if (saved is null)
+            return false;
+
+        // Cache ONLY the server-confirmed values. Previously we cached first,
+        // so a failed request left Settings looking enabled even though the
+        // database was still false.
+        var confirmed = new UserPreferences
+        {
+            UserId = _auth.UserId ?? string.Empty,
+            PatientId = patientId,
+            Theme = preferences.Theme,
+            ShowHeartRate = saved.ShowHeartRate,
+            ShowSpo2 = saved.ShowSpo2,
+            ShowTemperature = saved.ShowTemperature,
+            ShowWeight = saved.ShowWeight,
+            ShowGlucose = saved.ShowGlucose,
+        };
+        CacheLocal(confirmed, patientId);
+        return true;
+    }
+
+    public async Task<bool> SaveThemeAsync(string theme)
+    {
+        Preferences.Set("theme", theme);
 
         if (string.IsNullOrWhiteSpace(_auth.UserId))
             return false;
 
         return await _api.UpdateUserPreferencesAsync(
             _auth.UserId,
-            new
-            {
-                theme = preferences.Theme,
-                show_heart_rate = preferences.ShowHeartRate,
-                show_spo2 = preferences.ShowSpo2,
-                show_temperature = preferences.ShowTemperature,
-                show_weight = preferences.ShowWeight,
-                show_glucose = preferences.ShowGlucose,
-            },
-            patientId);
+            new { theme });
     }
 
     public void CacheLocal(
