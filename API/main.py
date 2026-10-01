@@ -2869,10 +2869,10 @@ def run_weight_analysis(
     # ------------------------------------------------------------------
     # Adult CURRENT BMI (P0 §7.1 / §7.7)
     # ------------------------------------------------------------------
-    # The patient table currently stores one CURRENT profile height. That is
-    # sufficient for a current adult BMI, but it is not enough to reconstruct
-    # historical BMI. Historical BMI remains unavailable until dated height
-    # observations are implemented.
+    # patients.height_inches remains the current profile-height cache, while
+    # patient_height_history now preserves effective-dated observations.
+    # Current BMI uses the current profile value plus its dated metadata.
+    # Historical BMI trajectory is a separate analysis set implemented later.
     anthropometrics = {
         "bmi_available": False,
         "reason_unavailable": None,
@@ -3201,7 +3201,7 @@ def run_weight_analysis(
                     "Adult BMI is unavailable for the current patient profile.",
                 )
             ),
-            "Historical BMI is not calculated until dated height history is available.",
+            "Historical BMI trajectory is not calculated yet; dated height history is now retained for that future analysis.",
             "Vitals does not judge whether weight gain or loss is desirable without an individualized goal.",
             "Disease-specific rapid-weight-change alerts require diagnosis or clinician-configured thresholds and are not applied automatically.",
         ],
@@ -6097,6 +6097,11 @@ def export_medications_pdf(
                 bmi_rows.append([
                     "Current profile height used",
                     f"{total_inches // 12} ft {total_inches % 12} in",
+                ])
+            if anthropometrics.get("height_measured_at"):
+                bmi_rows.append([
+                    "Height effective date",
+                    str(anthropometrics["height_measured_at"]),
                 ])
             if anthropometrics.get("age_years") is not None:
                 bmi_rows.append([
