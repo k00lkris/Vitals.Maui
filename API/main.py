@@ -5208,6 +5208,38 @@ def export_medications_pdf(
     patient_show_weight = bool(pref_row[3]) if pref_row else False
     patient_show_glucose = bool(pref_row[4]) if pref_row else False
 
+    # A clinician PDF must never silently drop an actually-recorded Weight
+    # (or Glucose) series because preference state is stale during the
+    # user-scoped -> patient-scoped migration. Preferences can opt an empty
+    # section IN, but recorded patient data is sufficient to include it.
+    #
+    # This also makes PDF generation fully server-resolvable for already
+    # installed phones: no MAUI rebuild is needed for the API to discover
+    # that this patient has Weight data.
+    cur.execute("""
+        SELECT
+            EXISTS (
+                SELECT 1
+                FROM vitals
+                WHERE patient_id = %s
+                  AND household_id = %s
+                  AND weight IS NOT NULL
+            ),
+            EXISTS (
+                SELECT 1
+                FROM vitals
+                WHERE patient_id = %s
+                  AND household_id = %s
+                  AND blood_glucose IS NOT NULL
+            );
+    """, (
+        str(patient_id), household_id,
+        str(patient_id), household_id,
+    ))
+    recorded_optional = cur.fetchone() or (False, False)
+    has_recorded_weight = bool(recorded_optional[0])
+    has_recorded_glucose = bool(recorded_optional[1])
+
     show_hr = (
         bool(include_heart_rate)
         if include_heart_rate is not None
@@ -5223,15 +5255,20 @@ def export_medications_pdf(
         if include_temperature is not None
         else patient_show_temp
     )
+
+    # include_weight/include_glucose are treated as opt-IN hints only.
+    # A stale client-side false must not suppress data the API can see.
     show_weight = (
-        bool(include_weight)
-        if include_weight is not None
-        else (patient_show_weight or legacy_weight)
+        patient_show_weight
+        or legacy_weight
+        or include_weight is True
+        or has_recorded_weight
     )
     show_glucose = (
-        bool(include_glucose)
-        if include_glucose is not None
-        else (patient_show_glucose or legacy_glucose)
+        patient_show_glucose
+        or legacy_glucose
+        or include_glucose is True
+        or has_recorded_glucose
     )
 
     tracked_conditions = [
