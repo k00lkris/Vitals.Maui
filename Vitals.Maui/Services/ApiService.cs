@@ -421,17 +421,34 @@ public class ApiService
         }
     }
 
-    public async Task<byte[]?> GetPdfAsync(string patientId, int days)
+    public async Task<byte[]?> GetPdfAsync(
+        string patientId,
+        int days,
+        UserPreferences? preferences = null)
     {
         try
         {
             // No token=ha param anymore — that literal-string bypass was
             // removed server-side now that Home Assistant no longer touches
             // this endpoint. AuthHeaderHandler already attaches the real
-            // X-API-KEY and JWT to every request through this HttpClient,
-            // so nothing extra needs to be added here.
-            var response = await _http.GetAsync(
-                $"/api/medications/{patientId}/pdf?days={days}");
+            // X-API-KEY and JWT to every request through this HttpClient.
+            //
+            // Current builds also pass the exact optional-vital visibility
+            // state being shown for this patient. That keeps clinician PDF
+            // content in lockstep with Dashboard/Analysis even if a prior
+            // preference write was delayed or failed.
+            var url = $"/api/medications/{Uri.EscapeDataString(patientId)}/pdf?days={days}";
+            if (preferences is not null)
+            {
+                url +=
+                    $"&include_heart_rate={preferences.ShowHeartRate.ToString().ToLowerInvariant()}" +
+                    $"&include_spo2={preferences.ShowSpo2.ToString().ToLowerInvariant()}" +
+                    $"&include_temperature={preferences.ShowTemperature.ToString().ToLowerInvariant()}" +
+                    $"&include_weight={preferences.ShowWeight.ToString().ToLowerInvariant()}" +
+                    $"&include_glucose={preferences.ShowGlucose.ToString().ToLowerInvariant()}";
+            }
+
+            var response = await _http.GetAsync(url);
             System.Diagnostics.Debug.WriteLine($"=== PDF STATUS: {response.StatusCode}");
             if (!response.IsSuccessStatusCode)
             {
