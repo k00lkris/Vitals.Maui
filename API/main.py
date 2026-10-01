@@ -3409,10 +3409,10 @@ def recompute_vital_cache(patient_id: str, household_id: str, vital_type: str):
                     p.dob,
                     p.height_inches,
                     h.effective_date,
-                    h.entry_type
+                    h.source
                 FROM patients p
                 LEFT JOIN LATERAL (
-                    SELECT effective_date, entry_type
+                    SELECT effective_date, source
                     FROM patient_height_history
                     WHERE patient_id = p.patient_id
                       AND household_id = p.household_id
@@ -3559,10 +3559,10 @@ def get_cached_or_compute_analysis(patient_id: str, household_id: str, vital_typ
                     p.dob,
                     p.height_inches,
                     h.effective_date,
-                    h.entry_type
+                    h.source
                 FROM patients p
                 LEFT JOIN LATERAL (
-                    SELECT effective_date, entry_type
+                    SELECT effective_date, source
                     FROM patient_height_history
                     WHERE patient_id = p.patient_id
                       AND household_id = p.household_id
