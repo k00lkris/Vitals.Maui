@@ -27,6 +27,9 @@ public class WeightAnalysis
     [JsonPropertyName("anthropometrics")]
     public WeightAnthropometrics? Anthropometrics { get; set; }
 
+    [JsonPropertyName("historical_bmi")]
+    public WeightHistoricalBmi? HistoricalBmi { get; set; }
+
     [JsonPropertyName("summary")]
     public DescriptiveVitalSummary? Summary { get; set; }
 
@@ -58,6 +61,10 @@ public class WeightAnalysis
     public bool HasLatest => Latest is not null;
     public bool HasBmi => Anthropometrics?.BmiAvailable == true && Anthropometrics.Bmi is not null;
     public bool HasBmiUnavailable => Latest is not null && Anthropometrics is not null && !Anthropometrics.BmiAvailable;
+    public bool HasHistoricalBmi =>
+        HistoricalBmi?.Available == true && HistoricalBmi.Points.Count > 0;
+    public bool HasHistoricalBmiUnavailable =>
+        Latest is not null && HistoricalBmi is not null && !HistoricalBmi.Available;
     public bool HasSummary => (DailySummary ?? Summary) is not null;
     public bool HasBaselineChange => BaselineChange is not null;
     public bool HasChange => HasBaselineChange;
@@ -120,6 +127,91 @@ public class WeightAnalysis
             "pediatric_strategy_required" => "Adult BMI screening categories are not shown for patients under age 20. Pediatric BMI-for-age is a separate analysis.",
             "invalid_height" => "The stored height is not usable for BMI calculation.",
             _ => "Adult BMI is unavailable for the current patient profile."
+        };
+
+    public string HistoricalBmiSummaryDisplay
+    {
+        get
+        {
+            if (!HasHistoricalBmi || HistoricalBmi is null)
+                return string.Empty;
+
+            var text =
+                $"{HistoricalBmi.PointCount} historically valid adult BMI " +
+                $"point{(HistoricalBmi.PointCount == 1 ? "" : "s")}";
+
+            if (HistoricalBmi.FirstBmi is double first &&
+                HistoricalBmi.LatestBmi is double latest)
+            {
+                text += $" · {first:F1} → {latest:F1} kg/m²";
+            }
+
+            if (HistoricalBmi.AbsoluteChange is double change)
+                text += $" · change {change:+0.0;-0.0;0.0} kg/m²";
+
+            return text;
+        }
+    }
+
+    public string HistoricalBmiRecentPointsDisplay
+    {
+        get
+        {
+            if (!HasHistoricalBmi || HistoricalBmi is null)
+                return string.Empty;
+
+            var lines = HistoricalBmi.Points
+                .OrderByDescending(p => p.LocalDate)
+                .Take(6)
+                .Select(p => p.DisplayLine);
+
+            var text = string.Join(Environment.NewLine, lines);
+            if (HistoricalBmi.PointCount > 6)
+            {
+                text +=
+                    $"{Environment.NewLine}… {HistoricalBmi.PointCount - 6} earlier " +
+                    "valid point(s) not shown here";
+            }
+
+            return text;
+        }
+    }
+
+    public string HistoricalBmiCoverageDisplay
+    {
+        get
+        {
+            if (HistoricalBmi is null)
+                return string.Empty;
+
+            var parts = new List<string>();
+            if (HistoricalBmi.SkippedMissingHistoricalHeight > 0)
+            {
+                parts.Add(
+                    $"{HistoricalBmi.SkippedMissingHistoricalHeight} Weight day(s) " +
+                    "omitted because no height was yet effective");
+            }
+            if (HistoricalBmi.SkippedPediatric > 0)
+            {
+                parts.Add(
+                    $"{HistoricalBmi.SkippedPediatric} Weight day(s) occurred before age 20");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    public string HistoricalBmiUnavailableDisplay =>
+        HistoricalBmi?.ReasonUnavailable switch
+        {
+            "missing_date_of_birth" =>
+                "A date of birth is required before historical adult BMI can be age-gated.",
+            "pediatric_strategy_required" =>
+                "No Weight day in this period occurred at age 20 or older. Pediatric BMI-for-age requires a separate strategy.",
+            "no_historically_valid_height" =>
+                "No active height observation was effective on or before the eligible Weight date(s). Newer heights are not applied backward in time.",
+            _ => HistoricalBmi?.Reason ??
+                 "Historical BMI is unavailable for the selected Weight dates."
         };
 
     private DescriptiveVitalSummary? DisplaySummary =>
@@ -250,8 +342,8 @@ public class WeightAnthropometrics
     [JsonPropertyName("height_source")]
     public string? HeightSource { get; set; }
 
-    // Null for the current scalar profile-height implementation. Historical
-    // BMI stays disabled until dated height observations are introduced.
+    // Effective date/source for the current profile height used by the
+    // current-BMI snapshot. Historical BMI uses per-point height provenance.
     [JsonPropertyName("height_measured_at")]
     public string? HeightMeasuredAt { get; set; }
 
@@ -263,6 +355,103 @@ public class WeightAnthropometrics
 
     [JsonPropertyName("adult_category")]
     public string? AdultCategory { get; set; }
+}
+
+public class WeightHistoricalBmi
+{
+    [JsonPropertyName("available")]
+    public bool Available { get; set; }
+
+    [JsonPropertyName("reason_unavailable")]
+    public string? ReasonUnavailable { get; set; }
+
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    [JsonPropertyName("point_count")]
+    public int PointCount { get; set; }
+
+    [JsonPropertyName("candidate_weight_days")]
+    public int CandidateWeightDays { get; set; }
+
+    [JsonPropertyName("adult_candidate_days")]
+    public int AdultCandidateDays { get; set; }
+
+    [JsonPropertyName("skipped_missing_historical_height")]
+    public int SkippedMissingHistoricalHeight { get; set; }
+
+    [JsonPropertyName("skipped_pediatric")]
+    public int SkippedPediatric { get; set; }
+
+    [JsonPropertyName("skipped_missing_date_of_birth")]
+    public int SkippedMissingDateOfBirth { get; set; }
+
+    [JsonPropertyName("points")]
+    public List<WeightHistoricalBmiPoint> Points { get; set; } = new();
+
+    [JsonPropertyName("first_bmi")]
+    public double? FirstBmi { get; set; }
+
+    [JsonPropertyName("latest_bmi")]
+    public double? LatestBmi { get; set; }
+
+    [JsonPropertyName("absolute_change")]
+    public double? AbsoluteChange { get; set; }
+
+    [JsonPropertyName("span_days")]
+    public double SpanDays { get; set; }
+}
+
+public class WeightHistoricalBmiPoint
+{
+    [JsonPropertyName("local_date")]
+    public string LocalDate { get; set; } = string.Empty;
+
+    [JsonPropertyName("weight_lb")]
+    public double WeightLb { get; set; }
+
+    [JsonPropertyName("source_reading_count")]
+    public int SourceReadingCount { get; set; }
+
+    [JsonPropertyName("height_inches")]
+    public int HeightInches { get; set; }
+
+    [JsonPropertyName("height_effective_date")]
+    public string HeightEffectiveDate { get; set; } = string.Empty;
+
+    [JsonPropertyName("height_source")]
+    public string? HeightSource { get; set; }
+
+    [JsonPropertyName("height_entry_type")]
+    public string? HeightEntryType { get; set; }
+
+    [JsonPropertyName("age_years")]
+    public int AgeYears { get; set; }
+
+    [JsonPropertyName("bmi")]
+    public double Bmi { get; set; }
+
+    [JsonPropertyName("adult_category")]
+    public string? AdultCategory { get; set; }
+
+    public string DisplayLine
+    {
+        get
+        {
+            var dateText = DateTime.TryParse(LocalDate, out var date)
+                ? date.ToString("MMM d, yyyy")
+                : LocalDate;
+            var heightDateText = DateTime.TryParse(HeightEffectiveDate, out var heightDate)
+                ? heightDate.ToString("MMM d, yyyy")
+                : HeightEffectiveDate;
+            var feet = HeightInches / 12;
+            var inches = HeightInches % 12;
+
+            return
+                $"{dateText} · {WeightLb:F1} lb · BMI {Bmi:F1} · " +
+                $"height {feet}' {inches}\" effective {heightDateText}";
+        }
+    }
 }
 
 public class WeightBaselineChange
