@@ -2875,9 +2875,9 @@ def run_weight_analysis(
     # Adult CURRENT BMI (P0 §7.1 / §7.7)
     # ------------------------------------------------------------------
     # patients.height_inches remains the current profile-height cache, while
-    # patient_height_history now preserves effective-dated observations.
-    # Current BMI uses the current profile value plus its dated metadata.
-    # Historical BMI trajectory is a separate analysis set implemented later.
+    # patient_height_history preserves effective-dated observations.
+    # Current BMI uses the current profile value plus its dated metadata;
+    # historical BMI is calculated separately below from the dated timeline.
     anthropometrics = {
         "bmi_available": False,
         "reason_unavailable": None,
@@ -6201,8 +6201,8 @@ def export_medications_pdf(
         """
         Clinician-facing Weight section built directly from the SAME Weight
         analysis contract used by Vitals Analysis. Do not fall back to the
-        older generic scalar helper here: Weight v4 has BMI context,
-        daily-median summaries, robust baseline/recent comparisons,
+        older generic scalar helper here: Weight v6 has current/historical BMI
+        context, daily-median summaries, robust baseline/recent comparisons,
         variability, and a Theil-Sen trend that need dedicated rendering.
         """
         if analysis is None:
