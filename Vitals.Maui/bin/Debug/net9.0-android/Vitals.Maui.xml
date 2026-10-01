@@ -2093,31 +2093,6 @@
         <member name="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowGlucose">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel._showGlucose"/>
         </member>
-        <member name="M:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.OnShowHeartRateChanged(System.Boolean)">
-            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowHeartRate"/> just changed.</summary>
-            <param name="value">The new property value that was set.</param>
-            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowHeartRate"/> is changed.</remarks>
-        </member>
-        <member name="M:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.OnShowSpo2Changed(System.Boolean)">
-            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowSpo2"/> just changed.</summary>
-            <param name="value">The new property value that was set.</param>
-            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowSpo2"/> is changed.</remarks>
-        </member>
-        <member name="M:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.OnShowTemperatureChanged(System.Boolean)">
-            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowTemperature"/> just changed.</summary>
-            <param name="value">The new property value that was set.</param>
-            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowTemperature"/> is changed.</remarks>
-        </member>
-        <member name="M:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.OnShowWeightChanged(System.Boolean)">
-            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowWeight"/> just changed.</summary>
-            <param name="value">The new property value that was set.</param>
-            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowWeight"/> is changed.</remarks>
-        </member>
-        <member name="M:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.OnShowGlucoseChanged(System.Boolean)">
-            <summary>Executes the logic for when <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowGlucose"/> just changed.</summary>
-            <param name="value">The new property value that was set.</param>
-            <remarks>This method is invoked right after the value of <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ShowGlucose"/> is changed.</remarks>
-        </member>
         <member name="F:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.continueCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.OnboardingVitalPreferencesViewModel.ContinueCommand"/>.</summary>
         </member>
