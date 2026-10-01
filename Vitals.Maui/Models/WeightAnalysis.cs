@@ -136,9 +136,16 @@ public class WeightAnalysis
             if (!HasHistoricalBmi || HistoricalBmi is null)
                 return string.Empty;
 
+            if (HistoricalBmi.PointCount == 1)
+            {
+                var bmi = HistoricalBmi.LatestBmi ?? HistoricalBmi.FirstBmi;
+                return bmi is double singleBmi
+                    ? $"1 historically valid adult BMI point · {singleBmi:F1} kg/m²"
+                    : "1 historically valid adult BMI point";
+            }
+
             var text =
-                $"{HistoricalBmi.PointCount} historically valid adult BMI " +
-                $"point{(HistoricalBmi.PointCount == 1 ? "" : "s")}";
+                $"{HistoricalBmi.PointCount} historically valid adult BMI points";
 
             if (HistoricalBmi.FirstBmi is double first &&
                 HistoricalBmi.LatestBmi is double latest)
