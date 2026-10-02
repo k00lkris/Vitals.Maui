@@ -246,6 +246,23 @@ class VitalCreate(BaseModel):
         "oral", "rectal", "axillary", "tympanic", "temporal", "other", "unknown"
     ]] = None
     blood_glucose: Optional[int] = Field(None, ge=30, le=600)
+    # Patient-recorded glucose context. The numeric glucose value remains on
+    # vitals.blood_glucose (normalized mg/dL); this metadata lives in the
+    # one-to-one glucose_context row keyed by vital_id.
+    glucose_context: Optional[Literal[
+        "fasting", "pre_meal", "post_meal", "bedtime", "random", "other", "unknown"
+    ]] = None
+    glucose_meal_type: Optional[Literal[
+        "breakfast", "lunch", "dinner", "snack", "other"
+    ]] = None
+    glucose_minutes_after_meal: Optional[int] = Field(None, ge=0, le=720)
+    glucose_meal_event_id: Optional[UUID] = None
+    glucose_source_type: Optional[Literal[
+        "manual_bgm", "cgm", "import", "other"
+    ]] = None
+    glucose_original_value: Optional[float] = Field(None, ge=0)
+    glucose_original_unit: Optional[Literal["mg/dL", "mmol/L"]] = None
+    glucose_source_device: Optional[str] = None
     weight: Optional[float] = Field(None, ge=50, le=700)
     source: Optional[str] = "home_assistant"
     notes: Optional[str] = ""
@@ -4229,6 +4246,42 @@ def record_vitals(
             vital_id, vital.hr_activity_context, vital.hr_posture,
             vital.hr_symptom_tags, vital.hr_source_type,
             vital.hr_device_irregular_pulse_flag
+        ))
+
+    # Glucose context follows the same one-to-one pattern as heart rate:
+    # the value itself stays in vitals while the metadata that determines
+    # whether readings are analytically comparable lives in a context row.
+    # Legacy readings without this row remain valid and are treated as
+    # unknown-context by the dedicated Glucose engine.
+    if vital.blood_glucose is not None:
+        measurement_context = vital.glucose_context or "unknown"
+        meal_type = (
+            vital.glucose_meal_type
+            if measurement_context in ("pre_meal", "post_meal")
+            else None
+        )
+        minutes_after_meal = (
+            vital.glucose_minutes_after_meal
+            if measurement_context == "post_meal"
+            else None
+        )
+        cur.execute("""
+            INSERT INTO glucose_context (
+                vital_id, measurement_context, meal_type, minutes_after_meal,
+                meal_event_id, source_type, original_value, original_unit,
+                source_device, is_invalidated
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, false);
+        """, (
+            vital_id,
+            measurement_context,
+            meal_type,
+            minutes_after_meal,
+            vital.glucose_meal_event_id,
+            vital.glucose_source_type or "manual_bgm",
+            vital.glucose_original_value,
+            vital.glucose_original_unit,
+            vital.glucose_source_device,
         ))
 
     conn.commit()
