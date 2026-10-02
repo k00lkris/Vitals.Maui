@@ -56,7 +56,8 @@ public class GlucoseAnalysis
     public bool HasContextTrends => ContextTrends.Values.Any(x => x.IsAvailable);
     public bool HasLowEvents => LowEvents is not null;
     public bool HasGmi => Gmi is not null;
-    public bool HasUnavailableAnalyses => DataSupport?.UnavailableAnalyses.Count > 0;
+    public bool HasUnavailableAnalyses =>
+        DataSupport?.UnavailableAnalyses.Any(x => x.Analysis != "gmi") == true;
     public bool HasLimitations => Limitations.Count > 0;
 
     public string LatestDisplay =>
