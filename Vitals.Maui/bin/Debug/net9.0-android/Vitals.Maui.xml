@@ -2610,6 +2610,16 @@
             <inheritdoc/>
             <inheritdoc/>
             <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
         </member>
         <member name="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.LoadDisplayPreferences">
             <summary>
@@ -2637,6 +2647,51 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.BloodGlucose">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._bloodGlucose"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseContext">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseContext"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseMealType">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseMealType"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseMinutesAfterMeal">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseMinutesAfterMeal"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.ShowGlucoseMealOptions">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._showGlucoseMealOptions"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.ShowGlucosePostMealMinutes">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._showGlucosePostMealMinutes"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseFastingColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseFastingColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucosePreMealColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucosePreMealColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucosePostMealColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucosePostMealColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseBedtimeColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseBedtimeColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseRandomColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseRandomColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseOtherColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseOtherColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseBreakfastColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseBreakfastColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseLunchColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseLunchColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseDinnerColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseDinnerColor"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.GlucoseSnackColor">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._glucoseSnackColor"/>
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.Notes">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsEntryViewModel._notes"/>
@@ -2784,6 +2839,66 @@
         </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempOtherCommand">
             <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectTempOther"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectGlucoseFastingCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseFastingCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseFastingCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseFasting"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectGlucosePreMealCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucosePreMealCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucosePreMealCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucosePreMeal"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectGlucosePostMealCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucosePostMealCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucosePostMealCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucosePostMeal"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectGlucoseBedtimeCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseBedtimeCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseBedtimeCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseBedtime"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectGlucoseRandomCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseRandomCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseRandomCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseRandom"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectGlucoseOtherCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseOtherCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseOtherCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseOther"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectGlucoseBreakfastCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseBreakfastCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseBreakfastCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseBreakfast"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectGlucoseLunchCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseLunchCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseLunchCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseLunch"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectGlucoseDinnerCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseDinnerCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseDinnerCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseDinner"/>.</summary>
+        </member>
+        <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.selectGlucoseSnackCommand">
+            <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseSnackCommand"/>.</summary>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseSnackCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:Vitals.Maui.ViewModels.VitalsEntryViewModel.SelectGlucoseSnack"/>.</summary>
         </member>
         <member name="F:Vitals.Maui.ViewModels.VitalsEntryViewModel.loadCommand">
             <summary>The backing field for <see cref="P:Vitals.Maui.ViewModels.VitalsEntryViewModel.LoadCommand"/>.</summary>
@@ -3689,6 +3804,51 @@
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.DiastolicWarningText">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "DiastolicWarningText" generated properties.</summary>
         </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseContext">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseContext" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseMealType">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseMealType" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseMinutesAfterMeal">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseMinutesAfterMeal" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowGlucoseMealOptions">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowGlucoseMealOptions" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.ShowGlucosePostMealMinutes">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "ShowGlucosePostMealMinutes" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseFastingColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseFastingColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucosePreMealColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucosePreMealColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucosePostMealColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucosePostMealColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseBedtimeColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseBedtimeColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseRandomColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseRandomColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseOtherColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseOtherColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseBreakfastColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseBreakfastColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseLunchColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseLunchColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseDinnerColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseDinnerColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.GlucoseSnackColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "GlucoseSnackColor" generated properties.</summary>
+        </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.HrActivityContext">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "HrActivityContext" generated properties.</summary>
         </member>
@@ -4459,6 +4619,51 @@
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.DiastolicWarningText">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "DiastolicWarningText" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseContext">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseContext" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseMealType">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseMealType" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseMinutesAfterMeal">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseMinutesAfterMeal" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowGlucoseMealOptions">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowGlucoseMealOptions" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.ShowGlucosePostMealMinutes">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "ShowGlucosePostMealMinutes" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseFastingColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseFastingColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucosePreMealColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucosePreMealColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucosePostMealColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucosePostMealColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseBedtimeColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseBedtimeColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseRandomColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseRandomColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseOtherColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseOtherColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseBreakfastColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseBreakfastColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseLunchColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseLunchColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseDinnerColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseDinnerColor" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.GlucoseSnackColor">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "GlucoseSnackColor" generated properties.</summary>
         </member>
         <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.HrActivityContext">
             <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "HrActivityContext" generated properties.</summary>
