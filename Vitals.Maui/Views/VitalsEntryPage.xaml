@@ -392,13 +392,175 @@
                                        Converter={StaticResource InvertedBoolConverter}}" />
                         </Grid>
                     </toolkit:Expander.Header>
-                    <VerticalStackLayout Padding="16,0,16,16" Spacing="2">
-                        <Label Text="mg/dL" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
-                        <Entry Text="{Binding BloodGlucose}"
-                               Keyboard="Numeric"
-                               TextColor="{DynamicResource TextPrimary}"
-                               BackgroundColor="{DynamicResource PageBackground}"
-                               Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                    <VerticalStackLayout Padding="16,0,16,16" Spacing="10">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="mg/dL" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                            <Entry Text="{Binding BloodGlucose}"
+                                   Keyboard="Numeric"
+                                   TextColor="{DynamicResource TextPrimary}"
+                                   BackgroundColor="{DynamicResource PageBackground}"
+                                   Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                        </VerticalStackLayout>
+
+                        <Label Text="Measurement Context (optional)"
+                               FontSize="12"
+                               TextColor="{DynamicResource TextSecondary}"
+                               Margin="0,4,0,0" />
+                        <Label Text="Recording context lets Vitals compare like readings instead of mixing fasting and meal-related values."
+                               FontSize="11"
+                               TextColor="{DynamicResource TextMuted}"
+                               LineBreakMode="WordWrap" />
+
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto"
+                              ColumnSpacing="8" RowSpacing="8">
+                            <Border Grid.Row="0" Grid.Column="0"
+                                    Padding="10,9" MinimumHeightRequest="42"
+                                    BackgroundColor="{Binding GlucoseFastingColor}"
+                                    StrokeShape="RoundRectangle 8"
+                                    Stroke="{DynamicResource CardStroke}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectGlucoseFastingCommand}" />
+                                </Border.GestureRecognizers>
+                                <Label Text="Fasting" FontSize="12"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                            </Border>
+
+                            <Border Grid.Row="0" Grid.Column="1"
+                                    Padding="10,9" MinimumHeightRequest="42"
+                                    BackgroundColor="{Binding GlucosePreMealColor}"
+                                    StrokeShape="RoundRectangle 8"
+                                    Stroke="{DynamicResource CardStroke}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectGlucosePreMealCommand}" />
+                                </Border.GestureRecognizers>
+                                <Label Text="Before Meal" FontSize="12"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                            </Border>
+
+                            <Border Grid.Row="1" Grid.Column="0"
+                                    Padding="10,9" MinimumHeightRequest="42"
+                                    BackgroundColor="{Binding GlucosePostMealColor}"
+                                    StrokeShape="RoundRectangle 8"
+                                    Stroke="{DynamicResource CardStroke}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectGlucosePostMealCommand}" />
+                                </Border.GestureRecognizers>
+                                <Label Text="After Meal" FontSize="12"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                            </Border>
+
+                            <Border Grid.Row="1" Grid.Column="1"
+                                    Padding="10,9" MinimumHeightRequest="42"
+                                    BackgroundColor="{Binding GlucoseBedtimeColor}"
+                                    StrokeShape="RoundRectangle 8"
+                                    Stroke="{DynamicResource CardStroke}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectGlucoseBedtimeCommand}" />
+                                </Border.GestureRecognizers>
+                                <Label Text="Bedtime" FontSize="12"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                            </Border>
+
+                            <Border Grid.Row="2" Grid.Column="0"
+                                    Padding="10,9" MinimumHeightRequest="42"
+                                    BackgroundColor="{Binding GlucoseRandomColor}"
+                                    StrokeShape="RoundRectangle 8"
+                                    Stroke="{DynamicResource CardStroke}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectGlucoseRandomCommand}" />
+                                </Border.GestureRecognizers>
+                                <Label Text="Random" FontSize="12"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                            </Border>
+
+                            <Border Grid.Row="2" Grid.Column="1"
+                                    Padding="10,9" MinimumHeightRequest="42"
+                                    BackgroundColor="{Binding GlucoseOtherColor}"
+                                    StrokeShape="RoundRectangle 8"
+                                    Stroke="{DynamicResource CardStroke}">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding SelectGlucoseOtherCommand}" />
+                                </Border.GestureRecognizers>
+                                <Label Text="Other" FontSize="12"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                            </Border>
+                        </Grid>
+
+                        <VerticalStackLayout Spacing="8"
+                                             IsVisible="{Binding ShowGlucoseMealOptions}">
+                            <Label Text="Meal" FontSize="12"
+                                   TextColor="{DynamicResource TextSecondary}" />
+                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto"
+                                  ColumnSpacing="8" RowSpacing="8">
+                                <Border Grid.Row="0" Grid.Column="0"
+                                        Padding="10,9"
+                                        BackgroundColor="{Binding GlucoseBreakfastColor}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="{DynamicResource CardStroke}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectGlucoseBreakfastCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Breakfast" FontSize="12"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           HorizontalTextAlignment="Center" />
+                                </Border>
+                                <Border Grid.Row="0" Grid.Column="1"
+                                        Padding="10,9"
+                                        BackgroundColor="{Binding GlucoseLunchColor}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="{DynamicResource CardStroke}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectGlucoseLunchCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Lunch" FontSize="12"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           HorizontalTextAlignment="Center" />
+                                </Border>
+                                <Border Grid.Row="1" Grid.Column="0"
+                                        Padding="10,9"
+                                        BackgroundColor="{Binding GlucoseDinnerColor}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="{DynamicResource CardStroke}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectGlucoseDinnerCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Dinner" FontSize="12"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           HorizontalTextAlignment="Center" />
+                                </Border>
+                                <Border Grid.Row="1" Grid.Column="1"
+                                        Padding="10,9"
+                                        BackgroundColor="{Binding GlucoseSnackColor}"
+                                        StrokeShape="RoundRectangle 8"
+                                        Stroke="{DynamicResource CardStroke}">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding SelectGlucoseSnackCommand}" />
+                                    </Border.GestureRecognizers>
+                                    <Label Text="Snack" FontSize="12"
+                                           TextColor="{DynamicResource TextPrimary}"
+                                           HorizontalTextAlignment="Center" />
+                                </Border>
+                            </Grid>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Spacing="2"
+                                             IsVisible="{Binding ShowGlucosePostMealMinutes}">
+                            <Label Text="Minutes After Meal (optional)"
+                                   FontSize="12"
+                                   TextColor="{DynamicResource TextSecondary}" />
+                            <Entry Text="{Binding GlucoseMinutesAfterMeal}"
+                                   Keyboard="Numeric"
+                                   TextColor="{DynamicResource TextPrimary}"
+                                   BackgroundColor="{DynamicResource PageBackground}"
+                                   Placeholder="e.g. 120"
+                                   PlaceholderColor="{DynamicResource TextMuted}" />
+                        </VerticalStackLayout>
                     </VerticalStackLayout>
                 </toolkit:Expander>
             </Border>
