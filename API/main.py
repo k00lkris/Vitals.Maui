@@ -3972,13 +3972,31 @@ def run_glucose_analysis(
             "manual/BGM spot readings are not used for this calculation."
         )
 
+    cgm_requirement = {
+        "minimum_days": 14,
+        "minimum_active_coverage_pct": 70.0,
+    }
+    if cgm_count:
+        gmi_display_message = (
+            "GMI will appear after Vitals has enough qualified CGM data: "
+            "at least 14 days represented with 70% or greater active coverage."
+        )
+    else:
+        gmi_display_message = (
+            "Vitals can calculate GMI from CGM data. GMI will appear after "
+            "at least 14 days of CGM data with 70% or greater active coverage."
+        )
+
     cgm_summary = {
         "is_available": False,
+        "status": "not_enough_qualified_cgm_data",
         "reason_code": cgm_reason_code,
         "reason": cgm_reason,
+        "display_message": gmi_display_message,
         "source_reading_count": cgm_count,
         "coverage_days": None,
         "active_coverage_pct": None,
+        "qualification_requirement": cgm_requirement,
         "mean_glucose_mg_dl": None,
         "gmi_pct": None,
         "tir": None,
@@ -3988,10 +4006,17 @@ def run_glucose_analysis(
     }
     gmi = {
         "is_available": False,
+        "status": "not_enough_qualified_cgm_data",
         "reason_code": cgm_reason_code,
         "reason": cgm_reason,
+        "display_message": gmi_display_message,
+        "qualification_requirement": cgm_requirement,
         "value_pct": None,
         "formula": "3.31 + 0.02392 * mean_cgm_glucose_mg_dl",
+        "disclosure": (
+            "GMI is calculated from mean CGM glucose. It is not a laboratory "
+            "A1C result and may differ from your measured A1C."
+        ),
     }
 
     # --------------------------------------------------------------
@@ -4082,7 +4107,7 @@ def run_glucose_analysis(
     )
 
     return {
-        "analysis_version": 1,
+        "analysis_version": 2,
         "vital_type": "glucose",
         "unit": "mg/dL",
         "latest": latest_block,
@@ -4339,7 +4364,7 @@ VITAL_ANALYSIS_REGISTRY = {
         "needs_medication_changes": True,
         # First dedicated context-aware Glucose contract. This invalidates
         # stale generic descriptive cache JSON as soon as the branch deploys.
-        "analysis_version": 1,
+        "analysis_version": 2,
     },
 }
 
