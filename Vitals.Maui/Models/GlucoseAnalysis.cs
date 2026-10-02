@@ -327,6 +327,22 @@ public class GlucoseLowEvents
 
     [JsonPropertyName("total_low_count")]
     public int TotalLowCount { get; set; }
+
+    public bool HasLowReadings => TotalLowCount > 0;
+
+    public string RiskLabel =>
+        Level2Count > 0
+            ? "Level 2 low glucose recorded"
+            : Level1Count > 0
+                ? "Low glucose recorded"
+                : string.Empty;
+
+    public string RiskColor =>
+        Level2Count > 0
+            ? "#d32f2f"
+            : Level1Count > 0
+                ? "#f57c00"
+                : "#888888";
 }
 
 public class GlucoseLoggedReadingsInTarget
