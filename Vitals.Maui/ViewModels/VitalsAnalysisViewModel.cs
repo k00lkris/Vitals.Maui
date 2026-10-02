@@ -1501,7 +1501,7 @@ public partial class VitalsAnalysisViewModel : ObservableObject
         var glucose = a.Glucose;
         var parts = new List<string>
         {
-            $"The latest recorded blood glucose was {latest.Value:F0} mg/dL."
+            $"The latest recorded blood glucose was {latest.Value:F0} mg/dL ({latest.ContextDisplay})."
         };
 
         if (glucose.Summary is not null)
@@ -1512,10 +1512,31 @@ public partial class VitalsAnalysisViewModel : ObservableObject
                 $"{glucose.Summary.Min:F0}–{glucose.Summary.Max:F0} mg/dL.");
         }
 
-        parts.Add(
-            "Vitals does not classify these readings against a single glucose target " +
-            "because fasting, pre-meal, post-meal, and random measurement context is " +
-            "not collected yet, and individual targets may differ.");
+        if (glucose.HasContextSummaries)
+        {
+            var availableContexts = glucose.ContextSummaries.Count(x => x.Value.IsAvailable);
+            parts.Add(
+                $"Vitals has enough same-context data for {availableContexts} " +
+                $"context-specific glucose summar{(availableContexts == 1 ? "y" : "ies")}.");
+        }
+        else
+        {
+            parts.Add(
+                "More readings in the same measurement context are needed before " +
+                "Vitals can compare fasting, meal-related, bedtime, or random patterns.");
+        }
+
+        if (glucose.Gmi?.IsAvailable == true && glucose.Gmi.ValuePct is not null)
+        {
+            parts.Add(
+                $"Qualified CGM data supports a current GMI of {glucose.Gmi.ValuePct:F1}%.");
+        }
+        else
+        {
+            parts.Add(
+                "GMI will appear when there are at least 14 days of qualified CGM data " +
+                "with 70% or greater active coverage.");
+        }
 
         GlucoseSummary = string.Join(
             " ",
