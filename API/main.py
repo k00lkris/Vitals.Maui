@@ -7746,6 +7746,8 @@ def export_medications_pdf(
             if latest_parts:
                 detail += "; " + ", ".join(latest_parts)
             detail += f"; source: {source_label})."
+            if latest_g.get("recorded_at"):
+                detail += f" Recorded: {latest_g['recorded_at']}."
             y = draw_wrapped_line(
                 y,
                 detail,
@@ -7859,10 +7861,10 @@ def export_medications_pdf(
             pdf.setFont("Helvetica-Bold", 10)
             pdf.drawString(LEFT, y, "Context-Specific Summaries")
             y -= 14
-            ctx_widths = [100, 42, 50, 82, 82, 156]
+            ctx_widths = [90, 35, 40, 55, 75, 75, 142]
             y = draw_table_row(
                 y,
-                ["Context", "n", "Days", "Mean", "Median", "Recorded Range"],
+                ["Context", "n", "Days", "Span", "Mean", "Median", "Recorded Range"],
                 ctx_widths,
                 fontsize=8,
                 bold=True,
@@ -7888,6 +7890,7 @@ def export_medications_pdf(
                         _context_label(ctx),
                         str(block.get("sample_count", 0) or 0),
                         str(block.get("distinct_days", 0) or 0),
+                        f"{block.get('span_days', 0):.1f} d",
                         _fmt_num(block.get("mean"), 1, f" {unit_g}"),
                         _fmt_num(block.get("median"), 1, f" {unit_g}"),
                         range_text,
@@ -8054,14 +8057,48 @@ def export_medications_pdf(
                         fontsize=8,
                     )
             else:
+                meal_pairs = meal_g.get("pairs") or []
+                if meal_pairs:
+                    pair_widths = [95, 90, 95, 95, 137]
+                    y = draw_table_row(
+                        y,
+                        ["Meal", "Timing", "Pre", "Post", "Excursion"],
+                        pair_widths,
+                        fontsize=8,
+                        bold=True,
+                        fill_bg=True,
+                    )
+                    for pair in meal_pairs:
+                        y = check_page_break(y, needed=40)
+                        timing = (
+                            f"{pair.get('minutes_after_meal')} min"
+                            if pair.get("minutes_after_meal") is not None
+                            else "timing unknown"
+                        )
+                        y = draw_table_row(
+                            y,
+                            [
+                                meal_labels.get(
+                                    pair.get("meal_type"),
+                                    str(pair.get("meal_type") or "Unknown").title(),
+                                ),
+                                timing,
+                                _fmt_num(pair.get("pre_value_mg_dl"), 1, " mg/dL"),
+                                _fmt_num(pair.get("post_value_mg_dl"), 1, " mg/dL"),
+                                _fmt_num(pair.get("excursion_mg_dl"), 1, " mg/dL"),
+                            ],
+                            pair_widths,
+                            fontsize=8,
+                        )
+                    y -= 4
                 y = draw_wrapped_line(
                     y,
                     f"{meal_g.get('pair_count', 0)} unambiguous pre/post-meal pair(s) "
                     "are available. At least 3 comparable pairs at the same meal/timing "
                     "are required before Vitals presents an averaged meal-response pattern.",
-                    fontsize=9,
+                    fontsize=8,
                     indent=10,
-                    line_spacing=12,
+                    line_spacing=11,
                 )
             y -= 8
 
@@ -8073,10 +8110,10 @@ def export_medications_pdf(
             pdf.setFont("Helvetica-Bold", 10)
             pdf.drawString(LEFT, y, "Medication-Change Associations")
             y -= 14
-            med_widths = [110, 68, 74, 70, 70, 60, 60]
+            med_widths = [100, 60, 68, 64, 64, 60, 48, 48]
             y = draw_table_row(
                 y,
-                ["Medication", "Date", "Context", "Before Mean", "After Mean", "n Before", "n After"],
+                ["Medication", "Date", "Context", "Before", "After", "Delta", "n Pre", "n Post"],
                 med_widths,
                 fontsize=7,
                 bold=True,
@@ -8092,6 +8129,7 @@ def export_medications_pdf(
                         _context_label(item.get("measurement_context")),
                         _fmt_num(item.get("before_mean"), 1),
                         _fmt_num(item.get("after_mean"), 1),
+                        _fmt_num(item.get("mean_delta"), 1),
                         str(item.get("before_n", 0) or 0),
                         str(item.get("after_n", 0) or 0),
                     ],
@@ -8159,13 +8197,11 @@ def export_medications_pdf(
             )
             min_days = requirement.get("minimum_days", 14)
             min_coverage = requirement.get("minimum_active_coverage_pct", 70)
-            message = gmi_g.get("display_message") or (
-                "Vitals can calculate GMI once qualified CGM data are available."
-            )
             y = draw_wrapped_line(
                 y,
-                f"{message} Qualification requirement: at least {min_days} days "
-                f"represented with {float(min_coverage):.0f}% or greater active coverage.",
+                f"Vitals can calculate GMI from qualified CGM data. Qualification gate: "
+                f"at least {min_days} days represented with "
+                f"{float(min_coverage):.0f}% or greater active coverage.",
                 fontsize=9,
                 indent=10,
                 line_spacing=12,
