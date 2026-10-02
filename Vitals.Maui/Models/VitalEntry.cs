@@ -47,6 +47,32 @@ public class VitalEntry
     [JsonPropertyName("blood_glucose")]
     public int? BloodGlucose { get; set; }
 
+    // Glucose measurement context. The API stores these in glucose_context
+    // while keeping the normalized numeric value on vitals.blood_glucose.
+    [JsonPropertyName("glucose_context")]
+    public string? GlucoseContext { get; set; }
+
+    [JsonPropertyName("glucose_meal_type")]
+    public string? GlucoseMealType { get; set; }
+
+    [JsonPropertyName("glucose_minutes_after_meal")]
+    public int? GlucoseMinutesAfterMeal { get; set; }
+
+    [JsonPropertyName("glucose_meal_event_id")]
+    public string? GlucoseMealEventId { get; set; }
+
+    [JsonPropertyName("glucose_source_type")]
+    public string? GlucoseSourceType { get; set; }
+
+    [JsonPropertyName("glucose_original_value")]
+    public double? GlucoseOriginalValue { get; set; }
+
+    [JsonPropertyName("glucose_original_unit")]
+    public string? GlucoseOriginalUnit { get; set; }
+
+    [JsonPropertyName("glucose_source_device")]
+    public string? GlucoseSourceDevice { get; set; }
+
     [JsonPropertyName("source")]
     public string Source { get; set; } = "maui_app";
 
