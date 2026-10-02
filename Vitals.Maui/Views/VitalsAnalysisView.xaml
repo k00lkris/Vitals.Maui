@@ -2135,12 +2135,82 @@
                         <Border Padding="16" BackgroundColor="{DynamicResource CardBackground}"
                                 StrokeShape="RoundRectangle 12" Stroke="{DynamicResource CardStroke}"
                                 IsVisible="{Binding Analysis.Glucose.HasSummary}">
-                            <VerticalStackLayout Spacing="8">
+                            <VerticalStackLayout Spacing="10">
                                 <Label Text="Logged Reading Summary" FontSize="11"
                                        TextColor="{DynamicResource PrimaryAccent}" />
-                                <Label Text="{Binding Analysis.Glucose.SummaryDisplay}"
-                                       FontSize="13" TextColor="{DynamicResource TextSecondary}"
-                                       LineBreakMode="WordWrap" />
+
+                                <Grid ColumnDefinitions="*,Auto"
+                                      RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                                      ColumnSpacing="16"
+                                      RowSpacing="0">
+
+                                    <Label Grid.Row="0" Grid.Column="0"
+                                           Text="Metric"
+                                           Padding="0,5,0,7"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextMuted}" />
+                                    <Label Grid.Row="0" Grid.Column="1"
+                                           Text="Glucose"
+                                           Padding="0,5,0,7"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="End"
+                                           TextColor="{DynamicResource TextMuted}" />
+
+                                    <Label Grid.Row="1" Grid.Column="0"
+                                           Text="Mean"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextSecondary}" />
+                                    <Label Grid.Row="1" Grid.Column="1"
+                                           Text="{Binding Analysis.Glucose.Summary.Mean, StringFormat='{0:F0} mg/dL'}"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="End"
+                                           TextColor="{DynamicResource TextPrimary}" />
+
+                                    <Label Grid.Row="2" Grid.Column="0"
+                                           Text="Median"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextSecondary}" />
+                                    <Label Grid.Row="2" Grid.Column="1"
+                                           Text="{Binding Analysis.Glucose.Summary.Median, StringFormat='{0:F0} mg/dL'}"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="End"
+                                           TextColor="{DynamicResource TextPrimary}" />
+
+                                    <Label Grid.Row="3" Grid.Column="0"
+                                           Text="Minimum"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextSecondary}" />
+                                    <Label Grid.Row="3" Grid.Column="1"
+                                           Text="{Binding Analysis.Glucose.Summary.Min, StringFormat='{0:F0} mg/dL'}"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="End"
+                                           TextColor="{DynamicResource TextPrimary}" />
+
+                                    <Label Grid.Row="4" Grid.Column="0"
+                                           Text="Maximum"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           TextColor="{DynamicResource TextSecondary}" />
+                                    <Label Grid.Row="4" Grid.Column="1"
+                                           Text="{Binding Analysis.Glucose.Summary.Max, StringFormat='{0:F0} mg/dL'}"
+                                           Padding="0,8"
+                                           FontSize="13"
+                                           FontAttributes="Bold"
+                                           HorizontalTextAlignment="End"
+                                           TextColor="{DynamicResource TextPrimary}" />
+                                </Grid>
+
                                 <Label Text="{Binding Analysis.Glucose.ContextCompletenessDisplay}"
                                        IsVisible="{Binding Analysis.Glucose.HasContextSummary}"
                                        FontSize="11" TextColor="{DynamicResource TextMuted}"
