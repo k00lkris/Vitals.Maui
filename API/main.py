@@ -3395,13 +3395,757 @@ def run_weight_analysis(
     }
 
 
-def run_glucose_analysis(rows: list) -> dict | None:
-    return _run_descriptive_scalar_analysis(
-        rows,
-        vital_type="glucose",
-        unit="mg/dL",
-        allow_longitudinal_trend=False,
+def run_glucose_analysis(
+    rows: list,
+    medication_changes: list | None = None,
+) -> dict | None:
+    """
+    Dedicated patient-recorded Glucose analysis engine (manual/BGM first).
+
+    Contract principles:
+    - Never model one clinical trajectory across mixed fasting/pre-meal/
+      post-meal/bedtime/random observations.
+    - Preserve legacy readings with no glucose_context row as "unknown"
+      rather than dropping them.
+    - Manual/BGM spot readings can support contextual summaries, trends,
+      low-event review, meal excursions, descriptive variability, time-of-day
+      patterns, and medication-timeline comparisons.
+    - "Logged Readings in Target" is intentionally capability-gated until a
+      patient glucose target profile exists. It must never be mislabeled as
+      CGM Time in Range.
+    - GMI remains present in the contract but unavailable until qualified,
+      sufficiently dense CGM data AND coverage metadata exist. Sparse manual
+      readings are never used to calculate GMI.
+
+    Expected row shape (see VITAL_ANALYSIS_REGISTRY['glucose']):
+      0 recorded_at
+      1 local_offset_minutes
+      2 blood_glucose (normalized mg/dL)
+      3 measurement_context
+      4 meal_type
+      5 minutes_after_meal
+      6 meal_event_id
+      7 source_type
+      8 original_value
+      9 original_unit
+     10 source_device
+    """
+    if not rows:
+        return None
+
+    def _row_dict(r):
+        return {
+            "recorded_at": r[0],
+            "local_offset_minutes": r[1],
+            "value": float(r[2]),
+            "measurement_context": r[3] or "unknown",
+            "meal_type": r[4],
+            "minutes_after_meal": r[5],
+            "meal_event_id": str(r[6]) if r[6] is not None else None,
+            "source_type": r[7] or "unknown",
+            "original_value": float(r[8]) if r[8] is not None else None,
+            "original_unit": r[9],
+            "source_device": r[10],
+        }
+
+    points = [_row_dict(r) for r in rows if r[2] is not None]
+    if not points:
+        return None
+
+    known_contexts = ("fasting", "pre_meal", "post_meal", "bedtime", "random")
+    all_context_names = (
+        "fasting", "pre_meal", "post_meal", "bedtime",
+        "random", "other", "unknown",
     )
+
+    values = np.array([p["value"] for p in points], dtype=float)
+    first = points[0]
+    latest = points[-1]
+    span_days = max(
+        0.0,
+        (latest["recorded_at"] - first["recorded_at"]).total_seconds() / 86400.0,
+    )
+    distinct_days = len({_hr_local_datetime(p).date() for p in points})
+
+    summary = {
+        "mean": round(float(np.mean(values)), 1),
+        "median": round(float(np.median(values)), 1),
+        "min": round(float(np.min(values)), 1),
+        "max": round(float(np.max(values)), 1),
+    }
+
+    def _coverage_for(group):
+        if not group:
+            return 0, 0.0
+        days = len({_hr_local_datetime(p).date() for p in group})
+        group_span = max(
+            0.0,
+            (group[-1]["recorded_at"] - group[0]["recorded_at"]).total_seconds() / 86400.0,
+        )
+        return days, group_span
+
+    def _ols(group):
+        if len(group) < 2:
+            return None
+        origin = group[0]["recorded_at"]
+        x = np.array([
+            (p["recorded_at"] - origin).total_seconds() / 86400.0
+            for p in group
+        ], dtype=float)
+        y = np.array([p["value"] for p in group], dtype=float)
+        if float(np.max(x) - np.min(x)) <= 0:
+            return None
+        if float(np.std(y)) == 0:
+            return {
+                "slope_mg_dl_per_day": 0.0,
+                "modeled_change_mg_dl": 0.0,
+                "r2": None,
+                "p_value": None,
+            }
+        slope, _, r_val, p_val, _ = stats.linregress(x, y)
+        return {
+            "slope_mg_dl_per_day": round(float(slope), 3),
+            "modeled_change_mg_dl": round(float(slope) * float(np.max(x) - np.min(x)), 1),
+            "r2": round(float(r_val ** 2), 2),
+            "p_value": round(float(p_val), 3),
+        }
+
+    # --------------------------------------------------------------
+    # Snapshot + source/context accounting
+    # --------------------------------------------------------------
+    source_counts = {}
+    for p in points:
+        source_counts[p["source_type"]] = source_counts.get(p["source_type"], 0) + 1
+
+    context_counts = {name: 0 for name in all_context_names}
+    for p in points:
+        context = p["measurement_context"]
+        if context not in context_counts:
+            context = "unknown"
+        context_counts[context] += 1
+
+    context_recorded_count = sum(
+        1 for p in points
+        if p["measurement_context"] not in ("unknown", None)
+    )
+    context_completeness_pct = round(
+        100.0 * context_recorded_count / len(points), 1
+    )
+
+    latest_block = {
+        "value": round(float(latest["value"]), 1),
+        "recorded_at": latest["recorded_at"].isoformat(),
+        "measurement_context": latest["measurement_context"],
+        "meal_type": latest["meal_type"],
+        "minutes_after_meal": latest["minutes_after_meal"],
+        "source_type": latest["source_type"],
+        "original_value": latest["original_value"],
+        "original_unit": latest["original_unit"],
+        "source_device": latest["source_device"],
+    }
+
+    # --------------------------------------------------------------
+    # Context-specific summaries (>=3 readings in that context)
+    # --------------------------------------------------------------
+    context_summaries = {}
+    context_groups = {}
+    for context in all_context_names:
+        group = [p for p in points if p["measurement_context"] == context]
+        context_groups[context] = group
+        if not group:
+            continue
+
+        group_values = np.array([p["value"] for p in group], dtype=float)
+        group_days, group_span = _coverage_for(group)
+        available = context in known_contexts and len(group) >= 3
+
+        block = {
+            "is_available": available,
+            "reason_code": None,
+            "sample_count": len(group),
+            "distinct_days": group_days,
+            "span_days": round(group_span, 1),
+            "mean": None,
+            "median": None,
+            "min": None,
+            "max": None,
+        }
+        if available:
+            block.update({
+                "mean": round(float(np.mean(group_values)), 1),
+                "median": round(float(np.median(group_values)), 1),
+                "min": round(float(np.min(group_values)), 1),
+                "max": round(float(np.max(group_values)), 1),
+            })
+        elif context not in known_contexts:
+            block["reason_code"] = "noncomparable_context"
+        else:
+            block["reason_code"] = "insufficient_count"
+
+        context_summaries[context] = block
+
+    # --------------------------------------------------------------
+    # Context-specific trend + LOESS
+    # Directional trend: >=5 readings across >=7 days.
+    # Regression significance is shown only at >=10 readings / >=14 days.
+    # --------------------------------------------------------------
+    context_trends = {}
+    any_context_trend = False
+    for context in known_contexts:
+        group = context_groups.get(context) or []
+        group_days, group_span = _coverage_for(group)
+        available = len(group) >= 5 and group_days >= 2 and group_span >= 7.0
+
+        block = {
+            "is_available": available,
+            "reason_code": None if available else "insufficient_longitudinal_support",
+            "sample_count": len(group),
+            "distinct_days": group_days,
+            "span_days": round(group_span, 1),
+            "direction": None,
+            "slope_mg_dl_per_day": None,
+            "modeled_change_mg_dl": None,
+            "r2": None,
+            "p_value": None,
+            "significance_available": False,
+            "loess": None,
+        }
+
+        if available:
+            fit = _ols(group)
+            if fit is not None:
+                slope = fit["slope_mg_dl_per_day"]
+                block.update(fit)
+                block["direction"] = (
+                    "rising" if slope > 0
+                    else "falling" if slope < 0
+                    else "stable"
+                )
+
+                # Significance is deliberately gated more strictly than the
+                # descriptive direction/slope.
+                significance_available = len(group) >= 10 and group_span >= 14.0
+                block["significance_available"] = significance_available
+                if not significance_available:
+                    block["p_value"] = None
+
+                origin = group[0]["recorded_at"]
+                x = np.array([
+                    (p["recorded_at"] - origin).total_seconds() / 86400.0
+                    for p in group
+                ], dtype=float)
+                y = np.array([p["value"] for p in group], dtype=float)
+                smoothed = loess_smooth(x, y, frac=0.6)
+                block["loess"] = [
+                    {
+                        "recorded_at": p["recorded_at"].isoformat(),
+                        "smoothed_mg_dl": round(float(v), 1),
+                    }
+                    for p, v in zip(group, smoothed)
+                ]
+                any_context_trend = True
+            else:
+                block["is_available"] = False
+                block["reason_code"] = "insufficient_time_geometry"
+
+        context_trends[context] = block
+
+    # --------------------------------------------------------------
+    # Low-glucose event analysis (numeric thresholds do not require a
+    # patient target profile). Level 3 cannot be inferred from a number.
+    # --------------------------------------------------------------
+    level_1 = []
+    level_2 = []
+    for p in points:
+        event = {
+            "recorded_at": p["recorded_at"].isoformat(),
+            "value_mg_dl": round(float(p["value"]), 1),
+            "measurement_context": p["measurement_context"],
+            "meal_type": p["meal_type"],
+        }
+        if p["value"] < 54:
+            level_2.append(event)
+        elif p["value"] < 70:
+            level_1.append(event)
+
+    low_events = {
+        "is_available": True,
+        "level_1_count": len(level_1),
+        "level_2_count": len(level_2),
+        "total_low_count": len(level_1) + len(level_2),
+        "level_1_events": level_1,
+        "level_2_events": level_2,
+        "pattern_language_available": (len(level_1) + len(level_2)) >= 2,
+    }
+
+    # --------------------------------------------------------------
+    # Logged Readings in Target — contract is present now, but no patient
+    # glucose target profile exists yet. Do not silently apply a universal
+    # target and do not call sparse manual readings "Time in Range".
+    # --------------------------------------------------------------
+    logged_readings_in_target = {
+        "is_available": False,
+        "reason_code": "patient_target_profile_not_configured",
+        "eligible_count": 0,
+        "in_target_count": 0,
+        "percentage": None,
+        "label": "Logged Readings in Target",
+    }
+
+    # --------------------------------------------------------------
+    # Meal-response / glucose excursion.
+    # Prefer explicit meal_event_id. Conservative fallback pairing is allowed
+    # only when one pre-meal and one post-meal reading exist for the same
+    # local date + meal and post-meal timing is recorded.
+    # --------------------------------------------------------------
+    meal_pairs = []
+    used_pair_keys = set()
+
+    explicit_events = {}
+    for p in points:
+        if p["meal_event_id"]:
+            explicit_events.setdefault(p["meal_event_id"], []).append(p)
+
+    for event_id, event_rows in explicit_events.items():
+        pres = [p for p in event_rows if p["measurement_context"] == "pre_meal"]
+        posts = [p for p in event_rows if p["measurement_context"] == "post_meal"]
+        if len(pres) == 1 and len(posts) == 1 and posts[0]["recorded_at"] > pres[0]["recorded_at"]:
+            pre = pres[0]
+            post = posts[0]
+            pair_key = ("event", event_id)
+            used_pair_keys.add(pair_key)
+            meal_pairs.append({
+                "pairing_method": "meal_event_id",
+                "meal_event_id": event_id,
+                "local_date": _hr_local_datetime(post).date().isoformat(),
+                "meal_type": post["meal_type"] or pre["meal_type"],
+                "minutes_after_meal": post["minutes_after_meal"],
+                "pre_value_mg_dl": round(float(pre["value"]), 1),
+                "post_value_mg_dl": round(float(post["value"]), 1),
+                "excursion_mg_dl": round(float(post["value"] - pre["value"]), 1),
+                "pre_recorded_at": pre["recorded_at"].isoformat(),
+                "post_recorded_at": post["recorded_at"].isoformat(),
+            })
+
+    fallback_groups = {}
+    for p in points:
+        if p["meal_event_id"] or p["meal_type"] is None:
+            continue
+        if p["measurement_context"] not in ("pre_meal", "post_meal"):
+            continue
+        key = (_hr_local_datetime(p).date(), p["meal_type"])
+        fallback_groups.setdefault(key, []).append(p)
+
+    for (local_day, meal_type), group in fallback_groups.items():
+        pres = [p for p in group if p["measurement_context"] == "pre_meal"]
+        posts = [p for p in group if p["measurement_context"] == "post_meal"]
+        if (
+            len(pres) == 1
+            and len(posts) == 1
+            and posts[0]["recorded_at"] > pres[0]["recorded_at"]
+            and posts[0]["minutes_after_meal"] is not None
+        ):
+            pre = pres[0]
+            post = posts[0]
+            meal_pairs.append({
+                "pairing_method": "unambiguous_same_day_meal",
+                "meal_event_id": None,
+                "local_date": local_day.isoformat(),
+                "meal_type": meal_type,
+                "minutes_after_meal": post["minutes_after_meal"],
+                "pre_value_mg_dl": round(float(pre["value"]), 1),
+                "post_value_mg_dl": round(float(post["value"]), 1),
+                "excursion_mg_dl": round(float(post["value"] - pre["value"]), 1),
+                "pre_recorded_at": pre["recorded_at"].isoformat(),
+                "post_recorded_at": post["recorded_at"].isoformat(),
+            })
+
+    # Do not average different post-meal intervals together. Exact recorded
+    # minutes are the grouping key until a clinically reviewed interval-bucket
+    # scheme is explicitly adopted.
+    excursion_groups = {}
+    for pair in meal_pairs:
+        key = (pair["meal_type"], pair["minutes_after_meal"])
+        excursion_groups.setdefault(key, []).append(pair)
+
+    meal_excursion_summaries = []
+    for (meal_type, minutes_after_meal), pairs in sorted(
+        excursion_groups.items(),
+        key=lambda item: (
+            str(item[0][0] or ""),
+            item[0][1] if item[0][1] is not None else -1,
+        ),
+    ):
+        vals = [p["excursion_mg_dl"] for p in pairs]
+        meal_excursion_summaries.append({
+            "meal_type": meal_type,
+            "minutes_after_meal": minutes_after_meal,
+            "pair_count": len(pairs),
+            "is_available": len(pairs) >= 3,
+            "reason_code": None if len(pairs) >= 3 else "insufficient_pairs",
+            "mean_excursion_mg_dl": round(float(np.mean(vals)), 1) if len(pairs) >= 3 else None,
+            "median_excursion_mg_dl": round(float(np.median(vals)), 1) if len(pairs) >= 3 else None,
+            "min_excursion_mg_dl": round(float(np.min(vals)), 1) if len(pairs) >= 3 else None,
+            "max_excursion_mg_dl": round(float(np.max(vals)), 1) if len(pairs) >= 3 else None,
+        })
+
+    meal_excursions = {
+        "is_available": len(meal_pairs) > 0,
+        "reason_code": None if meal_pairs else "insufficient_pairs",
+        "pair_count": len(meal_pairs),
+        "pairs": meal_pairs,
+        "summaries": meal_excursion_summaries,
+    }
+
+    # --------------------------------------------------------------
+    # Descriptive variability by comparable context.
+    # Basic spread: >=5 readings. BGM CV: >=10 readings; returned as
+    # descriptive data only and never compared with CGM CV targets.
+    # --------------------------------------------------------------
+    variability = {}
+    any_variability = False
+    for context in known_contexts:
+        group = context_groups.get(context) or []
+        vals = [p["value"] for p in group]
+        block = {
+            "is_available": len(vals) >= 5,
+            "reason_code": None if len(vals) >= 5 else "insufficient_count",
+            "sample_count": len(vals),
+            "sd": None,
+            "iqr": None,
+            "min": None,
+            "max": None,
+            "cv_pct": None,
+            "cv_available": False,
+        }
+        if len(vals) >= 5:
+            q1 = float(np.percentile(vals, 25))
+            q3 = float(np.percentile(vals, 75))
+            mean_val = float(np.mean(vals))
+            block.update({
+                "sd": round(float(statistics.stdev(vals)), 1),
+                "iqr": round(q3 - q1, 1),
+                "min": round(float(np.min(vals)), 1),
+                "max": round(float(np.max(vals)), 1),
+            })
+            if len(vals) >= 10 and mean_val != 0:
+                block["cv_pct"] = round(
+                    100.0 * float(statistics.stdev(vals)) / mean_val,
+                    1,
+                )
+                block["cv_available"] = True
+            any_variability = True
+        variability[context] = block
+
+    # --------------------------------------------------------------
+    # Time-of-day patterns, stratified within measurement context.
+    # Suggested local buckets from the engineering spec.
+    # --------------------------------------------------------------
+    def _time_bucket(p):
+        hour = _hr_local_datetime(p).hour
+        if 4 <= hour <= 11:
+            return "morning"
+        if 12 <= hour <= 16:
+            return "afternoon"
+        if 17 <= hour <= 21:
+            return "evening"
+        return "overnight"
+
+    time_of_day = {}
+    any_time_pattern = False
+    for context in known_contexts:
+        group = context_groups.get(context) or []
+        buckets = {
+            "morning": [], "afternoon": [], "evening": [], "overnight": []
+        }
+        for p in group:
+            buckets[_time_bucket(p)].append(p["value"])
+
+        bucket_results = {}
+        qualifying = []
+        for name, vals in buckets.items():
+            available = len(vals) >= 3
+            if available:
+                qualifying.append(name)
+            bucket_results[name] = {
+                "sample_count": len(vals),
+                "is_available": available,
+                "mean": round(float(np.mean(vals)), 1) if available else None,
+                "median": round(float(np.median(vals)), 1) if available else None,
+                "min": round(float(np.min(vals)), 1) if available else None,
+                "max": round(float(np.max(vals)), 1) if available else None,
+            }
+
+        context_available = len(qualifying) >= 2
+        highest = lowest = None
+        if context_available:
+            medians = {
+                name: bucket_results[name]["median"]
+                for name in qualifying
+            }
+            highest = max(medians, key=medians.get)
+            lowest = min(medians, key=medians.get)
+            any_time_pattern = True
+
+        time_of_day[context] = {
+            "is_available": context_available,
+            "reason_code": None if context_available else "insufficient_bucket_support",
+            "qualifying_bucket_count": len(qualifying),
+            "highest_median_period": highest,
+            "lowest_median_period": lowest,
+            "buckets": bucket_results,
+        }
+
+    # --------------------------------------------------------------
+    # Medication-change association: same-context 14 days before vs 14 days
+    # after each recorded medication change. Observational data only.
+    # --------------------------------------------------------------
+    medication_correlations = []
+    if medication_changes:
+        for medication_id, medication_name, change_type, effective_date in medication_changes:
+            if effective_date is None:
+                continue
+            for context in known_contexts:
+                group = context_groups.get(context) or []
+                before = []
+                after = []
+                for p in group:
+                    local_day = _hr_local_datetime(p).date()
+                    day_delta = (local_day - effective_date).days
+                    if -14 <= day_delta <= -1:
+                        before.append(p)
+                    elif 0 <= day_delta <= 13:
+                        after.append(p)
+
+                if len(before) < 5 or len(after) < 5:
+                    continue
+
+                before_vals = [p["value"] for p in before]
+                after_vals = [p["value"] for p in after]
+                before_fit = _ols(before)
+                after_fit = _ols(after)
+                medication_correlations.append({
+                    "medication_id": str(medication_id),
+                    "medication_name": medication_name,
+                    "change_type": change_type,
+                    "effective_date": effective_date.isoformat(),
+                    "measurement_context": context,
+                    "window_days_before": 14,
+                    "window_days_after": 14,
+                    "before_n": len(before),
+                    "after_n": len(after),
+                    "before_mean": round(float(np.mean(before_vals)), 1),
+                    "after_mean": round(float(np.mean(after_vals)), 1),
+                    "mean_delta": round(
+                        float(np.mean(after_vals) - np.mean(before_vals)), 1
+                    ),
+                    "before_median": round(float(np.median(before_vals)), 1),
+                    "after_median": round(float(np.median(after_vals)), 1),
+                    "median_delta": round(
+                        float(np.median(after_vals) - np.median(before_vals)), 1
+                    ),
+                    "before_slope_mg_dl_per_day": (
+                        before_fit["slope_mg_dl_per_day"] if before_fit else None
+                    ),
+                    "after_slope_mg_dl_per_day": (
+                        after_fit["slope_mg_dl_per_day"] if after_fit else None
+                    ),
+                })
+
+    # --------------------------------------------------------------
+    # CGM / GMI capability structure.
+    # Even if a row is tagged source_type=cgm, this schema currently has no
+    # expected-sample/active-coverage metadata, so standardized CGM analysis
+    # cannot qualify yet.
+    # --------------------------------------------------------------
+    cgm_count = source_counts.get("cgm", 0)
+    if cgm_count:
+        cgm_reason_code = "cgm_coverage_metadata_not_available"
+        cgm_reason = (
+            "CGM-tagged readings exist, but active-coverage metadata is not "
+            "available to qualify a standardized CGM summary."
+        )
+    else:
+        cgm_reason_code = "qualified_cgm_data_not_available"
+        cgm_reason = (
+            "GMI and standardized CGM metrics require qualified dense CGM data; "
+            "manual/BGM spot readings are not used for this calculation."
+        )
+
+    cgm_summary = {
+        "is_available": False,
+        "reason_code": cgm_reason_code,
+        "reason": cgm_reason,
+        "source_reading_count": cgm_count,
+        "coverage_days": None,
+        "active_coverage_pct": None,
+        "mean_glucose_mg_dl": None,
+        "gmi_pct": None,
+        "tir": None,
+        "tar": None,
+        "tbr": None,
+        "cv_pct": None,
+    }
+    gmi = {
+        "is_available": False,
+        "reason_code": cgm_reason_code,
+        "reason": cgm_reason,
+        "value_pct": None,
+        "formula": "3.31 + 0.02392 * mean_cgm_glucose_mg_dl",
+    }
+
+    # --------------------------------------------------------------
+    # Capability / data-support metadata
+    # --------------------------------------------------------------
+    unavailable = []
+
+    if not any(
+        b.get("is_available")
+        for b in context_summaries.values()
+    ):
+        unavailable.append({
+            "analysis": "context_specific_summaries",
+            "reason_code": "insufficient_contextual_support",
+            "reason": "needs >=3 readings in the same recorded glucose context",
+        })
+
+    if not any_context_trend:
+        unavailable.append({
+            "analysis": "context_specific_trends",
+            "reason_code": "insufficient_contextual_longitudinal_support",
+            "reason": "needs >=5 readings in one context spanning >=7 days",
+        })
+
+    unavailable.append({
+        "analysis": "logged_readings_in_target",
+        "reason_code": "patient_target_profile_not_configured",
+        "reason": (
+            "context-specific glucose targets must be configured before "
+            "manual/BGM logged readings can be classified against a target"
+        ),
+    })
+
+    if not meal_pairs:
+        unavailable.append({
+            "analysis": "meal_excursions",
+            "reason_code": "insufficient_pairs",
+            "reason": (
+                "needs an unambiguous pre-meal/post-meal pair with meal identity "
+                "and post-meal timing"
+            ),
+        })
+
+    if not any_variability:
+        unavailable.append({
+            "analysis": "variability",
+            "reason_code": "insufficient_contextual_support",
+            "reason": "needs >=5 comparable readings in the same glucose context",
+        })
+
+    if not any_time_pattern:
+        unavailable.append({
+            "analysis": "time_of_day_patterns",
+            "reason_code": "insufficient_bucket_support",
+            "reason": (
+                "needs >=3 comparable readings in at least two local time-of-day "
+                "buckets within the same glucose context"
+            ),
+        })
+
+    if not medication_correlations:
+        unavailable.append({
+            "analysis": "medication_change_correlation",
+            "reason_code": (
+                "no_medication_changes"
+                if not medication_changes
+                else "insufficient_before_after_support"
+            ),
+            "reason": (
+                "no medication-change events are recorded"
+                if not medication_changes
+                else "needs >=5 same-context readings in both the 14 days before and after a medication change"
+            ),
+        })
+
+    unavailable.append({
+        "analysis": "gmi",
+        "reason_code": cgm_reason_code,
+        "reason": cgm_reason,
+    })
+
+    support_state = (
+        "trend"
+        if any_context_trend
+        else "descriptive"
+        if len(points) >= 2
+        else "snapshot"
+    )
+
+    return {
+        "analysis_version": 1,
+        "vital_type": "glucose",
+        "unit": "mg/dL",
+        "latest": latest_block,
+        "reading_count": len(points),
+
+        # Backwards-compatible mixed-context descriptive block for the current
+        # MAUI/PDF surface. Dedicated Glucose UI should prefer context_summaries.
+        "summary": summary,
+        "change_from_first": None,
+        "trend": None,
+
+        "source_summary": {
+            "counts": source_counts,
+            "manual_bgm_count": source_counts.get("manual_bgm", 0),
+            "cgm_count": cgm_count,
+            "unknown_source_count": source_counts.get("unknown", 0),
+        },
+        "context_summary": {
+            "counts": context_counts,
+            "recorded_count": context_recorded_count,
+            "unknown_count": context_counts.get("unknown", 0),
+            "completeness_pct": context_completeness_pct,
+        },
+        "context_summaries": context_summaries,
+        "context_trends": context_trends,
+        "low_events": low_events,
+        "logged_readings_in_target": logged_readings_in_target,
+        "meal_excursions": meal_excursions,
+        "variability": variability,
+        "time_of_day": time_of_day,
+        "medication_correlations": medication_correlations,
+        "cgm_summary": cgm_summary,
+        "gmi": gmi,
+        "data_support": {
+            "n": len(points),
+            "distinct_days": distinct_days,
+            "span_days": round(span_days, 1),
+            "support_state": support_state,
+            "context_completeness_pct": context_completeness_pct,
+            "unavailable_analyses": unavailable,
+        },
+        "limitations": [
+            (
+                "Context-specific glucose analyses compare only readings recorded "
+                "in the same measurement context; Vitals does not model one trend "
+                "through mixed fasting, meal-related, bedtime, and random readings."
+            ),
+            (
+                "Manual/BGM sampling is sparse and depends on when the patient "
+                "chooses to test, so descriptive variability and time-of-day "
+                "patterns do not represent continuous day-long glucose exposure."
+            ),
+            (
+                "Medication comparisons are observational before/after summaries "
+                "and do not establish that a medication caused a glucose change."
+            ),
+            (
+                "GMI, Time in Range, and other standardized CGM summaries remain "
+                "unavailable until sufficiently dense CGM data and coverage "
+                "metadata are available."
+            ),
+        ],
+    }
 
 
 def _load_weight_patient_demographics(cur, patient_id: str, household_id: str) -> dict | None:
@@ -3573,10 +4317,29 @@ VITAL_ANALYSIS_REGISTRY = {
         "analysis_version": 6,
     },
     "glucose": {
-        "from_clause": "vitals",
-        "columns": "vitals.recorded_at, vitals.local_offset_minutes, vitals.blood_glucose",
-        "where_clause": "vitals.blood_glucose IS NOT NULL",
+        "from_clause": (
+            "vitals LEFT JOIN glucose_context "
+            "ON glucose_context.vital_id = vitals.vital_id"
+        ),
+        "columns": (
+            "vitals.recorded_at, vitals.local_offset_minutes, vitals.blood_glucose, "
+            "glucose_context.measurement_context, glucose_context.meal_type, "
+            "glucose_context.minutes_after_meal, glucose_context.meal_event_id, "
+            "glucose_context.source_type, glucose_context.original_value, "
+            "glucose_context.original_unit, glucose_context.source_device"
+        ),
+        # Legacy rows have no glucose_context record and therefore NULL
+        # is_invalidated; they remain visible as unknown-context history.
+        "where_clause": (
+            "vitals.blood_glucose IS NOT NULL "
+            "AND (glucose_context.is_invalidated IS NULL "
+            "OR glucose_context.is_invalidated = false)"
+        ),
         "analysis_fn": run_glucose_analysis,
+        "needs_medication_changes": True,
+        # First dedicated context-aware Glucose contract. This invalidates
+        # stale generic descriptive cache JSON as soon as the branch deploys.
+        "analysis_version": 1,
     },
 }
 
