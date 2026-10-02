@@ -7628,6 +7628,664 @@ def export_medications_pdf(
         return y
 
 
+    def draw_glucose_clinical_analysis(y, analysis, window_days):
+        """
+        Clinician-facing Glucose section rendered from the same dedicated
+        Glucose analysis contract used by the MAUI Analysis view.
+
+        Mixed manual/BGM readings are summarized descriptively, but clinical
+        trends are shown only inside one recorded measurement context. CGM-only
+        metrics remain capability-gated. The PDF keeps GMI visible as a
+        readiness item even before qualified CGM data exists, matching the
+        product decision used by the app while preserving the required
+        disclosure that GMI is not a laboratory A1C.
+        """
+        if analysis is None:
+            y = check_page_break(y, needed=105)
+            pdf.setFont("Helvetica-Bold", 13)
+            pdf.drawString(LEFT, y, "Blood Glucose Clinical Analysis")
+            y -= 20
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "No Glucose Data Yet")
+            y -= 14
+            y = draw_wrapped_line(
+                y,
+                "Blood glucose tracking is enabled for this patient, but no glucose "
+                "reading is available in the selected report window.",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+            y -= 10
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            return y - 14
+
+        unit_g = analysis.get("unit") or "mg/dL"
+        latest_g = analysis.get("latest") or {}
+        summary_g = analysis.get("summary") or {}
+        source_g = analysis.get("source_summary") or {}
+        context_g = analysis.get("context_summary") or {}
+        context_summaries_g = analysis.get("context_summaries") or {}
+        context_trends_g = analysis.get("context_trends") or {}
+        low_g = analysis.get("low_events") or {}
+        meal_g = analysis.get("meal_excursions") or {}
+        medication_g = analysis.get("medication_correlations") or []
+        cgm_g = analysis.get("cgm_summary") or {}
+        gmi_g = analysis.get("gmi") or {}
+        support_g = analysis.get("data_support") or {}
+        limitations_g = analysis.get("limitations") or []
+        reading_count_g = analysis.get("reading_count", 0) or 0
+
+        context_labels = {
+            "fasting": "Fasting",
+            "pre_meal": "Before Meal",
+            "post_meal": "After Meal",
+            "bedtime": "Bedtime",
+            "random": "Random",
+            "other": "Other",
+            "unknown": "Unknown",
+        }
+        meal_labels = {
+            "breakfast": "Breakfast",
+            "lunch": "Lunch",
+            "dinner": "Dinner",
+            "snack": "Snack",
+            "other": "Other",
+        }
+
+        def _context_label(value):
+            return context_labels.get(
+                value,
+                str(value or "unknown").replace("_", " ").title(),
+            )
+
+        def _fmt_num(value, digits=1, suffix=""):
+            if value is None:
+                return "-"
+            return f"{float(value):.{digits}f}{suffix}"
+
+        y = check_page_break(y, needed=220)
+        pdf.setFont("Helvetica-Bold", 13)
+        pdf.drawString(LEFT, y, "Blood Glucose Clinical Analysis")
+        y -= 20
+
+        # -------------------------------------------------
+        # CLINICAL SUMMARY / DATA SOURCE
+        # -------------------------------------------------
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(LEFT, y, "Clinical Summary")
+        y -= 4
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 12
+
+        latest_value = latest_g.get("value")
+        latest_context = _context_label(latest_g.get("measurement_context"))
+        latest_parts = []
+        if latest_g.get("meal_type"):
+            latest_parts.append(meal_labels.get(
+                latest_g.get("meal_type"),
+                str(latest_g.get("meal_type")).replace("_", " ").title(),
+            ))
+        if latest_g.get("minutes_after_meal") is not None:
+            latest_parts.append(f"{latest_g['minutes_after_meal']} min after meal")
+        source_type = latest_g.get("source_type") or "unknown"
+        source_label = {
+            "manual_bgm": "Manual/BGM",
+            "cgm": "CGM",
+            "import": "Imported",
+            "other": "Other",
+            "unknown": "Unknown",
+        }.get(source_type, str(source_type).replace("_", " ").title())
+
+        if latest_value is not None:
+            detail = f"Latest: {latest_value:.0f} {unit_g} ({latest_context}"
+            if latest_parts:
+                detail += "; " + ", ".join(latest_parts)
+            detail += f"; source: {source_label})."
+            if latest_g.get("recorded_at"):
+                detail += f" Recorded: {latest_g['recorded_at']}."
+            y = draw_wrapped_line(
+                y,
+                detail,
+                fontsize=9,
+                indent=0,
+                line_spacing=13,
+            )
+            y -= 3
+
+        source_counts = source_g.get("counts") or {}
+        source_parts = []
+        for key, label in (
+            ("manual_bgm", "Manual/BGM"),
+            ("cgm", "CGM"),
+            ("import", "Imported"),
+            ("other", "Other"),
+            ("unknown", "Unknown"),
+        ):
+            count = source_counts.get(key, 0) or 0
+            if count:
+                source_parts.append(f"{label}: {count}")
+        source_text = "; ".join(source_parts) if source_parts else "source not classified"
+
+        context_pct = context_g.get("completeness_pct")
+        context_text = (
+            f"{context_pct:.1f}% with recorded measurement context"
+            if context_pct is not None
+            else "context completeness unavailable"
+        )
+        y = draw_wrapped_line(
+            y,
+            f"Window: last {window_days} days. Observations: {reading_count_g}. "
+            f"Source mix: {source_text}. Context coverage: {context_text}.",
+            fontsize=9,
+            indent=0,
+            line_spacing=13,
+        )
+        y -= 4
+
+        total_low = low_g.get("total_low_count", 0) or 0
+        if total_low:
+            y = draw_wrapped_line(
+                y,
+                f"Low-glucose observations: {total_low} total "
+                f"({low_g.get('level_1_count', 0) or 0} at 54-69 mg/dL; "
+                f"{low_g.get('level_2_count', 0) or 0} below 54 mg/dL).",
+                fontsize=9,
+                indent=0,
+                line_spacing=13,
+            )
+            y -= 4
+
+        # -------------------------------------------------
+        # LOGGED READING SUMMARY — neutral mixed-context values
+        # -------------------------------------------------
+        if summary_g:
+            y = check_page_break(y, needed=70)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Logged Reading Summary")
+            y -= 14
+            sum_widths = [82, 108, 108, 107, 107]
+            y = draw_table_row(
+                y,
+                ["Readings", "Mean", "Median", "Minimum", "Maximum"],
+                sum_widths,
+                fontsize=8,
+                bold=True,
+                fill_bg=True,
+            )
+            y = draw_table_row(
+                y,
+                [
+                    str(reading_count_g),
+                    _fmt_num(summary_g.get("mean"), 1, f" {unit_g}"),
+                    _fmt_num(summary_g.get("median"), 1, f" {unit_g}"),
+                    _fmt_num(summary_g.get("min"), 1, f" {unit_g}"),
+                    _fmt_num(summary_g.get("max"), 1, f" {unit_g}"),
+                ],
+                sum_widths,
+                fontsize=8,
+            )
+            y -= 6
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            y = draw_wrapped_line(
+                y,
+                "These overall statistics may combine fasting, meal-related, bedtime, "
+                "random, and legacy unknown-context readings. They are descriptive and "
+                "are not classified against one universal glucose target.",
+                fontsize=8,
+                indent=10,
+                line_spacing=11,
+            )
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 8
+
+        # -------------------------------------------------
+        # CONTEXT-SPECIFIC SUMMARIES
+        # -------------------------------------------------
+        available_context_summaries = [
+            (ctx, block)
+            for ctx, block in context_summaries_g.items()
+            if block and block.get("is_available")
+        ]
+        if available_context_summaries:
+            y = check_page_break(y, needed=95)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Context-Specific Summaries")
+            y -= 14
+            ctx_widths = [90, 35, 40, 55, 75, 75, 142]
+            y = draw_table_row(
+                y,
+                ["Context", "n", "Days", "Span", "Mean", "Median", "Recorded Range"],
+                ctx_widths,
+                fontsize=8,
+                bold=True,
+                fill_bg=True,
+            )
+            for ctx, block in sorted(
+                available_context_summaries,
+                key=lambda item: (
+                    "fasting pre_meal post_meal bedtime random other unknown".split()
+                    .index(item[0])
+                    if item[0] in "fasting pre_meal post_meal bedtime random other unknown".split()
+                    else 99
+                ),
+            ):
+                y = check_page_break(y, needed=36)
+                range_text = (
+                    f"{_fmt_num(block.get('min'), 0)}-"
+                    f"{_fmt_num(block.get('max'), 0)} {unit_g}"
+                )
+                y = draw_table_row(
+                    y,
+                    [
+                        _context_label(ctx),
+                        str(block.get("sample_count", 0) or 0),
+                        str(block.get("distinct_days", 0) or 0),
+                        f"{block.get('span_days', 0):.1f} d",
+                        _fmt_num(block.get("mean"), 1, f" {unit_g}"),
+                        _fmt_num(block.get("median"), 1, f" {unit_g}"),
+                        range_text,
+                    ],
+                    ctx_widths,
+                    fontsize=8,
+                )
+            y -= 8
+
+        # -------------------------------------------------
+        # CONTEXT-SPECIFIC TRENDS
+        # -------------------------------------------------
+        available_trends = [
+            (ctx, block)
+            for ctx, block in context_trends_g.items()
+            if block and block.get("is_available")
+        ]
+        if available_trends:
+            y = check_page_break(y, needed=95)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Context-Specific Trends")
+            y -= 14
+            trend_widths = [100, 42, 62, 80, 115, 113]
+            y = draw_table_row(
+                y,
+                ["Context", "n", "Span", "Direction", "Slope", "Regression"],
+                trend_widths,
+                fontsize=8,
+                bold=True,
+                fill_bg=True,
+            )
+            for ctx, block in sorted(
+                available_trends,
+                key=lambda item: (
+                    "fasting pre_meal post_meal bedtime random other unknown".split()
+                    .index(item[0])
+                    if item[0] in "fasting pre_meal post_meal bedtime random other unknown".split()
+                    else 99
+                ),
+            ):
+                y = check_page_break(y, needed=40)
+                if block.get("significance_available") and block.get("p_value") is not None:
+                    regression = f"p={block['p_value']:.3f}"
+                    if block.get("r2") is not None:
+                        regression += f"; R2={block['r2']:.2f}"
+                else:
+                    regression = "significance gated"
+                y = draw_table_row(
+                    y,
+                    [
+                        _context_label(ctx),
+                        str(block.get("sample_count", 0) or 0),
+                        f"{block.get('span_days', 0):.1f} d",
+                        str(block.get("direction") or "-").title(),
+                        _fmt_num(block.get("slope_mg_dl_per_day"), 3, " mg/dL/day"),
+                        regression,
+                    ],
+                    trend_widths,
+                    fontsize=8,
+                )
+            y -= 6
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            y = draw_wrapped_line(
+                y,
+                "Trend models compare only readings recorded in the same measurement "
+                "context. A single regression is not fit through mixed fasting, "
+                "meal-related, bedtime, and random observations.",
+                fontsize=8,
+                indent=10,
+                line_spacing=11,
+            )
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 8
+
+        # -------------------------------------------------
+        # LOW-GLUCOSE EVENTS
+        # -------------------------------------------------
+        if low_g:
+            y = check_page_break(y, needed=80)
+            pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+            pdf.line(LEFT, y, RIGHT, y)
+            pdf.setStrokeColorRGB(0, 0, 0)
+            y -= 14
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Low-Glucose Observations")
+            y -= 14
+            low_widths = [184, 164, 164]
+            y = draw_table_row(
+                y,
+                ["Metric", "Level 1", "Level 2"],
+                low_widths,
+                fontsize=8,
+                bold=True,
+                fill_bg=True,
+            )
+            y = draw_table_row(
+                y,
+                [
+                    "Logged observation count",
+                    f"{low_g.get('level_1_count', 0) or 0} (54-69 mg/dL)",
+                    f"{low_g.get('level_2_count', 0) or 0} (<54 mg/dL)",
+                ],
+                low_widths,
+                fontsize=8,
+            )
+            y -= 6
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            y = draw_wrapped_line(
+                y,
+                "These are numeric observation classifications. Vitals does not infer "
+                "Level 3 hypoglycemia, symptoms, diagnosis, or treatment from glucose "
+                "values alone.",
+                fontsize=8,
+                indent=10,
+                line_spacing=11,
+            )
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 8
+
+        # -------------------------------------------------
+        # MEAL EXCURSIONS
+        # -------------------------------------------------
+        if meal_g.get("pair_count", 0):
+            y = check_page_break(y, needed=85)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Meal Excursions")
+            y -= 14
+            excursion_summaries = [
+                block for block in (meal_g.get("summaries") or [])
+                if block and block.get("is_available")
+            ]
+            if excursion_summaries:
+                meal_widths = [100, 92, 62, 120, 138]
+                y = draw_table_row(
+                    y,
+                    ["Meal", "Timing", "Pairs", "Mean Excursion", "Median Excursion"],
+                    meal_widths,
+                    fontsize=8,
+                    bold=True,
+                    fill_bg=True,
+                )
+                for block in excursion_summaries:
+                    y = check_page_break(y, needed=40)
+                    timing = (
+                        f"{block.get('minutes_after_meal')} min"
+                        if block.get("minutes_after_meal") is not None
+                        else "timing unknown"
+                    )
+                    y = draw_table_row(
+                        y,
+                        [
+                            meal_labels.get(
+                                block.get("meal_type"),
+                                str(block.get("meal_type") or "Unknown").title(),
+                            ),
+                            timing,
+                            str(block.get("pair_count", 0) or 0),
+                            _fmt_num(block.get("mean_excursion_mg_dl"), 1, " mg/dL"),
+                            _fmt_num(block.get("median_excursion_mg_dl"), 1, " mg/dL"),
+                        ],
+                        meal_widths,
+                        fontsize=8,
+                    )
+            else:
+                meal_pairs = meal_g.get("pairs") or []
+                if meal_pairs:
+                    pair_widths = [95, 90, 95, 95, 137]
+                    y = draw_table_row(
+                        y,
+                        ["Meal", "Timing", "Pre", "Post", "Excursion"],
+                        pair_widths,
+                        fontsize=8,
+                        bold=True,
+                        fill_bg=True,
+                    )
+                    for pair in meal_pairs:
+                        y = check_page_break(y, needed=40)
+                        timing = (
+                            f"{pair.get('minutes_after_meal')} min"
+                            if pair.get("minutes_after_meal") is not None
+                            else "timing unknown"
+                        )
+                        y = draw_table_row(
+                            y,
+                            [
+                                meal_labels.get(
+                                    pair.get("meal_type"),
+                                    str(pair.get("meal_type") or "Unknown").title(),
+                                ),
+                                timing,
+                                _fmt_num(pair.get("pre_value_mg_dl"), 1, " mg/dL"),
+                                _fmt_num(pair.get("post_value_mg_dl"), 1, " mg/dL"),
+                                _fmt_num(pair.get("excursion_mg_dl"), 1, " mg/dL"),
+                            ],
+                            pair_widths,
+                            fontsize=8,
+                        )
+                    y -= 4
+                y = draw_wrapped_line(
+                    y,
+                    f"{meal_g.get('pair_count', 0)} unambiguous pre/post-meal pair(s) "
+                    "are available. At least 3 comparable pairs at the same meal/timing "
+                    "are required before Vitals presents an averaged meal-response pattern.",
+                    fontsize=8,
+                    indent=10,
+                    line_spacing=11,
+                )
+            y -= 8
+
+        # -------------------------------------------------
+        # MEDICATION-CHANGE ASSOCIATIONS
+        # -------------------------------------------------
+        if medication_g:
+            y = check_page_break(y, needed=100)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Medication-Change Associations")
+            y -= 14
+            med_widths = [100, 60, 68, 64, 64, 60, 48, 48]
+            y = draw_table_row(
+                y,
+                ["Medication", "Date", "Context", "Before", "After", "Delta", "n Pre", "n Post"],
+                med_widths,
+                fontsize=7,
+                bold=True,
+                fill_bg=True,
+            )
+            for item in medication_g:
+                y = check_page_break(y, needed=45)
+                y = draw_table_row(
+                    y,
+                    [
+                        str(item.get("medication_name") or "-"),
+                        str(item.get("effective_date") or "-"),
+                        _context_label(item.get("measurement_context")),
+                        _fmt_num(item.get("before_mean"), 1),
+                        _fmt_num(item.get("after_mean"), 1),
+                        _fmt_num(item.get("mean_delta"), 1),
+                        str(item.get("before_n", 0) or 0),
+                        str(item.get("after_n", 0) or 0),
+                    ],
+                    med_widths,
+                    fontsize=7,
+                )
+            y -= 6
+            pdf.setFont("Helvetica-Oblique", 8)
+            pdf.setFillColorRGB(0.4, 0.4, 0.4)
+            y = draw_wrapped_line(
+                y,
+                "These are observational before/after summaries using the same glucose "
+                "context. They describe readings following a recorded medication change "
+                "and do not establish that the medication caused the difference.",
+                fontsize=8,
+                indent=10,
+                line_spacing=11,
+            )
+            pdf.setFillColorRGB(0, 0, 0)
+            y -= 8
+
+        # -------------------------------------------------
+        # CGM / GMI
+        # -------------------------------------------------
+        y = check_page_break(y, needed=105)
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        y -= 14
+        pdf.setFont("Helvetica-Bold", 10)
+        pdf.drawString(LEFT, y, "Glucose Management Indicator (GMI)")
+        y -= 14
+
+        if gmi_g.get("is_available") and gmi_g.get("value_pct") is not None:
+            pdf.setFont("Helvetica-Bold", 11)
+            pdf.drawString(LEFT + 10, y, f"{gmi_g['value_pct']:.1f}%")
+            y -= 14
+            qualified_parts = []
+            if cgm_g.get("mean_glucose_mg_dl") is not None:
+                qualified_parts.append(
+                    f"mean CGM glucose {cgm_g['mean_glucose_mg_dl']:.1f} mg/dL"
+                )
+            if cgm_g.get("coverage_days") is not None:
+                qualified_parts.append(f"{cgm_g['coverage_days']} days represented")
+            if cgm_g.get("active_coverage_pct") is not None:
+                qualified_parts.append(
+                    f"{cgm_g['active_coverage_pct']:.1f}% active coverage"
+                )
+            if qualified_parts:
+                y = draw_wrapped_line(
+                    y,
+                    "Qualified CGM basis: " + "; ".join(qualified_parts) + ".",
+                    fontsize=9,
+                    indent=10,
+                    line_spacing=12,
+                )
+        else:
+            pdf.setFont("Helvetica-Bold", 9)
+            pdf.drawString(LEFT + 10, y, "Not enough qualified CGM data yet")
+            y -= 14
+            requirement = (
+                gmi_g.get("qualification_requirement")
+                or cgm_g.get("qualification_requirement")
+                or {}
+            )
+            min_days = requirement.get("minimum_days", 14)
+            min_coverage = requirement.get("minimum_active_coverage_pct", 70)
+            y = draw_wrapped_line(
+                y,
+                f"Vitals can calculate GMI from qualified CGM data. Qualification gate: "
+                f"at least {min_days} days represented with "
+                f"{float(min_coverage):.0f}% or greater active coverage.",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+
+        disclosure = gmi_g.get("disclosure") or (
+            "GMI is calculated from mean CGM glucose. It is not a laboratory A1C "
+            "result and may differ from your measured A1C."
+        )
+        if "healthcare professional" not in disclosure.lower():
+            disclosure = (
+                disclosure.rstrip().rstrip(".")
+                + ". Talk with your healthcare professional about laboratory A1C "
+                "testing and interpretation."
+            )
+        y -= 3
+        pdf.setFont("Helvetica-Oblique", 8)
+        pdf.setFillColorRGB(0.4, 0.4, 0.4)
+        y = draw_wrapped_line(
+            y,
+            disclosure,
+            fontsize=8,
+            indent=10,
+            line_spacing=11,
+        )
+        pdf.setFillColorRGB(0, 0, 0)
+        y -= 8
+
+        # -------------------------------------------------
+        # DATA SUPPORT / INTERPRETATION LIMITS
+        # -------------------------------------------------
+        if support_g:
+            y = check_page_break(y, needed=85)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Data Support")
+            y -= 14
+            y = draw_wrapped_line(
+                y,
+                f"State: {(support_g.get('support_state') or 'snapshot').replace('_', ' ')}. "
+                f"{support_g.get('n', 0)} reading(s) across "
+                f"{support_g.get('distinct_days', 0)} distinct day(s), "
+                f"{support_g.get('span_days', 0):.1f}-day span. "
+                f"Context completeness: {support_g.get('context_completeness_pct', 0):.1f}%.",
+                fontsize=9,
+                indent=10,
+                line_spacing=12,
+            )
+            for item in support_g.get("unavailable_analyses") or []:
+                if item.get("analysis") == "gmi":
+                    continue
+                y = check_page_break(y, needed=32)
+                name = (item.get("analysis") or "analysis").replace("_", " ").title()
+                reason = item.get("reason") or item.get("reason_code") or "not available"
+                y = draw_wrapped_line(
+                    y,
+                    f"- {name}: {reason}",
+                    fontsize=8,
+                    indent=10,
+                    line_spacing=11,
+                )
+            y -= 8
+
+        if limitations_g:
+            y = check_page_break(y, needed=70)
+            pdf.setFont("Helvetica-Bold", 10)
+            pdf.drawString(LEFT, y, "Interpretation Limits")
+            y -= 14
+            for limitation in limitations_g:
+                y = check_page_break(y, needed=30)
+                y = draw_wrapped_line(
+                    y,
+                    f"- {limitation}",
+                    fontsize=8,
+                    indent=10,
+                    line_spacing=11,
+                )
+            y -= 8
+
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.line(LEFT, y, RIGHT, y)
+        pdf.setStrokeColorRGB(0, 0, 0)
+        return y - 14
+
+
     def draw_scalar_clinical_analysis(
         y,
         title,
@@ -8189,9 +8847,9 @@ def export_medications_pdf(
                     pdf.setFillColorRGB(0.4, 0.4, 0.4)
                     y = draw_wrapped_line(
                         y,
-                        "Glucose values are shown as logged observations only. "
-                        "Fasting/post-meal/random context is not collected, so no "
-                        "single smoothed clinical trajectory is inferred.",
+                        "Glucose values are shown as raw logged observations in this overview. "
+                        "Measurement contexts are not mixed into one smoothed trajectory; "
+                        "eligible same-context trends are reported in the Glucose Clinical Analysis section.",
                         fontsize=7,
                         indent=6,
                         line_spacing=9,
@@ -9155,21 +9813,11 @@ def export_medications_pdf(
     if show_weight:
         y = draw_weight_clinical_analysis(y, weight_analysis)
 
-    # Glucose remains descriptive until measurement context is collected.
-    if glucose_analysis is not None:
-        y = draw_scalar_clinical_analysis(
-            y,
-            "Blood Glucose Clinical Analysis",
-            glucose_analysis,
-            show_trend=False,
-            context_note=(
-                "Glucose readings are presented descriptively only. "
-                "Fasting, pre-meal, post-meal, bedtime, and random measurement "
-                "context is not collected yet, and individualized glucose targets "
-                "may differ. Vitals therefore does not assign one target range or "
-                "model a single clinical glucose trajectory across mixed contexts."
-            ),
-        )
+    # =====================================================
+    # GLUCOSE — DEDICATED ANALYSIS CONTRACT
+    # =====================================================
+    if show_glucose:
+        y = draw_glucose_clinical_analysis(y, glucose_analysis, days)
 
     # =====================================================
     # HISTORICAL VITALS TABLE
