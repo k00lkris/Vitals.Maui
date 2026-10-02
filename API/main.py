@@ -8173,9 +8173,14 @@ def export_medications_pdf(
 
         disclosure = gmi_g.get("disclosure") or (
             "GMI is calculated from mean CGM glucose. It is not a laboratory A1C "
-            "result and may differ from your measured A1C. Talk with your healthcare "
-            "professional about laboratory A1C testing and interpretation."
+            "result and may differ from your measured A1C."
         )
+        if "healthcare professional" not in disclosure.lower():
+            disclosure = (
+                disclosure.rstrip().rstrip(".")
+                + ". Talk with your healthcare professional about laboratory A1C "
+                "testing and interpretation."
+            )
         y -= 3
         pdf.setFont("Helvetica-Oblique", 8)
         pdf.setFillColorRGB(0.4, 0.4, 0.4)
