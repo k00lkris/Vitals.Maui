@@ -45,7 +45,7 @@ public class VitalsAnalysis
     public WeightAnalysis? Weight { get; set; }
 
     [JsonPropertyName("glucose")]
-    public DescriptiveVitalAnalysis? Glucose { get; set; }
+    public GlucoseAnalysis? Glucose { get; set; }
 
     [JsonPropertyName("classification")]
     public string? Classification { get; set; }
