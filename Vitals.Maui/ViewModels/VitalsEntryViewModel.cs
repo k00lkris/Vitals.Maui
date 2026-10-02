@@ -29,6 +29,28 @@ public partial class VitalsEntryViewModel : ObservableObject
     [ObservableProperty]
     private string _bloodGlucose = string.Empty;
 
+    // Patient-recorded glucose context. Context is optional so a reading can
+    // still be saved when the user does not know or does not want to record
+    // it; the backend stores "unknown" and capability-gates analyses that
+    // require comparable fasting/meal state.
+    [ObservableProperty] private string? _glucoseContext;
+    [ObservableProperty] private string? _glucoseMealType;
+    [ObservableProperty] private string _glucoseMinutesAfterMeal = string.Empty;
+    [ObservableProperty] private bool _showGlucoseMealOptions;
+    [ObservableProperty] private bool _showGlucosePostMealMinutes;
+
+    [ObservableProperty] private Color _glucoseFastingColor = UnselectedColor;
+    [ObservableProperty] private Color _glucosePreMealColor = UnselectedColor;
+    [ObservableProperty] private Color _glucosePostMealColor = UnselectedColor;
+    [ObservableProperty] private Color _glucoseBedtimeColor = UnselectedColor;
+    [ObservableProperty] private Color _glucoseRandomColor = UnselectedColor;
+    [ObservableProperty] private Color _glucoseOtherColor = UnselectedColor;
+
+    [ObservableProperty] private Color _glucoseBreakfastColor = UnselectedColor;
+    [ObservableProperty] private Color _glucoseLunchColor = UnselectedColor;
+    [ObservableProperty] private Color _glucoseDinnerColor = UnselectedColor;
+    [ObservableProperty] private Color _glucoseSnackColor = UnselectedColor;
+
     [ObservableProperty]
     private string _notes = string.Empty;
 
@@ -137,6 +159,51 @@ public partial class VitalsEntryViewModel : ObservableObject
         TempAxillaryColor = TemperatureSite == "axillary" ? SelectedColor : UnselectedColor;
         TempRectalColor = TemperatureSite == "rectal" ? SelectedColor : UnselectedColor;
         TempOtherColor = TemperatureSite == "other" ? SelectedColor : UnselectedColor;
+    }
+
+    [RelayCommand] private void SelectGlucoseFasting() => SetGlucoseContext("fasting");
+    [RelayCommand] private void SelectGlucosePreMeal() => SetGlucoseContext("pre_meal");
+    [RelayCommand] private void SelectGlucosePostMeal() => SetGlucoseContext("post_meal");
+    [RelayCommand] private void SelectGlucoseBedtime() => SetGlucoseContext("bedtime");
+    [RelayCommand] private void SelectGlucoseRandom() => SetGlucoseContext("random");
+    [RelayCommand] private void SelectGlucoseOther() => SetGlucoseContext("other");
+
+    private void SetGlucoseContext(string value)
+    {
+        GlucoseContext = GlucoseContext == value ? null : value;
+
+        GlucoseFastingColor = GlucoseContext == "fasting" ? SelectedColor : UnselectedColor;
+        GlucosePreMealColor = GlucoseContext == "pre_meal" ? SelectedColor : UnselectedColor;
+        GlucosePostMealColor = GlucoseContext == "post_meal" ? SelectedColor : UnselectedColor;
+        GlucoseBedtimeColor = GlucoseContext == "bedtime" ? SelectedColor : UnselectedColor;
+        GlucoseRandomColor = GlucoseContext == "random" ? SelectedColor : UnselectedColor;
+        GlucoseOtherColor = GlucoseContext == "other" ? SelectedColor : UnselectedColor;
+
+        ShowGlucoseMealOptions = GlucoseContext is "pre_meal" or "post_meal";
+        ShowGlucosePostMealMinutes = GlucoseContext == "post_meal";
+
+        if (!ShowGlucoseMealOptions)
+            SetGlucoseMealType(null);
+
+        if (!ShowGlucosePostMealMinutes)
+            GlucoseMinutesAfterMeal = string.Empty;
+    }
+
+    [RelayCommand] private void SelectGlucoseBreakfast() => ToggleGlucoseMealType("breakfast");
+    [RelayCommand] private void SelectGlucoseLunch() => ToggleGlucoseMealType("lunch");
+    [RelayCommand] private void SelectGlucoseDinner() => ToggleGlucoseMealType("dinner");
+    [RelayCommand] private void SelectGlucoseSnack() => ToggleGlucoseMealType("snack");
+
+    private void ToggleGlucoseMealType(string value) =>
+        SetGlucoseMealType(GlucoseMealType == value ? null : value);
+
+    private void SetGlucoseMealType(string? value)
+    {
+        GlucoseMealType = value;
+        GlucoseBreakfastColor = value == "breakfast" ? SelectedColor : UnselectedColor;
+        GlucoseLunchColor = value == "lunch" ? SelectedColor : UnselectedColor;
+        GlucoseDinnerColor = value == "dinner" ? SelectedColor : UnselectedColor;
+        GlucoseSnackColor = value == "snack" ? SelectedColor : UnselectedColor;
     }
 
     // Delegate to shared state
@@ -280,6 +347,29 @@ public partial class VitalsEntryViewModel : ObservableObject
                     ? null
                     : TemperatureSite ?? "unknown",
                 BloodGlucose = TryParseInt(bloodGlucose),
+                GlucoseContext = string.IsNullOrWhiteSpace(bloodGlucose)
+                    ? null
+                    : GlucoseContext ?? "unknown",
+                GlucoseMealType = string.IsNullOrWhiteSpace(bloodGlucose)
+                    || GlucoseContext is not ("pre_meal" or "post_meal")
+                    ? null
+                    : GlucoseMealType,
+                GlucoseMinutesAfterMeal = string.IsNullOrWhiteSpace(bloodGlucose)
+                    || GlucoseContext != "post_meal"
+                    ? null
+                    : TryParseInt(GlucoseMinutesAfterMeal),
+                // Current Vitals Entry is a user-entered spot-reading workflow.
+                // Dense CGM/import sources will populate a different source_type
+                // when those integrations are added.
+                GlucoseSourceType = string.IsNullOrWhiteSpace(bloodGlucose)
+                    ? null
+                    : "manual_bgm",
+                GlucoseOriginalValue = string.IsNullOrWhiteSpace(bloodGlucose)
+                    ? null
+                    : TryParseInt(bloodGlucose),
+                GlucoseOriginalUnit = string.IsNullOrWhiteSpace(bloodGlucose)
+                    ? null
+                    : "mg/dL",
                 Weight = TryParseDouble(weight),
                 Notes = Notes,
                 // Only meaningful alongside an actual heart-rate value —
@@ -328,6 +418,21 @@ public partial class VitalsEntryViewModel : ObservableObject
         TempRectalColor = UnselectedColor;
         TempOtherColor = UnselectedColor;
         BloodGlucose = string.Empty;
+        GlucoseContext = null;
+        GlucoseMealType = null;
+        GlucoseMinutesAfterMeal = string.Empty;
+        ShowGlucoseMealOptions = false;
+        ShowGlucosePostMealMinutes = false;
+        GlucoseFastingColor = UnselectedColor;
+        GlucosePreMealColor = UnselectedColor;
+        GlucosePostMealColor = UnselectedColor;
+        GlucoseBedtimeColor = UnselectedColor;
+        GlucoseRandomColor = UnselectedColor;
+        GlucoseOtherColor = UnselectedColor;
+        GlucoseBreakfastColor = UnselectedColor;
+        GlucoseLunchColor = UnselectedColor;
+        GlucoseDinnerColor = UnselectedColor;
+        GlucoseSnackColor = UnselectedColor;
         Weight = string.Empty;
         Notes = string.Empty;
         HrActivityContext = null;
