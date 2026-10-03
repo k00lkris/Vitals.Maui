@@ -85,83 +85,125 @@
                         Stroke="{DynamicResource CardStroke}"
                         IsVisible="{Binding HasNoData,
                             Converter={StaticResource InvertedBoolConverter}}">
-                    <VerticalStackLayout>
 
-                        <!-- Header Row -->
-                        <Grid ColumnDefinitions="90,70,55,55,60"
-                              BackgroundColor="{DynamicResource ButtonBackground}"
-                              Padding="8,10">
-                            <Label Grid.Column="0"
-                                   Text="Date"
-                                   FontSize="12" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}" />
-                            <Label Grid.Column="1"
-                                   Text="BP"
-                                   FontSize="12" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   HorizontalOptions="Center" />
-                            <Label Grid.Column="2"
-                                   Text="HR"
-                                   FontSize="12" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   HorizontalOptions="Center" />
-                            <Label Grid.Column="3"
-                                   Text="SpO₂"
-                                   FontSize="12" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   HorizontalOptions="Center" />
-                            <Label Grid.Column="4"
-                                   Text="Temp"
-                                   FontSize="12" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   HorizontalOptions="Center" />
-                        </Grid>
+                    <!-- One horizontal scroll surface keeps the header and every
+                         row aligned when Weight/Glucose add more columns than a
+                         portrait phone can comfortably display. Disabled patient
+                         preferences collapse their columns entirely. -->
+                    <ScrollView Orientation="Horizontal"
+                                HorizontalScrollBarVisibility="Default">
+                        <VerticalStackLayout Spacing="0">
 
-                        <!-- Data Rows -->
-                        <CollectionView ItemsSource="{Binding Rows}">
-                            <CollectionView.ItemTemplate>
-                                <DataTemplate x:DataType="models:VitalHistoryDisplay">
-                                    <VerticalStackLayout>
-                                        <Grid ColumnDefinitions="90,70,55,55,60"
-                                              Padding="8,10">
-                                            <Label Grid.Column="0"
-                                                   Text="{Binding Date}"
-                                                   FontSize="11"
-                                                   TextColor="{DynamicResource TextSecondary}"
-                                                   LineBreakMode="WordWrap" />
-                                            <Label Grid.Column="1"
-                                                   Text="{Binding Bp}"
-                                                   FontSize="12"
-                                                   TextColor="{DynamicResource TextPrimary}"
-                                                   HorizontalOptions="Center"
-                                                   VerticalOptions="Center" />
-                                            <Label Grid.Column="2"
-                                                   Text="{Binding HeartRate}"
-                                                   FontSize="12"
-                                                   TextColor="{DynamicResource TextPrimary}"
-                                                   HorizontalOptions="Center"
-                                                   VerticalOptions="Center" />
-                                            <Label Grid.Column="3"
-                                                   Text="{Binding Spo2}"
-                                                   FontSize="12"
-                                                   TextColor="{DynamicResource TextPrimary}"
-                                                   HorizontalOptions="Center"
-                                                   VerticalOptions="Center" />
-                                            <Label Grid.Column="4"
-                                                   Text="{Binding Temperature}"
-                                                   FontSize="12"
-                                                   TextColor="{DynamicResource TextPrimary}"
-                                                   HorizontalOptions="Center"
-                                                   VerticalOptions="Center" />
-                                        </Grid>
-                                        <BoxView HeightRequest="1"
-                                                 BackgroundColor="{DynamicResource DividerColor}" />
-                                    </VerticalStackLayout>
-                                </DataTemplate>
-                            </CollectionView.ItemTemplate>
-                        </CollectionView>
+                            <!-- Header Row -->
+                            <HorizontalStackLayout
+                                BackgroundColor="{DynamicResource ButtonBackground}"
+                                Padding="8,10"
+                                Spacing="0">
+                                <Label Text="Date"
+                                       WidthRequest="90"
+                                       FontSize="12" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                                <Label Text="BP"
+                                       WidthRequest="70"
+                                       FontSize="12" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                                <Label Text="HR"
+                                       WidthRequest="55"
+                                       IsVisible="{Binding ShowHeartRate}"
+                                       FontSize="12" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                                <Label Text="SpO₂"
+                                       WidthRequest="55"
+                                       IsVisible="{Binding ShowSpo2}"
+                                       FontSize="12" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                                <Label Text="Temp"
+                                       WidthRequest="60"
+                                       IsVisible="{Binding ShowTemperature}"
+                                       FontSize="12" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                                <Label Text="Weight"
+                                       WidthRequest="78"
+                                       IsVisible="{Binding ShowWeight}"
+                                       FontSize="12" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                                <Label Text="Glucose"
+                                       WidthRequest="88"
+                                       IsVisible="{Binding ShowGlucose}"
+                                       FontSize="12" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
+                            </HorizontalStackLayout>
 
-                    </VerticalStackLayout>
+                            <!-- Data Rows -->
+                            <VerticalStackLayout
+                                Spacing="0"
+                                BindableLayout.ItemsSource="{Binding Rows}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="models:VitalHistoryDisplay">
+                                        <VerticalStackLayout Spacing="0">
+                                            <HorizontalStackLayout Padding="8,10" Spacing="0">
+                                                <Label Text="{Binding Date}"
+                                                       WidthRequest="90"
+                                                       FontSize="11"
+                                                       TextColor="{DynamicResource TextSecondary}"
+                                                       LineBreakMode="WordWrap" />
+                                                <Label Text="{Binding Bp}"
+                                                       WidthRequest="70"
+                                                       FontSize="12"
+                                                       TextColor="{DynamicResource TextPrimary}"
+                                                       HorizontalTextAlignment="Center"
+                                                       VerticalTextAlignment="Center" />
+                                                <Label Text="{Binding HeartRate}"
+                                                       WidthRequest="55"
+                                                       IsVisible="{Binding ShowHeartRate}"
+                                                       FontSize="12"
+                                                       TextColor="{DynamicResource TextPrimary}"
+                                                       HorizontalTextAlignment="Center"
+                                                       VerticalTextAlignment="Center" />
+                                                <Label Text="{Binding Spo2}"
+                                                       WidthRequest="55"
+                                                       IsVisible="{Binding ShowSpo2}"
+                                                       FontSize="12"
+                                                       TextColor="{DynamicResource TextPrimary}"
+                                                       HorizontalTextAlignment="Center"
+                                                       VerticalTextAlignment="Center" />
+                                                <Label Text="{Binding Temperature}"
+                                                       WidthRequest="60"
+                                                       IsVisible="{Binding ShowTemperature}"
+                                                       FontSize="12"
+                                                       TextColor="{DynamicResource TextPrimary}"
+                                                       HorizontalTextAlignment="Center"
+                                                       VerticalTextAlignment="Center" />
+                                                <Label Text="{Binding Weight}"
+                                                       WidthRequest="78"
+                                                       IsVisible="{Binding ShowWeight}"
+                                                       FontSize="11"
+                                                       TextColor="{DynamicResource TextPrimary}"
+                                                       HorizontalTextAlignment="Center"
+                                                       VerticalTextAlignment="Center" />
+                                                <Label Text="{Binding Glucose}"
+                                                       WidthRequest="88"
+                                                       IsVisible="{Binding ShowGlucose}"
+                                                       FontSize="11"
+                                                       TextColor="{DynamicResource TextPrimary}"
+                                                       HorizontalTextAlignment="Center"
+                                                       VerticalTextAlignment="Center" />
+                                            </HorizontalStackLayout>
+                                            <BoxView HeightRequest="1"
+                                                     BackgroundColor="{DynamicResource DividerColor}" />
+                                        </VerticalStackLayout>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </VerticalStackLayout>
+
+                        </VerticalStackLayout>
+                    </ScrollView>
                 </Border>
 
                 <!-- Status -->
