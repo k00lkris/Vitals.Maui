@@ -1,3 +1,4 @@
+using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Views;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Devices;
@@ -24,8 +25,8 @@ internal static class ResponsivePopupSizing
         double portraitHeight)
     {
         EventHandler<DisplayInfoChangedEventArgs>? displayChanged = null;
-        EventHandler? opened = null;
-        EventHandler? closed = null;
+        EventHandler<PopupOpenedEventArgs>? opened = null;
+        EventHandler<PopupClosedEventArgs>? closed = null;
 
         void ApplySize()
         {
