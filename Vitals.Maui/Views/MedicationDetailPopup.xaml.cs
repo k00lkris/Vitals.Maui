@@ -10,6 +10,7 @@ public partial class MedicationDetailPopup : Popup
     public MedicationDetailPopup(MedicationDetailViewModel vm)
     {
         InitializeComponent();
+        ResponsivePopupSizing.Attach(this, PopupRoot, portraitWidth: 360, portraitHeight: 640);
         _vm = vm;
         BindingContext = vm;
 

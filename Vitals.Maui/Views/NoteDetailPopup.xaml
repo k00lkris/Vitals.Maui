@@ -6,7 +6,8 @@
                x:Class="Vitals.Maui.Views.NoteDetailPopup"
                x:DataType="vm:NoteDetailViewModel">
 
-    <Grid RowDefinitions="*,Auto"
+    <Grid x:Name="PopupRoot"
+          RowDefinitions="*,Auto"
           HeightRequest="680"
           WidthRequest="360"
           BackgroundColor="{DynamicResource CardBackground}">

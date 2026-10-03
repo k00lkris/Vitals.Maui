@@ -6,7 +6,8 @@
                x:Class="Vitals.Maui.Views.AllergyDetailPopup"
                x:DataType="vm:AllergyDetailViewModel">
 
-    <Grid RowDefinitions="*,Auto"
+    <Grid x:Name="PopupRoot"
+          RowDefinitions="*,Auto"
           HeightRequest="580"
           WidthRequest="360"
           BackgroundColor="{DynamicResource CardBackground}">

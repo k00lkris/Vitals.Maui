@@ -10,6 +10,7 @@ public partial class VisitDetailPopup : Popup
     public VisitDetailPopup(VisitDetailViewModel vm)
     {
         InitializeComponent();
+        ResponsivePopupSizing.Attach(this, PopupRoot, portraitWidth: 360, portraitHeight: 680);
         _vm = vm;
         BindingContext = vm;
 

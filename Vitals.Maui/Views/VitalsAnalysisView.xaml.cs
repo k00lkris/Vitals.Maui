@@ -10,6 +10,7 @@ public partial class VitalsAnalysisView : Popup
     public VitalsAnalysisView(VitalsAnalysisViewModel vm)  // ? must match class name
     {
         InitializeComponent();
+        ResponsivePopupSizing.Attach(this, PopupRoot, portraitWidth: 360, portraitHeight: 680);
         _vm = vm;
         BindingContext = vm;
     }

@@ -6,7 +6,8 @@
                x:Class="Vitals.Maui.Views.MedicationDetailPopup"
                x:DataType="vm:MedicationDetailViewModel">
 
-    <Grid RowDefinitions="*,Auto"
+    <Grid x:Name="PopupRoot"
+          RowDefinitions="*,Auto"
           HeightRequest="640"
           WidthRequest="360"
           BackgroundColor="{DynamicResource CardBackground}">
