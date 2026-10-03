@@ -2929,6 +2929,21 @@
         <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.HasNoData">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._hasNoData"/>
         </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.ShowHeartRate">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._showHeartRate"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.ShowSpo2">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._showSpo2"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.ShowTemperature">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._showTemperature"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.ShowWeight">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._showWeight"/>
+        </member>
+        <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.ShowGlucose">
+            <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._showGlucose"/>
+        </member>
         <member name="P:Vitals.Maui.ViewModels.VitalsHistoryViewModel.SelectedDays">
             <inheritdoc cref="F:Vitals.Maui.ViewModels.VitalsHistoryViewModel._selectedDays"/>
         </member>
