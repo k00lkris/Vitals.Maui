@@ -10,6 +10,7 @@ public partial class AllergyDetailPopup : Popup
     public AllergyDetailPopup(AllergyDetailViewModel vm)
     {
         InitializeComponent();
+        ResponsivePopupSizing.Attach(this, PopupRoot, portraitWidth: 360, portraitHeight: 580);
         _vm = vm;
         BindingContext = vm;
 
