@@ -6,7 +6,8 @@
                x:Class="Vitals.Maui.Views.VitalsAnalysisView"
                x:DataType="vm:VitalsAnalysisViewModel">
 
-    <Grid RowDefinitions="*,Auto"
+    <Grid x:Name="PopupRoot"
+          RowDefinitions="*,Auto"
           HeightRequest="680"
           WidthRequest="360"
           BackgroundColor="{DynamicResource CardBackground}">
