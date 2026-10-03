@@ -10,6 +10,8 @@ public partial class VitalsHistoryViewModel : ObservableObject
 {
     private readonly ApiService _api;
     private readonly PatientStateService _patientState;
+    private readonly UserPreferencesService _preferences;
+    private UserPreferences _activePreferences = new();
 
     public Patient? SelectedPatient => _patientState.SelectedPatient;
 
@@ -17,6 +19,14 @@ public partial class VitalsHistoryViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _hasNoData;
+
+    // Blood pressure is always shown. Optional history columns follow the
+    // selected patient's persisted vital preferences.
+    [ObservableProperty] private bool _showHeartRate = true;
+    [ObservableProperty] private bool _showSpo2 = true;
+    [ObservableProperty] private bool _showTemperature = true;
+    [ObservableProperty] private bool _showWeight;
+    [ObservableProperty] private bool _showGlucose;
 
     // Day buttons — background colors
     [ObservableProperty] private int _selectedDays = 15;
@@ -54,26 +64,63 @@ public partial class VitalsHistoryViewModel : ObservableObject
 
     [ObservableProperty] private string _customDaysLabel = "Custom";
 
-    public VitalsHistoryViewModel(ApiService api, PatientStateService patientState)
+    public VitalsHistoryViewModel(
+        ApiService api,
+        PatientStateService patientState,
+        UserPreferencesService preferences)
     {
         _api = api;
         _patientState = patientState;
+        _preferences = preferences;
 
         _patientState.PropertyChanged += async (s, e) =>
         {
             if (e.PropertyName == nameof(PatientStateService.SelectedPatient))
             {
                 OnPropertyChanged(nameof(SelectedPatient));
-                await LoadHistoryAsync();
+                await LoadSelectedPatientAsync();
             }
         };
     }
 
     public async Task LoadAsync(int days = 15)
     {
+        await _patientState.InitializeAsync();
+        OnPropertyChanged(nameof(SelectedPatient));
+
         SelectedDays = days;
         UpdateButtonColors(days);
-        await LoadHistoryAsync();
+        await LoadSelectedPatientAsync();
+    }
+
+    private async Task LoadSelectedPatientAsync()
+    {
+        var patientId = _patientState.SelectedPatient?.PatientId;
+        if (string.IsNullOrWhiteSpace(patientId))
+        {
+            Rows.Clear();
+            HasNoData = true;
+            return;
+        }
+
+        var preferences = await _preferences.RefreshAsync(patientId);
+
+        // Do not apply a stale preference response after a rapid patient switch.
+        if (_patientState.SelectedPatient?.PatientId != patientId)
+            return;
+
+        _activePreferences = preferences;
+        ApplyPreferences(preferences);
+        await LoadHistoryAsync(patientId, preferences);
+    }
+
+    private void ApplyPreferences(UserPreferences preferences)
+    {
+        ShowHeartRate = preferences.ShowHeartRate;
+        ShowSpo2 = preferences.ShowSpo2;
+        ShowTemperature = preferences.ShowTemperature;
+        ShowWeight = preferences.ShowWeight;
+        ShowGlucose = preferences.ShowGlucose;
     }
 
     [RelayCommand]
@@ -84,7 +131,10 @@ public partial class VitalsHistoryViewModel : ObservableObject
             SelectedDays = d;
             UpdateButtonColors(d);
             CustomDaysLabel = "Custom";
-            await LoadHistoryAsync();
+
+            var patientId = _patientState.SelectedPatient?.PatientId;
+            if (!string.IsNullOrWhiteSpace(patientId))
+                await LoadHistoryAsync(patientId, _activePreferences);
         }
     }
 
@@ -96,25 +146,32 @@ public partial class VitalsHistoryViewModel : ObservableObject
             SelectedDays = d;
             CustomDaysLabel = $"{d}d";
             UpdateButtonColors(-1);
-            await LoadHistoryAsync();
+
+            var patientId = _patientState.SelectedPatient?.PatientId;
+            if (!string.IsNullOrWhiteSpace(patientId))
+                await LoadHistoryAsync(patientId, _activePreferences);
         }
     }
 
-    private async Task LoadHistoryAsync()
+    private async Task LoadHistoryAsync(
+        string patientId,
+        UserPreferences preferences)
     {
-        if (_patientState.SelectedPatient is null) return;
-
         IsBusy = true;
         StatusMessage = string.Empty;
 
         try
         {
-            var history = await _api.GetVitalsHistoryAsync(
-                _patientState.SelectedPatient.PatientId, SelectedDays);
+            var history = await _api.GetVitalsHistoryAsync(patientId, SelectedDays);
+
+            // A patient switch can finish while history is loading. Do not put
+            // the previous patient's rows into the newly selected patient view.
+            if (_patientState.SelectedPatient?.PatientId != patientId)
+                return;
 
             var sorted = history
                 .OrderByDescending(r => r.Date)
-                .Select(VitalHistoryDisplay.FromRow)
+                .Select(r => VitalHistoryDisplay.FromRow(r, preferences))
                 .ToList();
 
             Rows = new ObservableCollection<VitalHistoryDisplay>(sorted);
