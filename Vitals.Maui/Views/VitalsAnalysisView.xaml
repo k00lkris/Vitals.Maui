@@ -79,48 +79,49 @@
                                      IsVisible="{Binding HasAnalysisResponse}">
                     <!-- Optional vital tabs are only shown when the signed-in
                          user tracks that metric. BP is always available. -->
-                    <FlexLayout Direction="Row"
-                                Wrap="Wrap"
-                                JustifyContent="Start"
-                                AlignItems="Center">
-                        <Button Text="❤️ BP"
-                                WidthRequest="76"
-                                Margin="0,0,6,6"
+                    <!-- Primary vital tabs stay on one row. Using equal Grid
+                         columns avoids Temp wrapping on narrower phone widths. -->
+                    <Grid ColumnDefinitions="*,*,*,*"
+                          ColumnSpacing="6">
+                        <Button Grid.Column="0"
+                                Text="❤️ BP"
                                 BackgroundColor="{Binding TabBpColor}"
                                 TextColor="{Binding TabBpTextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="bp" />
-                        <Button Text="💓 HR"
-                                WidthRequest="76"
-                                Margin="0,0,6,6"
+                        <Button Grid.Column="1"
+                                Text="💓 HR"
                                 IsVisible="{Binding TrackHeartRate}"
                                 BackgroundColor="{Binding TabHrColor}"
                                 TextColor="{Binding TabHrTextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="hr" />
-                        <Button Text="🫁 SpO₂"
-                                WidthRequest="82"
-                                Margin="0,0,6,6"
+                        <Button Grid.Column="2"
+                                Text="🫁 SpO₂"
                                 IsVisible="{Binding TrackSpo2}"
                                 BackgroundColor="{Binding TabSpo2Color}"
                                 TextColor="{Binding TabSpo2TextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="spo2" />
-                        <Button Text="🌡️ Temp"
-                                WidthRequest="82"
-                                Margin="0,0,6,6"
+                        <Button Grid.Column="3"
+                                Text="🌡️ Temp"
                                 IsVisible="{Binding TrackTemperature}"
                                 BackgroundColor="{Binding TabTempColor}"
                                 TextColor="{Binding TabTempTextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="temp" />
+                    </Grid>
+
+                    <!-- Weight and Glucose are secondary tabs. Center the visible
+                         buttons as a group beneath the four primary tabs. -->
+                    <HorizontalStackLayout Spacing="6"
+                                           HorizontalOptions="Center">
                         <Button Text="⚖️ Weight"
-                                WidthRequest="92"
-                                Margin="0,0,6,6"
+                                WidthRequest="96"
                                 IsVisible="{Binding TrackWeight}"
                                 BackgroundColor="{Binding TabWeightColor}"
                                 TextColor="{Binding TabWeightTextColor}" FontSize="12"
@@ -128,15 +129,14 @@
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="weight" />
                         <Button Text="🩸 Glucose"
-                                WidthRequest="96"
-                                Margin="0,0,6,6"
+                                WidthRequest="100"
                                 IsVisible="{Binding TrackGlucose}"
                                 BackgroundColor="{Binding TabGlucoseColor}"
                                 TextColor="{Binding TabGlucoseTextColor}" FontSize="12"
                                 HeightRequest="36" CornerRadius="6"
                                 Command="{Binding SelectTabCommand}"
                                 CommandParameter="glucose" />
-                    </FlexLayout>
+                    </HorizontalStackLayout>
 
                     <!-- BP's own data gate belongs directly below the vital
                          selector so it reads as the state of the selected BP tab. -->
