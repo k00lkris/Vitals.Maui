@@ -170,6 +170,7 @@ public partial class VitalsHistoryViewModel : ObservableObject
                 return;
 
             var sorted = history
+                .Where(r => HasVisibleVital(r, preferences))
                 .OrderByDescending(r => r.Date)
                 .Select(r => VitalHistoryDisplay.FromRow(r, preferences))
                 .ToList();
@@ -186,6 +187,17 @@ public partial class VitalsHistoryViewModel : ObservableObject
             IsBusy = false;
         }
     }
+
+    private static bool HasVisibleVital(
+        VitalHistoryRow row,
+        UserPreferences preferences) =>
+        row.Systolic.HasValue ||
+        row.Diastolic.HasValue ||
+        (preferences.ShowHeartRate && row.HeartRate.HasValue) ||
+        (preferences.ShowSpo2 && row.Spo2.HasValue) ||
+        (preferences.ShowTemperature && row.Temperature.HasValue) ||
+        (preferences.ShowWeight && row.Weight.HasValue) ||
+        (preferences.ShowGlucose && row.BloodGlucose.HasValue);
 
     private void UpdateButtonColors(int days)
     {
