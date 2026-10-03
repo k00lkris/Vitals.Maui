@@ -45,9 +45,22 @@ public class VitalHistoryDisplay
     public string Weight { get; set; } = "—";
     public string Glucose { get; set; } = "—";
 
-    public static VitalHistoryDisplay FromRow(VitalHistoryRow row)
+    // Row-level visibility mirrors the selected patient's persisted vital
+    // preferences. Keeping the flags on each display row lets the table
+    // template collapse disabled columns without reaching outside the
+    // DataTemplate namescope.
+    public bool ShowHeartRate { get; set; }
+    public bool ShowSpo2 { get; set; }
+    public bool ShowTemperature { get; set; }
+    public bool ShowWeight { get; set; }
+    public bool ShowGlucose { get; set; }
+
+    public static VitalHistoryDisplay FromRow(
+        VitalHistoryRow row,
+        UserPreferences preferences)
     {
         var dt = DateTime.Parse(row.Date).ToLocalTime();
+
         return new VitalHistoryDisplay
         {
             Date = dt.ToString("MM/dd/yy\nh:mm tt"),
@@ -63,8 +76,17 @@ public class VitalHistoryDisplay
             Temperature = row.Temperature.HasValue
                 ? $"{row.Temperature:F1}°"
                 : "—",
-            Weight = row.Weight.HasValue ? $"{row.Weight:F1}" : "—",
-            Glucose = row.BloodGlucose.HasValue ? $"{row.BloodGlucose}" : "—"
+            Weight = row.Weight.HasValue
+                ? $"{row.Weight:F1} lb"
+                : "—",
+            Glucose = row.BloodGlucose.HasValue
+                ? $"{row.BloodGlucose} mg/dL"
+                : "—",
+            ShowHeartRate = preferences.ShowHeartRate,
+            ShowSpo2 = preferences.ShowSpo2,
+            ShowTemperature = preferences.ShowTemperature,
+            ShowWeight = preferences.ShowWeight,
+            ShowGlucose = preferences.ShowGlucose
         };
     }
 }
