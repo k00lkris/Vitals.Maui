@@ -1,0 +1,22 @@
+# .NET / MAUI build output
+**/bin/
+**/obj/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Apple build output
+DerivedData/
+*.app
+*.ipa
+
+# Android packaged output
+*.apk
+*.aab
+
+# IDE / user-specific files
+.vs/
+*.user
+*.suo
+*.userprefs
