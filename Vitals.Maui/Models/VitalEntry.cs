@@ -99,3 +99,10 @@ public class VitalEntry
     [JsonPropertyName("hr_source_type")]
     public string? HrSourceType { get; set; }
 }
+
+public class VitalRecord : VitalEntry
+{
+    [JsonPropertyName("vital_id")]
+    public string VitalId { get; set; } = string.Empty;
+}
+
