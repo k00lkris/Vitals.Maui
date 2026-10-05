@@ -2,6 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+             xmlns:controls="clr-namespace:Vitals.Maui.Controls"
              x:Class="Vitals.Maui.Views.SignUpPage"
              x:DataType="vm:SignUpViewModel"
              Shell.NavBarIsVisible="False"
@@ -113,16 +114,12 @@
                             HeightRequest="52"
                             CornerRadius="10" />
 
-                    <!-- Apple ID — disabled placeholder until Apple Developer
-                         Program enrollment + Sign in with Apple implementation -->
-                    <Button Text="Sign up with Apple ID"
-                            IsEnabled="False"
-                            BackgroundColor="{DynamicResource ButtonSecondary}"
-                            TextColor="{DynamicResource ButtonSecondaryText}"
-                            FontSize="15"
-                            FontAttributes="Bold"
-                            HeightRequest="52"
-                            CornerRadius="10" />
+                    <controls:AppleSignInButtonHost
+                            IsVisible="{Binding IsAppleSignInAvailable}"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
+                            Command="{Binding SignUpWithAppleCommand}"
+                            IsSignUp="True"
+                            HeightRequest="52" />
 
                 </VerticalStackLayout>
 
