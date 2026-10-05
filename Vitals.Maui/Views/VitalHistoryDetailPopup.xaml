@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<toolkit:Popup xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+               xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+               xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+               xmlns:vm="clr-namespace:Vitals.Maui.ViewModels"
+               x:Class="Vitals.Maui.Views.VitalHistoryDetailPopup"
+               x:DataType="vm:VitalHistoryDetailViewModel">
+
+    <Grid x:Name="PopupRoot"
+          RowDefinitions="Auto,*,Auto"
+          HeightRequest="720"
+          WidthRequest="390"
+          BackgroundColor="{DynamicResource CardBackground}">
+
+        <Grid Grid.Row="0"
+              Padding="16,14"
+              ColumnDefinitions="*,Auto"
+              BackgroundColor="{DynamicResource CardBackground}">
+            <VerticalStackLayout Spacing="2">
+                <Label Text="Edit Vitals Record"
+                       FontSize="19"
+                       FontAttributes="Bold"
+                       TextColor="{DynamicResource TextPrimary}" />
+                <Label Text="Correct values, reassign the whole entry, or delete it."
+                       FontSize="11"
+                       TextColor="{DynamicResource TextMuted}" />
+            </VerticalStackLayout>
+            <Button Grid.Column="1"
+                    Text="✕"
+                    FontSize="16"
+                    WidthRequest="38"
+                    HeightRequest="38"
+                    CornerRadius="19"
+                    Padding="0"
+                    BackgroundColor="{DynamicResource ButtonSecondary}"
+                    TextColor="{DynamicResource ButtonSecondaryText}"
+                    Command="{Binding CancelCommand}" />
+        </Grid>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="16,4,16,18" Spacing="14">
+
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   Color="{DynamicResource PrimaryAccent}"
+                                   HorizontalOptions="Center" />
+
+                <Label Text="{Binding StatusMessage}"
+                       IsVisible="{Binding StatusMessage,
+                           Converter={StaticResource StringToBoolConverter}}"
+                       TextColor="#d32f2f"
+                       FontSize="13" />
+
+                <Border Padding="12"
+                        BackgroundColor="{DynamicResource PageBackground}"
+                        Stroke="{DynamicResource CardStroke}"
+                        StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Patient"
+                               FontSize="11"
+                               TextColor="{DynamicResource PrimaryAccent}" />
+                        <Picker ItemsSource="{Binding Patients}"
+                                SelectedItem="{Binding SelectedPatient}"
+                                ItemDisplayBinding="{Binding FullName}"
+                                TextColor="{DynamicResource TextPrimary}"
+                                Title="Select patient" />
+                        <Label Text="{Binding ReassignmentMessage}"
+                               IsVisible="{Binding IsReassigned}"
+                               FontSize="11"
+                               TextColor="#b26a00"
+                               LineBreakMode="WordWrap" />
+
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                            <VerticalStackLayout Grid.Column="0" Spacing="4">
+                                <Label Text="Date"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <DatePicker Date="{Binding RecordedDate}"
+                                            TextColor="{DynamicResource TextPrimary}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="1" Spacing="4">
+                                <Label Text="Time"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource PrimaryAccent}" />
+                                <TimePicker Time="{Binding RecordedTime}"
+                                            TextColor="{DynamicResource TextPrimary}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label Text="Fields shown below follow the selected patient's vital preferences. Reassignment preserves any stored values that are hidden."
+                       FontSize="11"
+                       TextColor="{DynamicResource TextMuted}"
+                       LineBreakMode="WordWrap" />
+
+                <!-- Blood pressure is always enabled in Vitals. -->
+                <Border Padding="12"
+                        BackgroundColor="{DynamicResource PageBackground}"
+                        Stroke="{DynamicResource CardStroke}"
+                        StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Blood Pressure"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                            <VerticalStackLayout Grid.Column="0" Spacing="3">
+                                <Label Text="Systolic"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextSecondary}" />
+                                <Entry Text="{Binding Systolic}"
+                                       Keyboard="Numeric"
+                                       Placeholder="mmHg"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="1" Spacing="3">
+                                <Label Text="Diastolic"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextSecondary}" />
+                                <Entry Text="{Binding Diastolic}"
+                                       Keyboard="Numeric"
+                                       Placeholder="mmHg"
+                                       TextColor="{DynamicResource TextPrimary}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Padding="12"
+                        IsVisible="{Binding ShowHeartRate}"
+                        BackgroundColor="{DynamicResource PageBackground}"
+                        Stroke="{DynamicResource CardStroke}"
+                        StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Heart Rate"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Entry Text="{Binding HeartRate}"
+                               Keyboard="Numeric"
+                               Placeholder="bpm"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                            <VerticalStackLayout Grid.Column="0" Spacing="3">
+                                <Label Text="Activity"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextSecondary}" />
+                                <Picker ItemsSource="{Binding HrActivityOptions}"
+                                        SelectedItem="{Binding SelectedHrActivity}"
+                                        TextColor="{DynamicResource TextPrimary}" />
+                            </VerticalStackLayout>
+                            <VerticalStackLayout Grid.Column="1" Spacing="3">
+                                <Label Text="Posture"
+                                       FontSize="11"
+                                       TextColor="{DynamicResource TextSecondary}" />
+                                <Picker ItemsSource="{Binding HrPostureOptions}"
+                                        SelectedItem="{Binding SelectedHrPosture}"
+                                        TextColor="{DynamicResource TextPrimary}" />
+                            </VerticalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Padding="12"
+                        IsVisible="{Binding ShowSpo2}"
+                        BackgroundColor="{DynamicResource PageBackground}"
+                        Stroke="{DynamicResource CardStroke}"
+                        StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="SpO₂"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Entry Text="{Binding OxygenSaturation}"
+                               Keyboard="Numeric"
+                               Placeholder="%"
+                               TextColor="{DynamicResource TextPrimary}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Padding="12"
+                        IsVisible="{Binding ShowTemperature}"
+                        BackgroundColor="{DynamicResource PageBackground}"
+                        Stroke="{DynamicResource CardStroke}"
+                        StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Temperature"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Entry Text="{Binding Temperature}"
+                               Keyboard="Numeric"
+                               Placeholder="°F"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Label Text="Measurement site"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextSecondary}" />
+                        <Picker ItemsSource="{Binding TemperatureSiteOptions}"
+                                SelectedItem="{Binding SelectedTemperatureSite}"
+                                TextColor="{DynamicResource TextPrimary}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Padding="12"
+                        IsVisible="{Binding ShowWeight}"
+                        BackgroundColor="{DynamicResource PageBackground}"
+                        Stroke="{DynamicResource CardStroke}"
+                        StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Weight"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Entry Text="{Binding Weight}"
+                               Keyboard="Numeric"
+                               Placeholder="lb"
+                               TextColor="{DynamicResource TextPrimary}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Padding="12"
+                        IsVisible="{Binding ShowGlucose}"
+                        BackgroundColor="{DynamicResource PageBackground}"
+                        Stroke="{DynamicResource CardStroke}"
+                        StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Glucose"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Entry Text="{Binding BloodGlucose}"
+                               Keyboard="Numeric"
+                               Placeholder="mg/dL"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Label Text="Measurement context"
+                               FontSize="11"
+                               TextColor="{DynamicResource TextSecondary}" />
+                        <Picker ItemsSource="{Binding GlucoseContextOptions}"
+                                SelectedItem="{Binding SelectedGlucoseContext}"
+                                TextColor="{DynamicResource TextPrimary}" />
+
+                        <VerticalStackLayout Spacing="3"
+                                             IsVisible="{Binding ShowGlucoseMealOptions}">
+                            <Label Text="Meal"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextSecondary}" />
+                            <Picker ItemsSource="{Binding GlucoseMealTypeOptions}"
+                                    SelectedItem="{Binding SelectedGlucoseMealType}"
+                                    TextColor="{DynamicResource TextPrimary}" />
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Spacing="3"
+                                             IsVisible="{Binding ShowGlucosePostMealMinutes}">
+                            <Label Text="Minutes after meal"
+                                   FontSize="11"
+                                   TextColor="{DynamicResource TextSecondary}" />
+                            <Entry Text="{Binding GlucoseMinutesAfterMeal}"
+                                   Keyboard="Numeric"
+                                   Placeholder="e.g. 120"
+                                   TextColor="{DynamicResource TextPrimary}" />
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Border Padding="12"
+                        BackgroundColor="{DynamicResource PageBackground}"
+                        Stroke="{DynamicResource CardStroke}"
+                        StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout Spacing="6">
+                        <Label Text="Notes"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextPrimary}" />
+                        <Editor Text="{Binding Notes}"
+                                AutoSize="TextChanges"
+                                MinimumHeightRequest="70"
+                                Placeholder="Optional notes"
+                                TextColor="{DynamicResource TextPrimary}" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <Button Text="🗑️  Delete Entire Record"
+                        BackgroundColor="#d32f2f"
+                        TextColor="White"
+                        HeightRequest="46"
+                        CornerRadius="8"
+                        Command="{Binding DeleteCommand}" />
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <Grid Grid.Row="2"
+              Padding="16,12"
+              ColumnDefinitions="*,*"
+              ColumnSpacing="10"
+              BackgroundColor="{DynamicResource CardBackground}">
+            <Button Grid.Column="0"
+                    Text="Cancel"
+                    BackgroundColor="{DynamicResource ButtonSecondary}"
+                    TextColor="{DynamicResource ButtonSecondaryText}"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    Command="{Binding CancelCommand}" />
+            <Button Grid.Column="1"
+                    Text="Save Changes"
+                    BackgroundColor="{DynamicResource ButtonBackground}"
+                    TextColor="{DynamicResource TextPrimary}"
+                    HeightRequest="48"
+                    CornerRadius="8"
+                    Command="{Binding SaveCommand}" />
+        </Grid>
+    </Grid>
+</toolkit:Popup>
