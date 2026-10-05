@@ -41,6 +41,7 @@ public class VitalHistoryResponse
 public class VitalHistoryDisplay
 {
     public string VitalId { get; set; } = string.Empty;
+    public bool CanEdit => !string.IsNullOrWhiteSpace(VitalId);
     public string Date { get; set; } = string.Empty;
     public string Bp { get; set; } = "—";
     public string HeartRate { get; set; } = "—";
