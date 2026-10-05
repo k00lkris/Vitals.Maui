@@ -207,6 +207,72 @@ public class ApiService
         return response.IsSuccessStatusCode;
     }
 
+    public async Task<VitalRecord?> GetVitalRecordAsync(string vitalId)
+    {
+        try
+        {
+            var response = await _http.GetAsync(
+                $"/api/vitals/{Uri.EscapeDataString(vitalId)}");
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== VITAL RECORD STATUS: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            return JsonSerializer.Deserialize<VitalRecord>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== VITAL RECORD ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
+    public async Task<bool> UpdateVitalRecordAsync(
+        string vitalId,
+        VitalEntry vital)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(vital, _jsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _http.PatchAsync(
+                $"/api/vitals/{Uri.EscapeDataString(vitalId)}",
+                content);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== UPDATE VITAL STATUS: {response.StatusCode} {raw}");
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== UPDATE VITAL ERROR: {ex.Message}");
+            return false;
+        }
+    }
+
+    public async Task<bool> DeleteVitalRecordAsync(string vitalId)
+    {
+        try
+        {
+            var response = await _http.DeleteAsync(
+                $"/api/vitals/{Uri.EscapeDataString(vitalId)}");
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== DELETE VITAL STATUS: {response.StatusCode} {raw}");
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== DELETE VITAL ERROR: {ex.Message}");
+            return false;
+        }
+    }
+
     public async Task<LatestVitals?> GetLatestVitalsAsync(string patientId)
     {
         try
