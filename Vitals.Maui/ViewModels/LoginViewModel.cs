@@ -60,6 +60,34 @@ public partial class LoginViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    public async Task SignInWithAppleAsync()
+    {
+        if (IsBusy) return;
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+
+        try
+        {
+            var result = await _auth.SignInWithAppleAsync();
+
+            if (result.Success)
+            {
+                AppNavigation.RouteAfterAuth(_auth.IsNewUser, _patientState);
+            }
+            else if (!result.Cancelled)
+            {
+                StatusMessage = result.ErrorMessage
+                    ?? "Apple sign-in failed. Please try again.";
+            }
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     /// <summary>
     /// Signs in with email/password. Routes based on the server's actual
     /// is_new_user (now correctly tracking "first login ever" for email
