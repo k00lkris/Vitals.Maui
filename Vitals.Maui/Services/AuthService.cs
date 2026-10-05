@@ -190,9 +190,13 @@ public class AuthService
         _authProvider = authResult.AuthProvider;
         _isNewUser = authResult.IsNewUser;
 
-        await SecureStorage.SetAsync("auth_jwt", _jwt);
-        await SecureStorage.SetAsync("auth_user_id", _userId);
-        await SecureStorage.SetAsync("auth_household_id", _householdId);
+        await SecureStorage.SetAsync("auth_jwt", _jwt ?? "");
+        await SecureStorage.SetAsync("auth_user_id", _userId ?? "");
+        // New accounts intentionally have no household until onboarding
+        // selects a tier or joins an existing household. SecureStorage on
+        // iOS rejects a null value, so persist that pre-onboarding state as
+        // an empty string and keep the in-memory HouseholdId nullable.
+        await SecureStorage.SetAsync("auth_household_id", _householdId ?? "");
         await SecureStorage.SetAsync("auth_email", _email ?? "");
         await SecureStorage.SetAsync("auth_display_name", _displayName ?? "");
         await SecureStorage.SetAsync("auth_provider", _authProvider ?? "");
@@ -653,7 +657,7 @@ public class AuthService
     {
         public string Token { get; set; } = string.Empty;
         public string UserId { get; set; } = string.Empty;
-        public string HouseholdId { get; set; } = string.Empty;
+        public string? HouseholdId { get; set; }
         public string Email { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
 
