@@ -34,6 +34,11 @@
                             </Label.FormattedText>
                         </Label>
 
+                        <Label Text="Tap the pencil on any row to correct, reassign, or delete that stored entry."
+                               FontSize="11"
+                               TextColor="{DynamicResource TextMuted}"
+                               LineBreakMode="WordWrap" />
+
                         <!-- Day Range Buttons -->
                         <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="6">
                             <Button Grid.Column="0" Text="15d"
@@ -138,6 +143,10 @@
                                        FontSize="12" FontAttributes="Bold"
                                        TextColor="{DynamicResource TextPrimary}"
                                        HorizontalTextAlignment="Center" />
+                                <Label Text=""
+                                       WidthRequest="52"
+                                       FontSize="12"
+                                       TextColor="{DynamicResource TextPrimary}" />
                             </HorizontalStackLayout>
 
                             <!-- Data Rows -->
@@ -194,6 +203,17 @@
                                                        TextColor="{DynamicResource TextPrimary}"
                                                        HorizontalTextAlignment="Center"
                                                        VerticalTextAlignment="Center" />
+                                                <Button Text="✏️"
+                                                        WidthRequest="44"
+                                                        HeightRequest="34"
+                                                        Margin="4,0"
+                                                        Padding="0"
+                                                        FontSize="13"
+                                                        CornerRadius="6"
+                                                        BackgroundColor="{DynamicResource ButtonSecondary}"
+                                                        TextColor="{DynamicResource ButtonSecondaryText}"
+                                                        CommandParameter="{Binding .}"
+                                                        Clicked="OnEditRecordClicked" />
                                             </HorizontalStackLayout>
                                             <BoxView HeightRequest="1"
                                                      BackgroundColor="{DynamicResource DividerColor}" />
