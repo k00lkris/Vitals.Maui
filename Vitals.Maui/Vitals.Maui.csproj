@@ -21,10 +21,10 @@
 		<Nullable>enable</Nullable>
 
 		<!-- Display name -->
-		<ApplicationTitle>Vitals.Maui</ApplicationTitle>
+		<ApplicationTitle>Vitals</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>com.companyname.vitals.maui</ApplicationId>
+		<ApplicationId>com.vitalswellness.vitals</ApplicationId>
 
 		<!-- Versions -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
