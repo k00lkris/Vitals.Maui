@@ -45,19 +45,6 @@
 		<CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
 	</PropertyGroup>
 
-	<!-- .NET 9 / Xcode 26 has a simulator signing regression where
-	     CodesignEntitlements can be evaluated before SdkIsSimulator is known,
-	     which leaves the final simulator signature with an empty entitlement
-	     dictionary. Set the simulator/device entitlement immediately before
-	     signing identity detection, matching the dotnet/macios workaround. -->
-	<Target Name="SetIosEntitlements" BeforeTargets="_DetectSigningIdentity"
-	        Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
-		<PropertyGroup>
-			<CodesignRequireProvisioningProfile Condition="'$(SdkIsSimulator)' == 'true'">false</CodesignRequireProvisioningProfile>
-			<CodesignEntitlements Condition="'$(SdkIsSimulator)' == 'true'">Platforms/iOS/Entitlements.Simulator.plist</CodesignEntitlements>
-			<CodesignEntitlements Condition="'$(SdkIsSimulator)' != 'true'">Platforms/iOS/Entitlements.plist</CodesignEntitlements>
-		</PropertyGroup>
-	</Target>
 
   <ItemGroup>
     <!-- App Icon -->
