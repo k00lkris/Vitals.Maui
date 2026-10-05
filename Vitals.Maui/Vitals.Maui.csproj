@@ -45,6 +45,15 @@
 		<CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
 	</PropertyGroup>
 
+	<!-- Simulator builds do not use a provisioning profile in .NET 9.
+	     Give the simulator only the Keychain entitlement MAUI SecureStorage
+	     requires; the real-device/App Store build keeps the Apple Sign-In
+	     entitlement above. -->
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' And $(RuntimeIdentifier.Contains('iossimulator'))">
+		<CodesignRequireProvisioningProfile>false</CodesignRequireProvisioningProfile>
+		<CodesignEntitlements>Platforms/iOS/Entitlements.Simulator.plist</CodesignEntitlements>
+	</PropertyGroup>
+
   <ItemGroup>
     <!-- App Icon -->
     <MauiIcon Include="Resources\AppIcon\appicon.png" Color="#1a1a2e" />
