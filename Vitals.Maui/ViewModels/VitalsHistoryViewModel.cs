@@ -95,6 +95,16 @@ public partial class VitalsHistoryViewModel : ObservableObject
         await LoadSelectedPatientAsync();
     }
 
+    [RelayCommand]
+    private async Task RefreshAsync()
+    {
+        // Pull-to-refresh should reload the CURRENT range and patient rather
+        // than resetting the screen back to 15 days.
+        await _patientState.InitializeAsync();
+        OnPropertyChanged(nameof(SelectedPatient));
+        await LoadSelectedPatientAsync();
+    }
+
     private async Task LoadSelectedPatientAsync()
     {
         var patientId = _patientState.SelectedPatient?.PatientId;
