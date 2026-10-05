@@ -3,6 +3,12 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Web;
+#if IOS
+using AuthenticationServices;
+using Foundation;
+using UIKit;
+using System.Security.Cryptography;
+#endif
 
 namespace Vitals.Maui.Services;
 
@@ -24,16 +30,22 @@ public class AuthService
     public string? HouseholdId => _householdId;
     public string? Email => _email;
     public string? DisplayName => _displayName;
-    // Raw value from the backend: "password", "google.com", or (once built)
-    // "apple.com" — SettingsViewModel maps this to a friendly label rather
+    // Raw value from the backend: "password", "google.com", or "apple.com"
+    // — SettingsViewModel maps this to a friendly label rather
     // than displaying the raw string directly.
     public string? AuthProvider => _authProvider;
 
-    // Only meaningful immediately after a successful SignInWithGoogleAsync()
-    // call — reflects what /api/auth/google's is_new_user said about THIS
-    // sign-in, not a persisted session flag. Read it right after Sign In or
-    // Sign Up completes, and route accordingly (see AppNavigation.RouteAfterGoogleAuth).
+    // Only meaningful immediately after a successful interactive auth call.
+    // It reflects what the backend said about THIS sign-in, not a persisted
+    // session flag. Read it immediately after auth and route accordingly.
     public bool IsNewUser => _isNewUser;
+
+    public bool IsAppleSignInAvailable =>
+#if IOS
+        OperatingSystem.IsIOSVersionAtLeast(13);
+#else
+        false;
+#endif
 
 
 
@@ -165,7 +177,7 @@ public class AuthService
 
     /// <summary>
     /// Sets in-memory session fields and persists them to SecureStorage.
-    /// Shared by Google sign-in and email/password login, since both end
+    /// Shared by Google, Apple, and email/password auth, since all end
     /// with the same shape of response from the backend.
     /// </summary>
     private async Task ApplySuccessfulAuthAsync(AuthResult authResult)
@@ -203,6 +215,235 @@ public class AuthService
         await SecureStorage.SetAsync("auth_jwt", _jwt);
         await SecureStorage.SetAsync("auth_household_id", _householdId);
     }
+
+    // -------------------------------------------------------
+    // Native Sign in with Apple (iOS)
+    // -------------------------------------------------------
+    public async Task<AppleAuthResult> SignInWithAppleAsync()
+    {
+#if IOS
+        if (!IsAppleSignInAvailable)
+            return AppleAuthResult.Failed("Sign in with Apple is not available on this device.");
+
+        try
+        {
+            var rawNonce = CreateAppleNonce();
+            var hashedNonce = Sha256(rawNonce);
+            var state = Guid.NewGuid().ToString("N");
+
+            var provider = new ASAuthorizationAppleIdProvider();
+            var request = provider.CreateRequest();
+            request.RequestedScopes = new[]
+            {
+                ASAuthorizationScope.FullName,
+                ASAuthorizationScope.Email
+            };
+            request.Nonce = hashedNonce;
+            request.State = state;
+
+            var authDelegate = new AppleAuthorizationDelegate(state);
+            using var controller = new ASAuthorizationController(
+                new ASAuthorizationRequest[] { request });
+
+            controller.Delegate = authDelegate;
+            controller.PresentationContextProvider = authDelegate;
+            controller.PerformRequests();
+
+            var nativeResult = await authDelegate.Completion.Task;
+
+            // The native delegate/controller are weakly held on Apple's side;
+            // keep them alive until the callback has completed.
+            GC.KeepAlive(controller);
+            GC.KeepAlive(authDelegate);
+
+            if (nativeResult.Cancelled)
+                return AppleAuthResult.CancelledByUser();
+
+            if (!nativeResult.Success ||
+                string.IsNullOrWhiteSpace(nativeResult.IdentityToken))
+            {
+                return AppleAuthResult.Failed(
+                    nativeResult.ErrorMessage ?? "Apple sign-in failed. Please try again.");
+            }
+
+            var payload = JsonSerializer.Serialize(
+                new
+                {
+                    id_token = nativeResult.IdentityToken,
+                    raw_nonce = rawNonce,
+                    display_name = nativeResult.DisplayName
+                },
+                _jsonOptions);
+
+            var content = new StringContent(payload, Encoding.UTF8, "application/json");
+            var response = await _http.PostAsync(
+                $"{AppConfig.BaseUrl}/api/auth/apple",
+                content);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== APPLE AUTH RESPONSE: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode)
+                return AppleAuthResult.Failed(ExtractErrorDetail(raw));
+
+            var authResult = JsonSerializer.Deserialize<AuthResult>(raw, _jsonOptions);
+            if (authResult is null)
+                return AppleAuthResult.Failed("Apple sign-in returned an invalid response.");
+
+            await ApplySuccessfulAuthAsync(authResult);
+            return AppleAuthResult.Ok();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"=== APPLE AUTH ERROR: {ex}");
+            return AppleAuthResult.Failed(
+                "Apple sign-in couldn't be completed. Please try again.");
+        }
+#else
+        await Task.CompletedTask;
+        return AppleAuthResult.Failed("Sign in with Apple is only available on iPhone and iPad.");
+#endif
+    }
+
+#if IOS
+    private static string CreateAppleNonce()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private static string Sha256(string value)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private sealed class AppleNativeResult
+    {
+        public bool Success { get; init; }
+        public bool Cancelled { get; init; }
+        public string? IdentityToken { get; init; }
+        public string? DisplayName { get; init; }
+        public string? ErrorMessage { get; init; }
+    }
+
+    private sealed class AppleAuthorizationDelegate :
+        ASAuthorizationControllerDelegate,
+        IASAuthorizationControllerPresentationContextProviding
+    {
+        private readonly string _expectedState;
+
+        public TaskCompletionSource<AppleNativeResult> Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public AppleAuthorizationDelegate(string expectedState)
+        {
+            _expectedState = expectedState;
+        }
+
+        public override void DidComplete(
+            ASAuthorizationController controller,
+            ASAuthorization authorization)
+        {
+            try
+            {
+                var credential =
+                    authorization.GetCredential<ASAuthorizationAppleIdCredential>();
+
+                if (credential is null)
+                {
+                    Completion.TrySetResult(new AppleNativeResult
+                    {
+                        ErrorMessage = "Apple returned an unexpected credential."
+                    });
+                    return;
+                }
+
+                if (!string.Equals(
+                        credential.State,
+                        _expectedState,
+                        StringComparison.Ordinal))
+                {
+                    Completion.TrySetResult(new AppleNativeResult
+                    {
+                        ErrorMessage = "Apple sign-in state validation failed."
+                    });
+                    return;
+                }
+
+                if (credential.IdentityToken is null)
+                {
+                    Completion.TrySetResult(new AppleNativeResult
+                    {
+                        ErrorMessage = "Apple did not return an identity token."
+                    });
+                    return;
+                }
+
+                var token = new NSString(
+                    credential.IdentityToken,
+                    NSStringEncoding.UTF8).ToString();
+
+                var nameParts = new[]
+                {
+                    credential.FullName?.GivenName,
+                    credential.FullName?.FamilyName
+                }
+                .Where(part => !string.IsNullOrWhiteSpace(part));
+
+                Completion.TrySetResult(new AppleNativeResult
+                {
+                    Success = true,
+                    IdentityToken = token,
+                    DisplayName = string.Join(" ", nameParts)
+                });
+            }
+            catch (Exception ex)
+            {
+                Completion.TrySetResult(new AppleNativeResult
+                {
+                    ErrorMessage = ex.Message
+                });
+            }
+        }
+
+        public override void DidComplete(
+            ASAuthorizationController controller,
+            NSError error)
+        {
+            var code = (ASAuthorizationError)(long)error.Code;
+            if (code == ASAuthorizationError.Canceled)
+            {
+                Completion.TrySetResult(new AppleNativeResult
+                {
+                    Cancelled = true
+                });
+                return;
+            }
+
+            Completion.TrySetResult(new AppleNativeResult
+            {
+                ErrorMessage = error.LocalizedDescription
+            });
+        }
+
+        public UIWindow GetPresentationAnchor(
+            ASAuthorizationController controller)
+        {
+            var keyWindow = UIApplication.SharedApplication
+                .ConnectedScenes
+                .OfType<UIWindowScene>()
+                .SelectMany(scene => scene.Windows)
+                .FirstOrDefault(window => window.IsKeyWindow);
+
+            return keyWindow
+                ?? UIApplication.SharedApplication.Windows.First();
+        }
+    }
+#endif
 
     // -------------------------------------------------------
     // Email/password auth
@@ -421,6 +662,22 @@ public class AuthService
 
         [JsonPropertyName("is_new_user")]
         public bool IsNewUser { get; set; }
+    }
+
+    public class AppleAuthResult
+    {
+        public bool Success { get; private set; }
+        public bool Cancelled { get; private set; }
+        public string? ErrorMessage { get; private set; }
+
+        public static AppleAuthResult Ok() =>
+            new() { Success = true };
+
+        public static AppleAuthResult CancelledByUser() =>
+            new() { Cancelled = true };
+
+        public static AppleAuthResult Failed(string message) =>
+            new() { ErrorMessage = message };
     }
 
     public class EmailAuthResult
