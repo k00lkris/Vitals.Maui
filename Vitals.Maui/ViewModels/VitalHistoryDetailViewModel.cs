@@ -322,7 +322,7 @@ public partial class VitalHistoryDetailViewModel : ObservableObject
             BloodGlucose = glucose,
             GlucoseContext = glucoseContext,
             GlucoseMealType = glucose.HasValue &&
-                              glucoseContext is "pre_meal" or "post_meal"
+                              (glucoseContext is "pre_meal" or "post_meal")
                 ? GlucoseMealTypeToApi(SelectedGlucoseMealType)
                 : null,
             GlucoseMinutesAfterMeal = glucoseMinutes,
