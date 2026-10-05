@@ -33,13 +33,10 @@ public static class AppNavigation
     }
 
     /// <summary>
-    /// Routes to onboarding or AppShell based on what /api/auth/google
-    /// actually said about the account (AuthService.IsNewUser), not which
-    /// button the user tapped. Both LoginViewModel.SignInWithGoogleAsync
-    /// and SignUpViewModel.SignUpWithGoogleAsync call this after a
-    /// successful sign-in so a new user hitting "Sign in" on the Login
-    /// page still gets onboarding, and an existing user hitting "Sign up"
-    /// on the Sign Up page still lands in AppShell.
+    /// Routes to onboarding or AppShell based on what the authentication
+    /// endpoint actually said about the account (AuthService.IsNewUser),
+    /// not which provider/button the user chose. Google, Apple, and
+    /// email/password all converge here after a successful authentication.
     ///
     /// Always resets PatientStateService first. It's a Singleton (lives
     /// for the whole app process), so without this, signing in as a
@@ -50,7 +47,7 @@ public static class AppNavigation
     /// turns out to be the same account; not resetting risks showing one
     /// household's data under a different one's identity.
     /// </summary>
-    public static void RouteAfterGoogleAuth(bool isNewUser, PatientStateService patientState)
+    public static void RouteAfterAuth(bool isNewUser, PatientStateService patientState)
     {
         patientState.Reset();
 

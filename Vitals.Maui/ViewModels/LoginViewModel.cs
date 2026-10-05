@@ -22,6 +22,8 @@ public partial class LoginViewModel : ObservableObject
     // option without abandoning what they typed and starting over.
     [ObservableProperty] private bool _showResendVerification;
 
+    public bool IsAppleSignInAvailable => _auth.IsAppleSignInAvailable;
+
     public LoginViewModel(AuthService auth, PatientStateService patientState)
     {
         _auth = auth;
@@ -40,7 +42,7 @@ public partial class LoginViewModel : ObservableObject
 
             if (success)
             {
-                AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
+                AppNavigation.RouteAfterAuth(_auth.IsNewUser, _patientState);
             }
             else
             {
@@ -51,6 +53,34 @@ public partial class LoginViewModel : ObservableObject
         {
             StatusMessage = ex.Message;
             System.Diagnostics.Debug.WriteLine($"=== LOGIN ERROR: {ex}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task SignInWithAppleAsync()
+    {
+        if (IsBusy) return;
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+
+        try
+        {
+            var result = await _auth.SignInWithAppleAsync();
+
+            if (result.Success)
+            {
+                AppNavigation.RouteAfterAuth(_auth.IsNewUser, _patientState);
+            }
+            else if (!result.Cancelled)
+            {
+                StatusMessage = result.ErrorMessage
+                    ?? "Apple sign-in failed. Please try again.";
+            }
         }
         finally
         {
@@ -85,7 +115,7 @@ public partial class LoginViewModel : ObservableObject
 
             if (result.Success)
             {
-                AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
+                AppNavigation.RouteAfterAuth(_auth.IsNewUser, _patientState);
             }
             else
             {

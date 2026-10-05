@@ -33,6 +33,8 @@ public partial class SignUpViewModel : ObservableObject
     // whatever screen the user is actually looking at by then.
     private int _signUpOperationId;
 
+    public bool IsAppleSignInAvailable => _auth.IsAppleSignInAvailable;
+
     public SignUpViewModel(AuthService auth, PatientStateService patientState)
     {
         _auth = auth;
@@ -111,7 +113,7 @@ public partial class SignUpViewModel : ObservableObject
     /// and signing in with Google are the same backend call (/api/auth/google
     /// upserts by firebase_uid OR email), so there is no separate
     /// "register with Google" endpoint needed. Routes via
-    /// AppNavigation.RouteAfterGoogleAuth based on what the backend actually
+    /// AppNavigation.RouteAfterAuth based on what the backend actually
     /// says about the account (is_new_user) — NOT always to onboarding —
     /// since an existing user could end up on this screen too (e.g. they
     /// meant to tap Sign In) and should land in AppShell like normal, not
@@ -158,7 +160,7 @@ public partial class SignUpViewModel : ObservableObject
             var success = await signInTask;
             if (success)
             {
-                AppNavigation.RouteAfterGoogleAuth(_auth.IsNewUser, _patientState);
+                AppNavigation.RouteAfterAuth(_auth.IsNewUser, _patientState);
             }
             else
             {
@@ -176,6 +178,34 @@ public partial class SignUpViewModel : ObservableObject
             {
                 IsBusy = false;
             }
+        }
+    }
+
+    [RelayCommand]
+    public async Task SignUpWithAppleAsync()
+    {
+        if (IsBusy) return;
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+
+        try
+        {
+            var result = await _auth.SignInWithAppleAsync();
+
+            if (result.Success)
+            {
+                AppNavigation.RouteAfterAuth(_auth.IsNewUser, _patientState);
+            }
+            else if (!result.Cancelled)
+            {
+                StatusMessage = result.ErrorMessage
+                    ?? "Apple sign-up failed. Please try again.";
+            }
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
