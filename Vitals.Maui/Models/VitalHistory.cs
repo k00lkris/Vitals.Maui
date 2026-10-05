@@ -4,6 +4,9 @@ namespace Vitals.Maui.Models;
 
 public class VitalHistoryRow
 {
+    [JsonPropertyName("vital_id")]
+    public string VitalId { get; set; } = string.Empty;
+
     [JsonPropertyName("date")]
     public string Date { get; set; } = string.Empty;
 
@@ -37,6 +40,8 @@ public class VitalHistoryResponse
 
 public class VitalHistoryDisplay
 {
+    public string VitalId { get; set; } = string.Empty;
+    public bool CanEdit => !string.IsNullOrWhiteSpace(VitalId);
     public string Date { get; set; } = string.Empty;
     public string Bp { get; set; } = "—";
     public string HeartRate { get; set; } = "—";
@@ -63,6 +68,7 @@ public class VitalHistoryDisplay
 
         return new VitalHistoryDisplay
         {
+            VitalId = row.VitalId,
             Date = dt.ToString("MM/dd/yy\nh:mm tt"),
             Bp = row.Systolic.HasValue && row.Diastolic.HasValue
                 ? $"{row.Systolic}/{row.Diastolic}"

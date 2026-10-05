@@ -5204,28 +5204,30 @@ def get_vitals_history(
     cur = conn.cursor()
     verify_patient_household(cur, patient_id, household_id)
     cur.execute("""
-        SELECT recorded_at, systolic, diastolic, oxygen_saturation,
+        SELECT vital_id, recorded_at, systolic, diastolic, oxygen_saturation,
                heart_rate, round(temperature, 1), temperature_site, weight, blood_glucose
         FROM vitals
         WHERE patient_id = %s
+          AND household_id = %s
           AND recorded_at >= now() - interval '%s days'
         ORDER BY recorded_at;
-    """, (patient_id, days))
+    """, (patient_id, household_id, days))
     rows = cur.fetchall()
     cur.close()
     conn.close()
     return {
         "rows": [
             {
-                "date": r[0].isoformat(),
-                "systolic": r[1],
-                "diastolic": r[2],
-                "spo2": r[3],
-                "heart_rate": r[4],
-                "temperature": float(r[5]) if r[5] else None,
-                "temperature_site": r[6],
-                "weight": float(r[7]) if r[7] else None,
-                "blood_glucose": r[8]
+                "vital_id": str(r[0]),
+                "date": r[1].isoformat(),
+                "systolic": r[2],
+                "diastolic": r[3],
+                "spo2": r[4],
+                "heart_rate": r[5],
+                "temperature": float(r[6]) if r[6] is not None else None,
+                "temperature_site": r[7],
+                "weight": float(r[8]) if r[8] is not None else None,
+                "blood_glucose": r[9]
             }
             for r in rows
         ]
@@ -5403,6 +5405,292 @@ def get_vitals_analysis(
         "pcp_name":       pcp_name,
         "next_followup":  next_followup,
     }
+
+# --------------------
+# VITAL RECORD MANAGEMENT ENDPOINTS
+# --------------------
+# These routes intentionally come AFTER the static /api/vitals/latest,
+# /history, /averages and /analysis routes so the {vital_id} path parameter
+# can never swallow one of those literal route names.
+
+@app.get("/api/vitals/{vital_id}")
+def get_vital_record(
+    vital_id: str,
+    x_api_key: str = Header(..., alias="X-API-KEY"),
+    household_id: str = Depends(get_household_id)
+):
+    check_key(x_api_key)
+    try:
+        UUID(vital_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid vital record id")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT
+                v.vital_id, v.patient_id, v.recorded_at, v.local_offset_minutes,
+                v.systolic, v.diastolic, v.oxygen_saturation, v.heart_rate,
+                v.temperature, v.temperature_site, v.blood_glucose, v.weight,
+                v.source, v.notes,
+                h.activity_context, h.posture, h.source_type,
+                g.measurement_context, g.meal_type, g.minutes_after_meal,
+                g.meal_event_id, g.source_type, g.original_value,
+                g.original_unit, g.source_device
+            FROM vitals v
+            LEFT JOIN heart_rate_context h ON h.vital_id = v.vital_id
+            LEFT JOIN glucose_context g ON g.vital_id = v.vital_id
+            WHERE v.vital_id = %s
+              AND v.household_id = %s;
+        """, (vital_id, household_id))
+        row = cur.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Vital record not found")
+
+        return {
+            "vital_id": str(row[0]),
+            "patient_id": str(row[1]),
+            "recorded_at": row[2],
+            "local_offset_minutes": row[3],
+            "systolic": row[4],
+            "diastolic": row[5],
+            "oxygen_saturation": row[6],
+            "heart_rate": row[7],
+            "temperature": float(row[8]) if row[8] is not None else None,
+            "temperature_site": row[9],
+            "blood_glucose": row[10],
+            "weight": float(row[11]) if row[11] is not None else None,
+            "source": row[12],
+            "notes": row[13] or "",
+            "hr_activity_context": row[14],
+            "hr_posture": row[15],
+            "hr_source_type": row[16],
+            "glucose_context": row[17],
+            "glucose_meal_type": row[18],
+            "glucose_minutes_after_meal": row[19],
+            "glucose_meal_event_id": str(row[20]) if row[20] is not None else None,
+            "glucose_source_type": row[21],
+            "glucose_original_value": float(row[22]) if row[22] is not None else None,
+            "glucose_original_unit": row[23],
+            "glucose_source_device": row[24],
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.patch("/api/vitals/{vital_id}")
+def update_vital_record(
+    vital_id: str,
+    vital: VitalCreate,
+    background_tasks: BackgroundTasks,
+    x_api_key: str = Header(..., alias="X-API-KEY"),
+    household_id: str = Depends(get_household_id)
+):
+    check_key(x_api_key)
+    try:
+        UUID(vital_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid vital record id")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # Lock the record while the full measurement event (vitals row +
+        # one-to-one context rows) is being corrected.
+        cur.execute("""
+            SELECT patient_id
+            FROM vitals
+            WHERE vital_id = %s AND household_id = %s
+            FOR UPDATE;
+        """, (vital_id, household_id))
+        existing = cur.fetchone()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Vital record not found")
+
+        old_patient_id = str(existing[0])
+        verify_patient_household(cur, vital.patient_id, household_id)
+
+        # The correction endpoint accepts a complete editable representation
+        # of the historical measurement event. Source/created_at stay immutable;
+        # everything a caregiver can actually correct is written atomically.
+        cur.execute("""
+            UPDATE vitals
+            SET patient_id = %s,
+                recorded_at = COALESCE(%s, recorded_at),
+                local_offset_minutes = %s,
+                systolic = %s,
+                diastolic = %s,
+                oxygen_saturation = %s,
+                heart_rate = %s,
+                temperature = %s,
+                temperature_site = %s,
+                blood_glucose = %s,
+                weight = %s,
+                notes = %s
+            WHERE vital_id = %s AND household_id = %s;
+        """, (
+            vital.patient_id,
+            vital.recorded_at,
+            vital.local_offset_minutes,
+            vital.systolic,
+            vital.diastolic,
+            vital.oxygen_saturation,
+            vital.heart_rate,
+            vital.temperature,
+            (vital.temperature_site or "unknown") if vital.temperature is not None else None,
+            vital.blood_glucose,
+            vital.weight,
+            vital.notes,
+            vital_id,
+            household_id,
+        ))
+
+        if vital.heart_rate is None:
+            # heart_rate_context currently has ON DELETE NO ACTION, so keeping
+            # context lifecycle explicit also makes DELETE safe below.
+            cur.execute("DELETE FROM heart_rate_context WHERE vital_id = %s;", (vital_id,))
+        else:
+            cur.execute("""
+                INSERT INTO heart_rate_context (
+                    vital_id, activity_context, posture, source_type, is_invalidated
+                )
+                VALUES (%s, %s, %s, %s, false)
+                ON CONFLICT (vital_id)
+                DO UPDATE SET
+                    activity_context = EXCLUDED.activity_context,
+                    posture = EXCLUDED.posture,
+                    source_type = EXCLUDED.source_type;
+            """, (
+                vital_id,
+                vital.hr_activity_context,
+                vital.hr_posture,
+                vital.hr_source_type or "manual",
+            ))
+
+        if vital.blood_glucose is None:
+            cur.execute("DELETE FROM glucose_context WHERE vital_id = %s;", (vital_id,))
+        else:
+            measurement_context = vital.glucose_context or "unknown"
+            meal_type = (
+                vital.glucose_meal_type
+                if measurement_context in ("pre_meal", "post_meal")
+                else None
+            )
+            minutes_after_meal = (
+                vital.glucose_minutes_after_meal
+                if measurement_context == "post_meal"
+                else None
+            )
+            cur.execute("""
+                INSERT INTO glucose_context (
+                    vital_id, measurement_context, meal_type, minutes_after_meal,
+                    meal_event_id, source_type, original_value, original_unit,
+                    source_device, is_invalidated
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, false)
+                ON CONFLICT (vital_id)
+                DO UPDATE SET
+                    measurement_context = EXCLUDED.measurement_context,
+                    meal_type = EXCLUDED.meal_type,
+                    minutes_after_meal = EXCLUDED.minutes_after_meal,
+                    meal_event_id = EXCLUDED.meal_event_id,
+                    source_type = EXCLUDED.source_type,
+                    original_value = EXCLUDED.original_value,
+                    original_unit = EXCLUDED.original_unit,
+                    source_device = EXCLUDED.source_device;
+            """, (
+                vital_id,
+                measurement_context,
+                meal_type,
+                minutes_after_meal,
+                vital.glucose_meal_event_id,
+                vital.glucose_source_type or "manual_bgm",
+                vital.glucose_original_value,
+                vital.glucose_original_unit,
+                vital.glucose_source_device,
+            ))
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+    # Corrections are rare and can alter same-row/cross-vital context, so
+    # favor correctness over micro-optimizing which cached analyses might
+    # have changed. Reassignment recomputes both the old and new patient.
+    affected_patients = {old_patient_id, vital.patient_id}
+    for patient_id in affected_patients:
+        for vital_type in VITAL_ANALYSIS_REGISTRY:
+            background_tasks.add_task(
+                recompute_vital_cache,
+                patient_id,
+                household_id,
+                vital_type,
+            )
+
+    return {"status": "success", "message": "Vital record updated"}
+
+
+@app.delete("/api/vitals/{vital_id}")
+def delete_vital_record(
+    vital_id: str,
+    background_tasks: BackgroundTasks,
+    x_api_key: str = Header(..., alias="X-API-KEY"),
+    household_id: str = Depends(get_household_id)
+):
+    check_key(x_api_key)
+    try:
+        UUID(vital_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid vital record id")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT patient_id
+            FROM vitals
+            WHERE vital_id = %s AND household_id = %s
+            FOR UPDATE;
+        """, (vital_id, household_id))
+        existing = cur.fetchone()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Vital record not found")
+
+        patient_id = str(existing[0])
+
+        # Explicitly remove context first. glucose_context already cascades,
+        # but heart_rate_context does not; doing both here keeps the behavior
+        # obvious and transactionally consistent.
+        cur.execute("DELETE FROM heart_rate_context WHERE vital_id = %s;", (vital_id,))
+        cur.execute("DELETE FROM glucose_context WHERE vital_id = %s;", (vital_id,))
+        cur.execute(
+            "DELETE FROM vitals WHERE vital_id = %s AND household_id = %s;",
+            (vital_id, household_id),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+    for vital_type in VITAL_ANALYSIS_REGISTRY:
+        background_tasks.add_task(
+            recompute_vital_cache,
+            patient_id,
+            household_id,
+            vital_type,
+        )
+
+    return {"status": "success", "message": "Vital record deleted"}
+
 
 # --------------------
 # PATIENTS ENDPOINTS

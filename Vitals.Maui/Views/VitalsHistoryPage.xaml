@@ -7,7 +7,7 @@
              x:DataType="vm:VitalsHistoryViewModel"
              BackgroundColor="{DynamicResource PageBackground}">
 
-    <RefreshView Command="{Binding LoadCommand}"
+    <RefreshView Command="{Binding RefreshCommand}"
                  IsRefreshing="{Binding IsBusy}"
                  RefreshColor="{DynamicResource PrimaryAccent}">
         <ScrollView>
@@ -33,6 +33,11 @@
                                 </FormattedString>
                             </Label.FormattedText>
                         </Label>
+
+                        <Label Text="Tap the pencil on any row to correct, reassign, or delete that stored entry."
+                               FontSize="11"
+                               TextColor="{DynamicResource TextMuted}"
+                               LineBreakMode="WordWrap" />
 
                         <!-- Day Range Buttons -->
                         <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="6">
@@ -99,6 +104,11 @@
                                 BackgroundColor="{DynamicResource ButtonBackground}"
                                 Padding="8,10"
                                 Spacing="0">
+                                <Label Text="Edit"
+                                       WidthRequest="52"
+                                       FontSize="12" FontAttributes="Bold"
+                                       TextColor="{DynamicResource TextPrimary}"
+                                       HorizontalTextAlignment="Center" />
                                 <Label Text="Date"
                                        WidthRequest="90"
                                        FontSize="12" FontAttributes="Bold"
@@ -148,6 +158,27 @@
                                     <DataTemplate x:DataType="models:VitalHistoryDisplay">
                                         <VerticalStackLayout Spacing="0">
                                             <HorizontalStackLayout Padding="8,10" Spacing="0">
+                                                <Grid WidthRequest="52"
+                                                      VerticalOptions="Center">
+                                                    <Button Text="✏️"
+                                                            WidthRequest="44"
+                                                            HeightRequest="34"
+                                                            Padding="0"
+                                                            FontSize="13"
+                                                            CornerRadius="6"
+                                                            BackgroundColor="{DynamicResource ButtonSecondary}"
+                                                            TextColor="{DynamicResource ButtonSecondaryText}"
+                                                            IsVisible="{Binding CanEdit}"
+                                                            CommandParameter="{Binding .}"
+                                                            Clicked="OnEditRecordClicked" />
+                                                    <Label Text="—"
+                                                           IsVisible="{Binding CanEdit,
+                                                               Converter={StaticResource InvertedBoolConverter}}"
+                                                           FontSize="12"
+                                                           TextColor="{DynamicResource TextMuted}"
+                                                           HorizontalTextAlignment="Center"
+                                                           VerticalTextAlignment="Center" />
+                                                </Grid>
                                                 <Label Text="{Binding Date}"
                                                        WidthRequest="90"
                                                        FontSize="11"

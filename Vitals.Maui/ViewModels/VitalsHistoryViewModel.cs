@@ -1,8 +1,10 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Maui.Views;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 using Vitals.Maui.Models;
 using Vitals.Maui.Services;
+using Vitals.Maui.Views;
 
 namespace Vitals.Maui.ViewModels;
 
@@ -90,6 +92,16 @@ public partial class VitalsHistoryViewModel : ObservableObject
 
         SelectedDays = days;
         UpdateButtonColors(days);
+        await LoadSelectedPatientAsync();
+    }
+
+    [RelayCommand]
+    private async Task RefreshAsync()
+    {
+        // Pull-to-refresh should reload the CURRENT range and patient rather
+        // than resetting the screen back to 15 days.
+        await _patientState.InitializeAsync();
+        OnPropertyChanged(nameof(SelectedPatient));
         await LoadSelectedPatientAsync();
     }
 
@@ -186,6 +198,29 @@ public partial class VitalsHistoryViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    public async Task OpenVitalRecordAsync(VitalHistoryDisplay row)
+    {
+        if (string.IsNullOrWhiteSpace(row.VitalId))
+        {
+            StatusMessage = "This history row does not have a record id and cannot be edited.";
+            return;
+        }
+
+        var vm = Application.Current!.Handler.MauiContext!
+            .Services.GetService<VitalHistoryDetailViewModel>()!;
+
+        await vm.InitializeAsync(row.VitalId);
+
+        var popup = new VitalHistoryDetailPopup(vm);
+        await Shell.Current.CurrentPage.ShowPopupAsync(popup);
+
+        // Whether the user saved, deleted, reassigned, or simply closed the
+        // popup, refresh from the server so History cannot display stale data.
+        var patientId = _patientState.SelectedPatient?.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await LoadHistoryAsync(patientId, _activePreferences);
     }
 
     private static bool HasVisibleVital(

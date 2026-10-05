@@ -60,6 +60,7 @@ public static class MauiProgram
         builder.Services.AddTransient<MedicationDetailViewModel>();
         builder.Services.AddTransient<DoctorDetailViewModel>();
         builder.Services.AddTransient<VitalsHistoryViewModel>();
+        builder.Services.AddTransient<VitalHistoryDetailViewModel>();
         builder.Services.AddSingleton<AllergiesViewModel>();
         builder.Services.AddTransient<AllergyDetailViewModel>();
         builder.Services.AddSingleton<GeneratePdfViewModel>();
@@ -96,6 +97,7 @@ public static class MauiProgram
         builder.Services.AddTransient<DoctorDetailPopup>();
         builder.Services.AddTransient<GeneratePdfPage>();
         builder.Services.AddTransient<VitalsHistoryPage>();
+        builder.Services.AddTransient<VitalHistoryDetailPopup>();
         builder.Services.AddSingleton<AllergiesPage>();
         builder.Services.AddTransient<AllergyDetailPopup>();
         builder.Services.AddTransient<VisitDetailViewModel>();

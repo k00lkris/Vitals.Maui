@@ -1,3 +1,4 @@
+using Vitals.Maui.Models;
 using Vitals.Maui.ViewModels;
 
 namespace Vitals.Maui.Views;
@@ -17,6 +18,15 @@ public partial class VitalsHistoryPage : ContentPage
     {
         base.OnAppearing();
         await _vm.LoadAsync();
+    }
+
+    private async void OnEditRecordClicked(object sender, EventArgs e)
+    {
+        if (sender is Button button &&
+            button.CommandParameter is VitalHistoryDisplay row)
+        {
+            await _vm.OpenVitalRecordAsync(row);
+        }
     }
 
     private async void OnCustomDaysClicked(object sender, EventArgs e)
