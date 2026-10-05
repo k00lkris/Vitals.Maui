@@ -190,16 +190,15 @@ public class AuthService
         _authProvider = authResult.AuthProvider;
         _isNewUser = authResult.IsNewUser;
 
-        await SecureStorage.SetAsync("auth_jwt", _jwt ?? "");
-        await SecureStorage.SetAsync("auth_user_id", _userId ?? "");
+        await SetSessionValueAsync("auth_jwt", _jwt ?? "");
+        await SetSessionValueAsync("auth_user_id", _userId ?? "");
         // New accounts intentionally have no household until onboarding
-        // selects a tier or joins an existing household. SecureStorage on
-        // iOS rejects a null value, so persist that pre-onboarding state as
-        // an empty string and keep the in-memory HouseholdId nullable.
-        await SecureStorage.SetAsync("auth_household_id", _householdId ?? "");
-        await SecureStorage.SetAsync("auth_email", _email ?? "");
-        await SecureStorage.SetAsync("auth_display_name", _displayName ?? "");
-        await SecureStorage.SetAsync("auth_provider", _authProvider ?? "");
+        // selects a tier or joins an existing household. Persist that state
+        // as an empty string and keep the in-memory HouseholdId nullable.
+        await SetSessionValueAsync("auth_household_id", _householdId ?? "");
+        await SetSessionValueAsync("auth_email", _email ?? "");
+        await SetSessionValueAsync("auth_display_name", _displayName ?? "");
+        await SetSessionValueAsync("auth_provider", _authProvider ?? "");
     }
 
     /// <summary>
@@ -216,8 +215,8 @@ public class AuthService
     {
         _jwt = newToken;
         _householdId = newHouseholdId;
-        await SecureStorage.SetAsync("auth_jwt", _jwt);
-        await SecureStorage.SetAsync("auth_household_id", _householdId);
+        await SetSessionValueAsync("auth_jwt", _jwt ?? "");
+        await SetSessionValueAsync("auth_household_id", _householdId ?? "");
     }
 
     // -------------------------------------------------------
@@ -571,18 +570,72 @@ public class AuthService
     }
 
     // -------------------------------------------------------
+    // Session storage abstraction
+    // -------------------------------------------------------
+    // .NET 9 + Xcode 26 currently strips Keychain entitlements from iOS
+    // simulator builds. MAUI SecureStorage then fails with SecItem* -34018.
+    // Keep production/device builds on SecureStorage, but use Preferences in
+    // DEBUG iOS simulators so Apple-auth/onboarding can be exercised without
+    // weakening the real app's credential storage.
+    private static bool UseSimulatorSessionStorage
+    {
+        get
+        {
+#if IOS && DEBUG
+            return Microsoft.Maui.Devices.DeviceInfo.Current.DeviceType ==
+                   Microsoft.Maui.Devices.DeviceType.Virtual;
+#else
+            return false;
+#endif
+        }
+    }
+
+    private static Task SetSessionValueAsync(string key, string value)
+    {
+        if (UseSimulatorSessionStorage)
+        {
+            Microsoft.Maui.Storage.Preferences.Default.Set($"sim_{key}", value);
+            return Task.CompletedTask;
+        }
+
+        return SecureStorage.SetAsync(key, value);
+    }
+
+    private static async Task<string?> GetSessionValueAsync(string key)
+    {
+        if (UseSimulatorSessionStorage)
+        {
+            return Microsoft.Maui.Storage.Preferences.Default.Get(
+                $"sim_{key}", string.Empty);
+        }
+
+        return await SecureStorage.GetAsync(key);
+    }
+
+    private static void RemoveSessionValue(string key)
+    {
+        if (UseSimulatorSessionStorage)
+        {
+            Microsoft.Maui.Storage.Preferences.Default.Remove($"sim_{key}");
+            return;
+        }
+
+        SecureStorage.Remove(key);
+    }
+
+    // -------------------------------------------------------
     // Restore session on app launch
     // -------------------------------------------------------
     public async Task<bool> TryRestoreSessionAsync()
     {
         try
         {
-            _jwt = await SecureStorage.GetAsync("auth_jwt");
-            _userId = await SecureStorage.GetAsync("auth_user_id");
-            _householdId = await SecureStorage.GetAsync("auth_household_id");
-            _email = await SecureStorage.GetAsync("auth_email");
-            _displayName = await SecureStorage.GetAsync("auth_display_name");
-            _authProvider = await SecureStorage.GetAsync("auth_provider");
+            _jwt = await GetSessionValueAsync("auth_jwt");
+            _userId = await GetSessionValueAsync("auth_user_id");
+            _householdId = await GetSessionValueAsync("auth_household_id");
+            _email = await GetSessionValueAsync("auth_email");
+            _displayName = await GetSessionValueAsync("auth_display_name");
+            _authProvider = await GetSessionValueAsync("auth_provider");
 
             if (!IsAuthenticated) return false;
 
@@ -642,12 +695,12 @@ public class AuthService
     public void SignOut()
     {
         _jwt = _userId = _householdId = _email = _displayName = _authProvider = null;
-        SecureStorage.Remove("auth_jwt");
-        SecureStorage.Remove("auth_user_id");
-        SecureStorage.Remove("auth_household_id");
-        SecureStorage.Remove("auth_email");
-        SecureStorage.Remove("auth_display_name");
-        SecureStorage.Remove("auth_provider");
+        RemoveSessionValue("auth_jwt");
+        RemoveSessionValue("auth_user_id");
+        RemoveSessionValue("auth_household_id");
+        RemoveSessionValue("auth_email");
+        RemoveSessionValue("auth_display_name");
+        RemoveSessionValue("auth_provider");
     }
 
     public string? GetAuthHeader() =>
