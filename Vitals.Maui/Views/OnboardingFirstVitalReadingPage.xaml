@@ -7,7 +7,7 @@
              x:DataType="vm:OnboardingFirstVitalReadingViewModel"
              Title="Vitals"
              NavigationPage.HasNavigationBar="False"
-             BackgroundColor="{DynamicResource PageBackground}">
+             BackgroundColor="{StaticResource VitalsBluePageBackground}">
 
     <ScrollView>
         <VerticalStackLayout Padding="16" Spacing="12">
@@ -18,7 +18,7 @@
                         Text="←"
                         Command="{Binding BackCommand}"
                         BackgroundColor="Transparent"
-                        TextColor="{DynamicResource TextSecondary}"
+                        TextColor="{StaticResource VitalsBlueTextSecondary}"
                         FontSize="22"
                         WidthRequest="44"
                         HeightRequest="44"
@@ -29,10 +29,10 @@
                     <Label Text="Your baseline starts now"
                            FontSize="24"
                            FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimary}" />
+                           TextColor="{StaticResource VitalsBlueTextPrimary}" />
                     <Label Text="Record your first vitals just like you will in the app, or skip and do it later."
                            FontSize="13"
-                           TextColor="{DynamicResource TextSecondary}"
+                           TextColor="{StaticResource VitalsBlueTextSecondary}"
                            LineBreakMode="WordWrap" />
                 </VerticalStackLayout>
             </Grid>
@@ -41,24 +41,24 @@
             <Picker ItemsSource="{Binding Patients}"
                     SelectedItem="{Binding SelectedPatient}"
                     IsVisible="{Binding HasMultiplePatients}"
-                    TextColor="{DynamicResource TextPrimary}"
-                    TitleColor="{DynamicResource TextMuted}"
+                    TextColor="{StaticResource VitalsBlueTextPrimary}"
+                    TitleColor="{StaticResource VitalsBlueTextMuted}"
                     Title="Who is this reading for?"
-                    BackgroundColor="{DynamicResource CardBackground}" />
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}" />
 
             <!-- Patient Card -->
             <Border Padding="16"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <Label FontSize="18"
                        FontAttributes="Bold"
-                       TextColor="{DynamicResource TextPrimary}">
+                       TextColor="{StaticResource VitalsBlueTextPrimary}">
                     <Label.FormattedText>
                         <FormattedString>
-                            <Span Text="Enter Vitals — " TextColor="{DynamicResource PrimaryAccent}" />
+                            <Span Text="Enter Vitals — " TextColor="{StaticResource VitalsBluePrimaryAccent}" />
                             <Span Text="{Binding SelectedPatient.FullName}"
-                                  TextColor="{DynamicResource TextPrimary}"
+                                  TextColor="{StaticResource VitalsBlueTextPrimary}"
                                   FontAttributes="Bold" />
                         </FormattedString>
                     </Label.FormattedText>
@@ -75,22 +75,22 @@
 
             <!-- Blood Pressure — no Settings toggle; always shown -->
             <Border Padding="0"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <toolkit:Expander x:Name="BpExpander" IsExpanded="True">
                     <toolkit:Expander.Header>
                         <Grid ColumnDefinitions="*,Auto" Padding="16,14">
                             <Label Grid.Column="0" Text="Blood Pressure"
                                    FontSize="16" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}"
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
                                    VerticalOptions="Center" />
                             <Label Grid.Column="1" Text="&#x2304;" FontSize="18"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference BpExpander}, Path=IsExpanded}" />
                             <Label Grid.Column="1" Text="&#x203A;" FontSize="20"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference BpExpander}, Path=IsExpanded,
                                        Converter={StaticResource InvertedBoolConverter}}" />
@@ -98,20 +98,20 @@
                     </toolkit:Expander.Header>
                     <Grid Padding="16,0,16,16" ColumnDefinitions="*,*" ColumnSpacing="12">
                         <VerticalStackLayout Grid.Column="0" Spacing="2">
-                            <Label Text="Systolic (mmHg)" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                            <Label Text="Systolic (mmHg)" FontSize="12" TextColor="{StaticResource VitalsBlueTextSecondary}" />
                             <Entry Text="{Binding Systolic}"
                                    Keyboard="Numeric"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   BackgroundColor="{DynamicResource PageBackground}"
-                                   Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
+                                   BackgroundColor="{StaticResource VitalsBluePageBackground}"
+                                   Placeholder="—" PlaceholderColor="{StaticResource VitalsBlueTextMuted}" />
                         </VerticalStackLayout>
                         <VerticalStackLayout Grid.Column="1" Spacing="2">
-                            <Label Text="Diastolic (mmHg)" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                            <Label Text="Diastolic (mmHg)" FontSize="12" TextColor="{StaticResource VitalsBlueTextSecondary}" />
                             <Entry Text="{Binding Diastolic}"
                                    Keyboard="Numeric"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   BackgroundColor="{DynamicResource PageBackground}"
-                                   Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
+                                   BackgroundColor="{StaticResource VitalsBluePageBackground}"
+                                   Placeholder="—" PlaceholderColor="{StaticResource VitalsBlueTextMuted}" />
                         </VerticalStackLayout>
                     </Grid>
                 </toolkit:Expander>
@@ -120,22 +120,22 @@
             <!-- Heart Rate — toggled by ShowHeartRate -->
             <Border Padding="0"
                     IsVisible="{Binding ShowHeartRate}"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <toolkit:Expander x:Name="HrExpander" IsExpanded="True">
                     <toolkit:Expander.Header>
                         <Grid ColumnDefinitions="*,Auto" Padding="16,14">
                             <Label Grid.Column="0" Text="Heart Rate"
                                    FontSize="16" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}"
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
                                    VerticalOptions="Center" />
                             <Label Grid.Column="1" Text="&#x2304;" FontSize="18"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference HrExpander}, Path=IsExpanded}" />
                             <Label Grid.Column="1" Text="&#x203A;" FontSize="20"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference HrExpander}, Path=IsExpanded,
                                        Converter={StaticResource InvertedBoolConverter}}" />
@@ -143,12 +143,12 @@
                     </toolkit:Expander.Header>
                     <VerticalStackLayout Padding="16,0,16,16" Spacing="14">
                         <VerticalStackLayout Spacing="2">
-                            <Label Text="Beats per minute" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                            <Label Text="Beats per minute" FontSize="12" TextColor="{StaticResource VitalsBlueTextSecondary}" />
                             <Entry Text="{Binding HeartRate}"
                                    Keyboard="Numeric"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   BackgroundColor="{DynamicResource PageBackground}"
-                                   Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
+                                   BackgroundColor="{StaticResource VitalsBluePageBackground}"
+                                   Placeholder="—" PlaceholderColor="{StaticResource VitalsBlueTextMuted}" />
                         </VerticalStackLayout>
 
                         <!-- Activity Context & Posture (optional) — the two
@@ -159,49 +159,49 @@
                              one — the main space saving this rebuild is
                              after. -->
                         <VerticalStackLayout Spacing="6">
-                            <Label Text="What were they doing? (optional)" FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                            <Label Text="What were they doing? (optional)" FontSize="12" TextColor="{StaticResource VitalsBlueTextMuted}" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="6">
-                                <Border Grid.Row="0" Grid.Column="0" Padding="10,8" BackgroundColor="{Binding RestingColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
+                                <Border Grid.Row="0" Grid.Column="0" Padding="10,8" BackgroundColor="{Binding RestingColor}" StrokeShape="RoundRectangle 8" Stroke="{StaticResource VitalsBlueCardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectRestingCommand}" />
                                     </Border.GestureRecognizers>
-                                    <Label Text="Resting" FontSize="13" TextColor="{DynamicResource TextPrimary}" HorizontalTextAlignment="Center" />
+                                    <Label Text="Resting" FontSize="13" TextColor="{StaticResource VitalsBlueTextPrimary}" HorizontalTextAlignment="Center" />
                                 </Border>
-                                <Border Grid.Row="0" Grid.Column="1" Padding="10,8" BackgroundColor="{Binding PostActivityColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
+                                <Border Grid.Row="0" Grid.Column="1" Padding="10,8" BackgroundColor="{Binding PostActivityColor}" StrokeShape="RoundRectangle 8" Stroke="{StaticResource VitalsBlueCardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectPostActivityCommand}" />
                                     </Border.GestureRecognizers>
-                                    <Label Text="After activity" FontSize="13" TextColor="{DynamicResource TextPrimary}" HorizontalTextAlignment="Center" />
+                                    <Label Text="After activity" FontSize="13" TextColor="{StaticResource VitalsBlueTextPrimary}" HorizontalTextAlignment="Center" />
                                 </Border>
-                                <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="10,8" BackgroundColor="{Binding DuringActivityColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
+                                <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="10,8" BackgroundColor="{Binding DuringActivityColor}" StrokeShape="RoundRectangle 8" Stroke="{StaticResource VitalsBlueCardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectDuringActivityCommand}" />
                                     </Border.GestureRecognizers>
-                                    <Label Text="During activity" FontSize="13" TextColor="{DynamicResource TextPrimary}" HorizontalTextAlignment="Center" />
+                                    <Label Text="During activity" FontSize="13" TextColor="{StaticResource VitalsBlueTextPrimary}" HorizontalTextAlignment="Center" />
                                 </Border>
                             </Grid>
                         </VerticalStackLayout>
 
                         <VerticalStackLayout Spacing="6">
-                            <Label Text="Position (optional)" FontSize="12" TextColor="{DynamicResource TextMuted}" />
+                            <Label Text="Position (optional)" FontSize="12" TextColor="{StaticResource VitalsBlueTextMuted}" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="6">
-                                <Border Grid.Row="0" Grid.Column="0" Padding="10,8" BackgroundColor="{Binding SeatedColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
+                                <Border Grid.Row="0" Grid.Column="0" Padding="10,8" BackgroundColor="{Binding SeatedColor}" StrokeShape="RoundRectangle 8" Stroke="{StaticResource VitalsBlueCardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectSeatedCommand}" />
                                     </Border.GestureRecognizers>
-                                    <Label Text="Seated" FontSize="13" TextColor="{DynamicResource TextPrimary}" HorizontalTextAlignment="Center" />
+                                    <Label Text="Seated" FontSize="13" TextColor="{StaticResource VitalsBlueTextPrimary}" HorizontalTextAlignment="Center" />
                                 </Border>
-                                <Border Grid.Row="0" Grid.Column="1" Padding="10,8" BackgroundColor="{Binding SupineColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
+                                <Border Grid.Row="0" Grid.Column="1" Padding="10,8" BackgroundColor="{Binding SupineColor}" StrokeShape="RoundRectangle 8" Stroke="{StaticResource VitalsBlueCardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectSupineCommand}" />
                                     </Border.GestureRecognizers>
-                                    <Label Text="Lying down" FontSize="13" TextColor="{DynamicResource TextPrimary}" HorizontalTextAlignment="Center" />
+                                    <Label Text="Lying down" FontSize="13" TextColor="{StaticResource VitalsBlueTextPrimary}" HorizontalTextAlignment="Center" />
                                 </Border>
-                                <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="10,8" BackgroundColor="{Binding StandingColor}" StrokeShape="RoundRectangle 8" Stroke="{DynamicResource CardStroke}" StrokeThickness="1">
+                                <Border Grid.Row="1" Grid.ColumnSpan="2" Padding="10,8" BackgroundColor="{Binding StandingColor}" StrokeShape="RoundRectangle 8" Stroke="{StaticResource VitalsBlueCardStroke}" StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectStandingCommand}" />
                                     </Border.GestureRecognizers>
-                                    <Label Text="Standing" FontSize="13" TextColor="{DynamicResource TextPrimary}" HorizontalTextAlignment="Center" />
+                                    <Label Text="Standing" FontSize="13" TextColor="{StaticResource VitalsBlueTextPrimary}" HorizontalTextAlignment="Center" />
                                 </Border>
                             </Grid>
                         </VerticalStackLayout>
@@ -212,34 +212,34 @@
             <!-- SpO2 — toggled by ShowSpo2 -->
             <Border Padding="0"
                     IsVisible="{Binding ShowSpo2}"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <toolkit:Expander x:Name="Spo2Expander" IsExpanded="True">
                     <toolkit:Expander.Header>
                         <Grid ColumnDefinitions="*,Auto" Padding="16,14">
                             <Label Grid.Column="0" Text="SpO₂"
                                    FontSize="16" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}"
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
                                    VerticalOptions="Center" />
                             <Label Grid.Column="1" Text="&#x2304;" FontSize="18"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference Spo2Expander}, Path=IsExpanded}" />
                             <Label Grid.Column="1" Text="&#x203A;" FontSize="20"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference Spo2Expander}, Path=IsExpanded,
                                        Converter={StaticResource InvertedBoolConverter}}" />
                         </Grid>
                     </toolkit:Expander.Header>
                     <VerticalStackLayout Padding="16,0,16,16" Spacing="2">
-                        <Label Text="Percent" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                        <Label Text="Percent" FontSize="12" TextColor="{StaticResource VitalsBlueTextSecondary}" />
                         <Entry Text="{Binding OxygenSaturation}"
                                Keyboard="Numeric"
-                               TextColor="{DynamicResource TextPrimary}"
-                               BackgroundColor="{DynamicResource PageBackground}"
-                               Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                               TextColor="{StaticResource VitalsBlueTextPrimary}"
+                               BackgroundColor="{StaticResource VitalsBluePageBackground}"
+                               Placeholder="—" PlaceholderColor="{StaticResource VitalsBlueTextMuted}" />
                     </VerticalStackLayout>
                 </toolkit:Expander>
             </Border>
@@ -247,22 +247,22 @@
             <!-- Temperature — toggled by ShowTemperature -->
             <Border Padding="0"
                     IsVisible="{Binding ShowTemperature}"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <toolkit:Expander x:Name="TempExpander" IsExpanded="True">
                     <toolkit:Expander.Header>
                         <Grid ColumnDefinitions="*,Auto" Padding="16,14">
                             <Label Grid.Column="0" Text="Temperature"
                                    FontSize="16" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}"
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
                                    VerticalOptions="Center" />
                             <Label Grid.Column="1" Text="&#x2304;" FontSize="18"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference TempExpander}, Path=IsExpanded}" />
                             <Label Grid.Column="1" Text="&#x203A;" FontSize="20"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference TempExpander}, Path=IsExpanded,
                                        Converter={StaticResource InvertedBoolConverter}}" />
@@ -270,12 +270,12 @@
                     </toolkit:Expander.Header>
                     <VerticalStackLayout Padding="16,0,16,16" Spacing="14">
                         <VerticalStackLayout Spacing="2">
-                            <Label Text="Degrees (°F)" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                            <Label Text="Degrees (°F)" FontSize="12" TextColor="{StaticResource VitalsBlueTextSecondary}" />
                             <Entry Text="{Binding Temperature}"
                                    Keyboard="Numeric"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   BackgroundColor="{DynamicResource PageBackground}"
-                                   Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
+                                   BackgroundColor="{StaticResource VitalsBluePageBackground}"
+                                   Placeholder="—" PlaceholderColor="{StaticResource VitalsBlueTextMuted}" />
                         </VerticalStackLayout>
 
                         <!-- Temperature measurement site. The analysis engine
@@ -285,10 +285,10 @@
                         <VerticalStackLayout Spacing="6">
                             <Label Text="Measurement site (optional)"
                                    FontSize="12"
-                                   TextColor="{DynamicResource TextMuted}" />
+                                   TextColor="{StaticResource VitalsBlueTextMuted}" />
                             <Label Text="Using the same method when possible makes temperature comparisons more reliable."
                                    FontSize="11"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    LineBreakMode="WordWrap" />
 
                             <Grid ColumnDefinitions="*,*"
@@ -301,14 +301,14 @@
                                         MinimumHeightRequest="44"
                                         BackgroundColor="{Binding TempOralColor}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="{DynamicResource CardStroke}"
+                                        Stroke="{StaticResource VitalsBlueCardStroke}"
                                         StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectTempOralCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Oral"
                                            FontSize="13"
-                                           TextColor="{DynamicResource TextPrimary}"
+                                           TextColor="{StaticResource VitalsBlueTextPrimary}"
                                            HorizontalTextAlignment="Center"
                                            VerticalTextAlignment="Center" />
                                 </Border>
@@ -318,14 +318,14 @@
                                         MinimumHeightRequest="44"
                                         BackgroundColor="{Binding TempTemporalColor}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="{DynamicResource CardStroke}"
+                                        Stroke="{StaticResource VitalsBlueCardStroke}"
                                         StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectTempTemporalCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Forehead / temporal"
                                            FontSize="13"
-                                           TextColor="{DynamicResource TextPrimary}"
+                                           TextColor="{StaticResource VitalsBlueTextPrimary}"
                                            HorizontalTextAlignment="Center"
                                            VerticalTextAlignment="Center" />
                                 </Border>
@@ -335,14 +335,14 @@
                                         MinimumHeightRequest="44"
                                         BackgroundColor="{Binding TempTympanicColor}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="{DynamicResource CardStroke}"
+                                        Stroke="{StaticResource VitalsBlueCardStroke}"
                                         StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectTempTympanicCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Ear / tympanic"
                                            FontSize="13"
-                                           TextColor="{DynamicResource TextPrimary}"
+                                           TextColor="{StaticResource VitalsBlueTextPrimary}"
                                            HorizontalTextAlignment="Center"
                                            VerticalTextAlignment="Center" />
                                 </Border>
@@ -352,14 +352,14 @@
                                         MinimumHeightRequest="44"
                                         BackgroundColor="{Binding TempAxillaryColor}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="{DynamicResource CardStroke}"
+                                        Stroke="{StaticResource VitalsBlueCardStroke}"
                                         StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectTempAxillaryCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Underarm / axillary"
                                            FontSize="13"
-                                           TextColor="{DynamicResource TextPrimary}"
+                                           TextColor="{StaticResource VitalsBlueTextPrimary}"
                                            HorizontalTextAlignment="Center"
                                            VerticalTextAlignment="Center" />
                                 </Border>
@@ -369,14 +369,14 @@
                                         MinimumHeightRequest="44"
                                         BackgroundColor="{Binding TempRectalColor}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="{DynamicResource CardStroke}"
+                                        Stroke="{StaticResource VitalsBlueCardStroke}"
                                         StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectTempRectalCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Rectal"
                                            FontSize="13"
-                                           TextColor="{DynamicResource TextPrimary}"
+                                           TextColor="{StaticResource VitalsBlueTextPrimary}"
                                            HorizontalTextAlignment="Center"
                                            VerticalTextAlignment="Center" />
                                 </Border>
@@ -386,14 +386,14 @@
                                         MinimumHeightRequest="44"
                                         BackgroundColor="{Binding TempOtherColor}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="{DynamicResource CardStroke}"
+                                        Stroke="{StaticResource VitalsBlueCardStroke}"
                                         StrokeThickness="1">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectTempOtherCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Other"
                                            FontSize="13"
-                                           TextColor="{DynamicResource TextPrimary}"
+                                           TextColor="{StaticResource VitalsBlueTextPrimary}"
                                            HorizontalTextAlignment="Center"
                                            VerticalTextAlignment="Center" />
                                 </Border>
@@ -406,22 +406,22 @@
             <!-- Blood Glucose — toggled by ShowGlucose -->
             <Border Padding="0"
                     IsVisible="{Binding ShowGlucose}"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <toolkit:Expander x:Name="GlucoseExpander" IsExpanded="True">
                     <toolkit:Expander.Header>
                         <Grid ColumnDefinitions="*,Auto" Padding="16,14">
                             <Label Grid.Column="0" Text="Blood Glucose"
                                    FontSize="16" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}"
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
                                    VerticalOptions="Center" />
                             <Label Grid.Column="1" Text="&#x2304;" FontSize="18"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference GlucoseExpander}, Path=IsExpanded}" />
                             <Label Grid.Column="1" Text="&#x203A;" FontSize="20"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference GlucoseExpander}, Path=IsExpanded,
                                        Converter={StaticResource InvertedBoolConverter}}" />
@@ -429,21 +429,21 @@
                     </toolkit:Expander.Header>
                     <VerticalStackLayout Padding="16,0,16,16" Spacing="10">
                         <VerticalStackLayout Spacing="2">
-                            <Label Text="mg/dL" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                            <Label Text="mg/dL" FontSize="12" TextColor="{StaticResource VitalsBlueTextSecondary}" />
                             <Entry Text="{Binding BloodGlucose}"
                                    Keyboard="Numeric"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   BackgroundColor="{DynamicResource PageBackground}"
-                                   Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
+                                   BackgroundColor="{StaticResource VitalsBluePageBackground}"
+                                   Placeholder="—" PlaceholderColor="{StaticResource VitalsBlueTextMuted}" />
                         </VerticalStackLayout>
 
                         <Label Text="Measurement Context (optional)"
                                FontSize="12"
-                               TextColor="{DynamicResource TextSecondary}"
+                               TextColor="{StaticResource VitalsBlueTextSecondary}"
                                Margin="0,4,0,0" />
                         <Label Text="Recording context lets Vitals compare like readings instead of mixing fasting and meal-related values."
                                FontSize="11"
-                               TextColor="{DynamicResource TextMuted}"
+                               TextColor="{StaticResource VitalsBlueTextMuted}"
                                LineBreakMode="WordWrap" />
 
                         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto"
@@ -452,12 +452,12 @@
                                     Padding="10,9" MinimumHeightRequest="42"
                                     BackgroundColor="{Binding GlucoseFastingColor}"
                                     StrokeShape="RoundRectangle 8"
-                                    Stroke="{DynamicResource CardStroke}">
+                                    Stroke="{StaticResource VitalsBlueCardStroke}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SelectGlucoseFastingCommand}" />
                                 </Border.GestureRecognizers>
                                 <Label Text="Fasting" FontSize="12"
-                                       TextColor="{DynamicResource TextPrimary}"
+                                       TextColor="{StaticResource VitalsBlueTextPrimary}"
                                        HorizontalTextAlignment="Center" />
                             </Border>
 
@@ -465,12 +465,12 @@
                                     Padding="10,9" MinimumHeightRequest="42"
                                     BackgroundColor="{Binding GlucosePreMealColor}"
                                     StrokeShape="RoundRectangle 8"
-                                    Stroke="{DynamicResource CardStroke}">
+                                    Stroke="{StaticResource VitalsBlueCardStroke}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SelectGlucosePreMealCommand}" />
                                 </Border.GestureRecognizers>
                                 <Label Text="Before Meal" FontSize="12"
-                                       TextColor="{DynamicResource TextPrimary}"
+                                       TextColor="{StaticResource VitalsBlueTextPrimary}"
                                        HorizontalTextAlignment="Center" />
                             </Border>
 
@@ -478,12 +478,12 @@
                                     Padding="10,9" MinimumHeightRequest="42"
                                     BackgroundColor="{Binding GlucosePostMealColor}"
                                     StrokeShape="RoundRectangle 8"
-                                    Stroke="{DynamicResource CardStroke}">
+                                    Stroke="{StaticResource VitalsBlueCardStroke}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SelectGlucosePostMealCommand}" />
                                 </Border.GestureRecognizers>
                                 <Label Text="After Meal" FontSize="12"
-                                       TextColor="{DynamicResource TextPrimary}"
+                                       TextColor="{StaticResource VitalsBlueTextPrimary}"
                                        HorizontalTextAlignment="Center" />
                             </Border>
 
@@ -491,12 +491,12 @@
                                     Padding="10,9" MinimumHeightRequest="42"
                                     BackgroundColor="{Binding GlucoseBedtimeColor}"
                                     StrokeShape="RoundRectangle 8"
-                                    Stroke="{DynamicResource CardStroke}">
+                                    Stroke="{StaticResource VitalsBlueCardStroke}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SelectGlucoseBedtimeCommand}" />
                                 </Border.GestureRecognizers>
                                 <Label Text="Bedtime" FontSize="12"
-                                       TextColor="{DynamicResource TextPrimary}"
+                                       TextColor="{StaticResource VitalsBlueTextPrimary}"
                                        HorizontalTextAlignment="Center" />
                             </Border>
 
@@ -504,12 +504,12 @@
                                     Padding="10,9" MinimumHeightRequest="42"
                                     BackgroundColor="{Binding GlucoseRandomColor}"
                                     StrokeShape="RoundRectangle 8"
-                                    Stroke="{DynamicResource CardStroke}">
+                                    Stroke="{StaticResource VitalsBlueCardStroke}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SelectGlucoseRandomCommand}" />
                                 </Border.GestureRecognizers>
                                 <Label Text="Random" FontSize="12"
-                                       TextColor="{DynamicResource TextPrimary}"
+                                       TextColor="{StaticResource VitalsBlueTextPrimary}"
                                        HorizontalTextAlignment="Center" />
                             </Border>
 
@@ -517,12 +517,12 @@
                                     Padding="10,9" MinimumHeightRequest="42"
                                     BackgroundColor="{Binding GlucoseOtherColor}"
                                     StrokeShape="RoundRectangle 8"
-                                    Stroke="{DynamicResource CardStroke}">
+                                    Stroke="{StaticResource VitalsBlueCardStroke}">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Command="{Binding SelectGlucoseOtherCommand}" />
                                 </Border.GestureRecognizers>
                                 <Label Text="Other" FontSize="12"
-                                       TextColor="{DynamicResource TextPrimary}"
+                                       TextColor="{StaticResource VitalsBlueTextPrimary}"
                                        HorizontalTextAlignment="Center" />
                             </Border>
                         </Grid>
@@ -530,55 +530,55 @@
                         <VerticalStackLayout Spacing="8"
                                              IsVisible="{Binding ShowGlucoseMealOptions}">
                             <Label Text="Meal" FontSize="12"
-                                   TextColor="{DynamicResource TextSecondary}" />
+                                   TextColor="{StaticResource VitalsBlueTextSecondary}" />
                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto"
                                   ColumnSpacing="8" RowSpacing="8">
                                 <Border Grid.Row="0" Grid.Column="0"
                                         Padding="10,9"
                                         BackgroundColor="{Binding GlucoseBreakfastColor}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="{DynamicResource CardStroke}">
+                                        Stroke="{StaticResource VitalsBlueCardStroke}">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectGlucoseBreakfastCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Breakfast" FontSize="12"
-                                           TextColor="{DynamicResource TextPrimary}"
+                                           TextColor="{StaticResource VitalsBlueTextPrimary}"
                                            HorizontalTextAlignment="Center" />
                                 </Border>
                                 <Border Grid.Row="0" Grid.Column="1"
                                         Padding="10,9"
                                         BackgroundColor="{Binding GlucoseLunchColor}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="{DynamicResource CardStroke}">
+                                        Stroke="{StaticResource VitalsBlueCardStroke}">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectGlucoseLunchCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Lunch" FontSize="12"
-                                           TextColor="{DynamicResource TextPrimary}"
+                                           TextColor="{StaticResource VitalsBlueTextPrimary}"
                                            HorizontalTextAlignment="Center" />
                                 </Border>
                                 <Border Grid.Row="1" Grid.Column="0"
                                         Padding="10,9"
                                         BackgroundColor="{Binding GlucoseDinnerColor}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="{DynamicResource CardStroke}">
+                                        Stroke="{StaticResource VitalsBlueCardStroke}">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectGlucoseDinnerCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Dinner" FontSize="12"
-                                           TextColor="{DynamicResource TextPrimary}"
+                                           TextColor="{StaticResource VitalsBlueTextPrimary}"
                                            HorizontalTextAlignment="Center" />
                                 </Border>
                                 <Border Grid.Row="1" Grid.Column="1"
                                         Padding="10,9"
                                         BackgroundColor="{Binding GlucoseSnackColor}"
                                         StrokeShape="RoundRectangle 8"
-                                        Stroke="{DynamicResource CardStroke}">
+                                        Stroke="{StaticResource VitalsBlueCardStroke}">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Command="{Binding SelectGlucoseSnackCommand}" />
                                     </Border.GestureRecognizers>
                                     <Label Text="Snack" FontSize="12"
-                                           TextColor="{DynamicResource TextPrimary}"
+                                           TextColor="{StaticResource VitalsBlueTextPrimary}"
                                            HorizontalTextAlignment="Center" />
                                 </Border>
                             </Grid>
@@ -588,13 +588,13 @@
                                              IsVisible="{Binding ShowGlucosePostMealMinutes}">
                             <Label Text="Minutes After Meal (optional)"
                                    FontSize="12"
-                                   TextColor="{DynamicResource TextSecondary}" />
+                                   TextColor="{StaticResource VitalsBlueTextSecondary}" />
                             <Entry Text="{Binding GlucoseMinutesAfterMeal}"
                                    Keyboard="Numeric"
-                                   TextColor="{DynamicResource TextPrimary}"
-                                   BackgroundColor="{DynamicResource PageBackground}"
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
+                                   BackgroundColor="{StaticResource VitalsBluePageBackground}"
                                    Placeholder="e.g. 120"
-                                   PlaceholderColor="{DynamicResource TextMuted}" />
+                                   PlaceholderColor="{StaticResource VitalsBlueTextMuted}" />
                         </VerticalStackLayout>
                     </VerticalStackLayout>
                 </toolkit:Expander>
@@ -603,49 +603,49 @@
             <!-- Weight — toggled by ShowWeight -->
             <Border Padding="0"
                     IsVisible="{Binding ShowWeight}"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <toolkit:Expander x:Name="WeightExpander" IsExpanded="True">
                     <toolkit:Expander.Header>
                         <Grid ColumnDefinitions="*,Auto" Padding="16,14">
                             <Label Grid.Column="0" Text="Weight"
                                    FontSize="16" FontAttributes="Bold"
-                                   TextColor="{DynamicResource TextPrimary}"
+                                   TextColor="{StaticResource VitalsBlueTextPrimary}"
                                    VerticalOptions="Center" />
                             <Label Grid.Column="1" Text="&#x2304;" FontSize="18"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference WeightExpander}, Path=IsExpanded}" />
                             <Label Grid.Column="1" Text="&#x203A;" FontSize="20"
-                                   TextColor="{DynamicResource TextMuted}"
+                                   TextColor="{StaticResource VitalsBlueTextMuted}"
                                    VerticalOptions="Center"
                                    IsVisible="{Binding Source={x:Reference WeightExpander}, Path=IsExpanded,
                                        Converter={StaticResource InvertedBoolConverter}}" />
                         </Grid>
                     </toolkit:Expander.Header>
                     <VerticalStackLayout Padding="16,0,16,16" Spacing="2">
-                        <Label Text="Pounds" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                        <Label Text="Pounds" FontSize="12" TextColor="{StaticResource VitalsBlueTextSecondary}" />
                         <Entry Text="{Binding Weight}"
                                Keyboard="Numeric"
-                               TextColor="{DynamicResource TextPrimary}"
-                               BackgroundColor="{DynamicResource PageBackground}"
-                               Placeholder="—" PlaceholderColor="{DynamicResource TextMuted}" />
+                               TextColor="{StaticResource VitalsBlueTextPrimary}"
+                               BackgroundColor="{StaticResource VitalsBluePageBackground}"
+                               Placeholder="—" PlaceholderColor="{StaticResource VitalsBlueTextMuted}" />
                     </VerticalStackLayout>
                 </toolkit:Expander>
             </Border>
 
             <!-- Notes — always visible, not a vital, no need to collapse -->
             <Border Padding="16"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <VerticalStackLayout Spacing="2">
-                    <Label Text="Notes" FontSize="12" TextColor="{DynamicResource TextSecondary}" />
+                    <Label Text="Notes" FontSize="12" TextColor="{StaticResource VitalsBlueTextSecondary}" />
                     <Editor Text="{Binding Notes}"
                             Placeholder="Notes (optional)"
-                            PlaceholderColor="{DynamicResource TextMuted}"
-                            TextColor="{DynamicResource TextPrimary}"
+                            PlaceholderColor="{StaticResource VitalsBlueTextMuted}"
+                            TextColor="{StaticResource VitalsBlueTextPrimary}"
                             BackgroundColor="Transparent"
                             AutoSize="TextChanges"
                             MinimumHeightRequest="44" />
@@ -663,15 +663,15 @@
 
             <!-- Submit Button -->
             <Border Padding="0"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <VerticalStackLayout Spacing="8" Padding="16">
                     <Button Text="⬆  Submit Vitals"
                             Command="{Binding SubmitVitalsCommand}"
                             IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
-                            BackgroundColor="{DynamicResource ButtonBackground}"
-                            TextColor="{DynamicResource TextPrimary}"
+                            BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                            TextColor="{StaticResource VitalsBlueTextPrimary}"
                             FontSize="16"
                             FontAttributes="Bold"
                             HeightRequest="56" />
@@ -682,25 +682,25 @@
             <HorizontalStackLayout Spacing="8"
                                    HorizontalOptions="Center"
                                    Margin="0,4,0,0">
-                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4" BackgroundColor="{DynamicResource DividerColor}" />
-                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4" BackgroundColor="{DynamicResource DividerColor}" />
-                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4" BackgroundColor="{DynamicResource DividerColor}" />
-                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4" BackgroundColor="{DynamicResource DividerColor}" />
-                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4" BackgroundColor="{DynamicResource DividerColor}" />
-                <BoxView HeightRequest="8" WidthRequest="24" CornerRadius="4" BackgroundColor="{DynamicResource PrimaryAccent}" />
+                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
+                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
+                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
+                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
+                <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
+                <BoxView HeightRequest="8" WidthRequest="24" CornerRadius="4" BackgroundColor="{StaticResource VitalsBluePrimaryAccent}" />
             </HorizontalStackLayout>
 
             <Button Text="Skip for now"
                     Command="{Binding SkipCommand}"
                     BackgroundColor="Transparent"
-                    TextColor="{DynamicResource TextSecondary}"
+                    TextColor="{StaticResource VitalsBlueTextSecondary}"
                     FontSize="14"
                     HeightRequest="44" />
 
             <!-- Busy Indicator -->
             <ActivityIndicator IsRunning="{Binding IsBusy}"
                                IsVisible="{Binding IsBusy}"
-                               Color="{DynamicResource PrimaryAccent}"
+                               Color="{StaticResource VitalsBluePrimaryAccent}"
                                HorizontalOptions="Center" />
 
         </VerticalStackLayout>
