@@ -6,7 +6,7 @@
              x:Class="Vitals.Maui.Views.OnboardingJoinPatientSelectionPage"
              x:DataType="vm:OnboardingJoinPatientSelectionViewModel"
              NavigationPage.HasNavigationBar="False"
-             BackgroundColor="{DynamicResource PageBackground}">
+             BackgroundColor="{StaticResource VitalsBluePageBackground}">
 
     <Grid Padding="24" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
 
@@ -14,7 +14,7 @@
                 Text="←"
                 Command="{Binding BackCommand}"
                 BackgroundColor="Transparent"
-                TextColor="{DynamicResource TextSecondary}"
+                TextColor="{StaticResource VitalsBlueTextSecondary}"
                 FontSize="22"
                 HorizontalOptions="Start"
                 WidthRequest="44"
@@ -25,14 +25,14 @@
                Text="Who will you be tracking?"
                FontSize="24"
                FontAttributes="Bold"
-               TextColor="{DynamicResource TextPrimary}"
+               TextColor="{StaticResource VitalsBlueTextPrimary}"
                HorizontalOptions="Center"
                Margin="0,8,0,4" />
 
         <Label Grid.Row="2"
                Text="Choose someone already set up in this household, or add yourself as a new patient."
                FontSize="13"
-               TextColor="{DynamicResource TextSecondary}"
+               TextColor="{StaticResource VitalsBlueTextSecondary}"
                HorizontalOptions="Center"
                HorizontalTextAlignment="Center"
                Margin="16,0,16,12" />
@@ -44,27 +44,27 @@
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="models:Patient">
                     <Border Padding="14" Margin="0,0,0,8"
-                            BackgroundColor="{DynamicResource CardBackground}"
+                            BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                             StrokeShape="RoundRectangle 10"
-                            Stroke="{DynamicResource CardStroke}"
+                            Stroke="{StaticResource VitalsBlueCardStroke}"
                             StrokeThickness="2">
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup Name="CommonStates">
                                 <VisualState Name="Normal">
                                     <VisualState.Setters>
-                                        <Setter Property="Stroke" Value="{DynamicResource CardStroke}" />
+                                        <Setter Property="Stroke" Value="{StaticResource VitalsBlueCardStroke}" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState Name="Selected">
                                     <VisualState.Setters>
-                                        <Setter Property="Stroke" Value="{DynamicResource PrimaryAccent}" />
+                                        <Setter Property="Stroke" Value="{StaticResource VitalsBluePrimaryAccent}" />
                                     </VisualState.Setters>
                                 </VisualState>
                             </VisualStateGroup>
                         </VisualStateManager.VisualStateGroups>
                         <VerticalStackLayout Spacing="2">
-                            <Label Text="{Binding FullName}" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
-                            <Label Text="{Binding Dob}" FontSize="13" TextColor="{DynamicResource TextMuted}" />
+                            <Label Text="{Binding FullName}" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" />
+                            <Label Text="{Binding Dob}" FontSize="13" TextColor="{StaticResource VitalsBlueTextMuted}" />
                         </VerticalStackLayout>
                     </Border>
                 </DataTemplate>
@@ -82,8 +82,8 @@
         <VerticalStackLayout Grid.Row="5" Spacing="8">
             <Button Text="Continue with selected patient"
                     Command="{Binding ContinueCommand}"
-                    BackgroundColor="{DynamicResource ButtonBackground}"
-                    TextColor="{DynamicResource TextPrimary}"
+                    BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                    TextColor="{StaticResource VitalsBlueTextPrimary}"
                     FontSize="15"
                     FontAttributes="Bold"
                     HeightRequest="52"
@@ -93,14 +93,14 @@
                     Command="{Binding CreateNewPatientCommand}"
                     IsVisible="{Binding CanCreateNewPatient}"
                     BackgroundColor="Transparent"
-                    TextColor="{DynamicResource PrimaryAccent}"
+                    TextColor="{StaticResource VitalsBluePrimaryAccent}"
                     FontSize="14"
                     HeightRequest="44" />
 
             <Label Text="No available slots to add another patient — attach to an existing one instead."
                    IsVisible="{Binding CanCreateNewPatient, Converter={StaticResource InvertedBoolConverter}}"
                    FontSize="12"
-                   TextColor="{DynamicResource TextMuted}"
+                   TextColor="{StaticResource VitalsBlueTextMuted}"
                    HorizontalOptions="Center"
                    HorizontalTextAlignment="Center" />
         </VerticalStackLayout>
