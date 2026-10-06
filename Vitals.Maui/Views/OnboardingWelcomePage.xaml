@@ -5,7 +5,7 @@
              x:Class="Vitals.Maui.Views.OnboardingWelcomePage"
              x:DataType="vm:OnboardingWelcomeViewModel"
              NavigationPage.HasNavigationBar="False"
-             BackgroundColor="{DynamicResource PageBackground}">
+             BackgroundColor="{StaticResource VitalsBluePageBackground}">
 
     <Grid Padding="24" RowDefinitions="*,Auto,Auto,*,Auto">
 
@@ -21,20 +21,20 @@
             <Label Text="Welcome to Vitals"
                    FontSize="28"
                    FontAttributes="Bold"
-                   TextColor="{DynamicResource TextPrimary}"
+                   TextColor="{StaticResource VitalsBlueTextPrimary}"
                    HorizontalOptions="Center"
                    HorizontalTextAlignment="Center" />
 
             <Label Text="Clinical clarity for the people who care most."
                    FontSize="16"
-                   TextColor="{DynamicResource TextSecondary}"
+                   TextColor="{StaticResource VitalsBlueTextSecondary}"
                    HorizontalOptions="Center"
                    HorizontalTextAlignment="Center"
                    Margin="0,0,0,8" />
 
             <Label Text="Track blood pressure, medications, and more for yourself or someone you care for — and turn it into a clear picture your doctor can actually use."
                    FontSize="15"
-                   TextColor="{DynamicResource TextSecondary}"
+                   TextColor="{StaticResource VitalsBlueTextSecondary}"
                    HorizontalOptions="Center"
                    HorizontalTextAlignment="Center"
                    Margin="16,0,16,0" />
@@ -46,23 +46,23 @@
                                 HorizontalOptions="Center"
                                 VerticalOptions="End">
             <BoxView HeightRequest="8" WidthRequest="24" CornerRadius="4"
-                     BackgroundColor="{DynamicResource PrimaryAccent}" />
+                     BackgroundColor="{StaticResource VitalsBluePrimaryAccent}" />
             <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                     BackgroundColor="{DynamicResource DividerColor}" />
+                     BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
             <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                     BackgroundColor="{DynamicResource DividerColor}" />
+                     BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
             <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                     BackgroundColor="{DynamicResource DividerColor}" />
+                     BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
             <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                     BackgroundColor="{DynamicResource DividerColor}" />
+                     BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
         </HorizontalStackLayout>
 
         <!-- Continue -->
         <Button Grid.Row="4"
                 Text="Get Started"
                 Command="{Binding ContinueCommand}"
-                BackgroundColor="{DynamicResource ButtonBackground}"
-                TextColor="{DynamicResource TextPrimary}"
+                BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                TextColor="{StaticResource VitalsBlueTextPrimary}"
                 FontSize="16"
                 FontAttributes="Bold"
                 HeightRequest="56"
