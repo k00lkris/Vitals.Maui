@@ -6,7 +6,7 @@
              x:Class="Vitals.Maui.Views.SignUpPage"
              x:DataType="vm:SignUpViewModel"
              Shell.NavBarIsVisible="False"
-             BackgroundColor="{DynamicResource PageBackground}">
+             BackgroundColor="{StaticResource VitalsBluePageBackground}">
 
     <ScrollView>
         <VerticalStackLayout Padding="24" Spacing="20">
@@ -15,7 +15,7 @@
             <Button Text="←"
                     Command="{Binding BackToLoginCommand}"
                     BackgroundColor="Transparent"
-                    TextColor="{DynamicResource TextSecondary}"
+                    TextColor="{StaticResource VitalsBlueTextSecondary}"
                     FontSize="22"
                     HorizontalOptions="Start"
                     WidthRequest="44"
@@ -29,13 +29,13 @@
                        IsVisible="{Binding IsVerificationSent, Converter={StaticResource InvertedBoolConverter}}"
                        FontSize="24"
                        FontAttributes="Bold"
-                       TextColor="{DynamicResource TextPrimary}"
+                       TextColor="{StaticResource VitalsBlueTextPrimary}"
                        HorizontalOptions="Center" />
                 <Label Text="Almost there"
                        IsVisible="{Binding IsVerificationSent}"
                        FontSize="24"
                        FontAttributes="Bold"
-                       TextColor="{DynamicResource TextPrimary}"
+                       TextColor="{StaticResource VitalsBlueTextPrimary}"
                        HorizontalOptions="Center" />
             </VerticalStackLayout>
 
@@ -45,46 +45,46 @@
             <VerticalStackLayout Spacing="20" IsVisible="{Binding IsVerificationSent, Converter={StaticResource InvertedBoolConverter}}">
 
                 <Border Padding="16"
-                        BackgroundColor="{DynamicResource CardBackground}"
+                        BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="{DynamicResource CardStroke}">
+                        Stroke="{StaticResource VitalsBlueCardStroke}">
                     <VerticalStackLayout Spacing="12">
 
                         <Entry Placeholder="Full name"
                                Text="{Binding DisplayName}"
-                               TextColor="{DynamicResource TextPrimary}"
-                               PlaceholderColor="{DynamicResource TextMuted}"
+                               TextColor="{StaticResource VitalsBlueTextPrimary}"
+                               PlaceholderColor="{StaticResource VitalsBlueTextMuted}"
                                BackgroundColor="Transparent" />
-                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                        <BoxView HeightRequest="1" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
 
                         <Entry Placeholder="Email address"
                                Text="{Binding Email}"
                                Keyboard="Email"
-                               TextColor="{DynamicResource TextPrimary}"
-                               PlaceholderColor="{DynamicResource TextMuted}"
+                               TextColor="{StaticResource VitalsBlueTextPrimary}"
+                               PlaceholderColor="{StaticResource VitalsBlueTextMuted}"
                                BackgroundColor="Transparent" />
-                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                        <BoxView HeightRequest="1" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
 
                         <Entry Placeholder="Password (8+ characters)"
                                Text="{Binding Password}"
                                IsPassword="True"
-                               TextColor="{DynamicResource TextPrimary}"
-                               PlaceholderColor="{DynamicResource TextMuted}"
+                               TextColor="{StaticResource VitalsBlueTextPrimary}"
+                               PlaceholderColor="{StaticResource VitalsBlueTextMuted}"
                                BackgroundColor="Transparent" />
-                        <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                        <BoxView HeightRequest="1" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
 
                         <Entry Placeholder="Confirm password"
                                Text="{Binding ConfirmPassword}"
                                IsPassword="True"
-                               TextColor="{DynamicResource TextPrimary}"
-                               PlaceholderColor="{DynamicResource TextMuted}"
+                               TextColor="{StaticResource VitalsBlueTextPrimary}"
+                               PlaceholderColor="{StaticResource VitalsBlueTextMuted}"
                                BackgroundColor="Transparent" />
 
                         <Button Text="Create Account"
                                 Command="{Binding CreateAccountCommand}"
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
-                                BackgroundColor="{DynamicResource ButtonBackground}"
-                                TextColor="{DynamicResource TextPrimary}"
+                                BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                                TextColor="{StaticResource VitalsBlueTextPrimary}"
                                 FontSize="15"
                                 FontAttributes="Bold"
                                 HeightRequest="48"
@@ -97,9 +97,9 @@
                 <VerticalStackLayout Spacing="12">
 
                     <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">
-                        <BoxView HeightRequest="1" WidthRequest="60" BackgroundColor="{DynamicResource DividerColor}" />
-                        <Label Text="or sign up with" FontSize="13" TextColor="{DynamicResource TextMuted}" />
-                        <BoxView HeightRequest="1" WidthRequest="60" BackgroundColor="{DynamicResource DividerColor}" />
+                        <BoxView HeightRequest="1" WidthRequest="60" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
+                        <Label Text="or sign up with" FontSize="13" TextColor="{StaticResource VitalsBlueTextMuted}" />
+                        <BoxView HeightRequest="1" WidthRequest="60" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
                     </HorizontalStackLayout>
 
                     <!-- Google — functional -->
@@ -133,19 +133,19 @@
             <VerticalStackLayout Spacing="16" IsVisible="{Binding IsVerificationSent}">
 
                 <Border Padding="20"
-                        BackgroundColor="{DynamicResource CardBackground}"
+                        BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="{DynamicResource CardStroke}">
+                        Stroke="{StaticResource VitalsBlueCardStroke}">
                     <VerticalStackLayout Spacing="12">
                         <Label Text="📧" FontSize="36" HorizontalOptions="Center" />
                         <Label Text="Check your email"
                                FontSize="18"
                                FontAttributes="Bold"
-                               TextColor="{DynamicResource TextPrimary}"
+                               TextColor="{StaticResource VitalsBlueTextPrimary}"
                                HorizontalOptions="Center" />
                         <Label Text="{Binding Email, StringFormat='We sent a verification link to {0}. Click it, then come back and sign in.'}"
                                FontSize="14"
-                               TextColor="{DynamicResource TextSecondary}"
+                               TextColor="{StaticResource VitalsBlueTextSecondary}"
                                HorizontalOptions="Center"
                                HorizontalTextAlignment="Center" />
                     </VerticalStackLayout>
@@ -154,8 +154,8 @@
                 <Button Text="Resend email"
                         Command="{Binding ResendVerificationCommand}"
                         IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
-                        BackgroundColor="{DynamicResource ButtonSecondary}"
-                        TextColor="{DynamicResource ButtonSecondaryText}"
+                        BackgroundColor="{StaticResource VitalsBlueButtonSecondary}"
+                        TextColor="{StaticResource VitalsBlueButtonSecondaryText}"
                         FontSize="14"
                         HeightRequest="44"
                         CornerRadius="10" />
@@ -163,7 +163,7 @@
                 <Button Text="Back to Sign In"
                         Command="{Binding BackToLoginCommand}"
                         BackgroundColor="Transparent"
-                        TextColor="{DynamicResource PrimaryAccent}"
+                        TextColor="{StaticResource VitalsBluePrimaryAccent}"
                         FontSize="14"
                         HeightRequest="40" />
 
@@ -178,7 +178,7 @@
 
             <ActivityIndicator IsRunning="{Binding IsBusy}"
                                IsVisible="{Binding IsBusy}"
-                               Color="{DynamicResource PrimaryAccent}"
+                               Color="{StaticResource VitalsBluePrimaryAccent}"
                                HorizontalOptions="Center" />
 
         </VerticalStackLayout>
