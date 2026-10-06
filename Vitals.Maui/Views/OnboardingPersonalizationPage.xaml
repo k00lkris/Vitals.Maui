@@ -5,7 +5,7 @@
              x:Class="Vitals.Maui.Views.OnboardingPersonalizationPage"
              x:DataType="vm:OnboardingPersonalizationViewModel"
              NavigationPage.HasNavigationBar="False"
-             BackgroundColor="{DynamicResource PageBackground}">
+             BackgroundColor="{StaticResource VitalsBluePageBackground}">
 
     <ScrollView>
         <Grid Padding="24" RowDefinitions="Auto,*,Auto,Auto,Auto" RowSpacing="8">
@@ -15,7 +15,7 @@
                     Text="←"
                     Command="{Binding BackCommand}"
                     BackgroundColor="Transparent"
-                    TextColor="{DynamicResource TextSecondary}"
+                    TextColor="{StaticResource VitalsBlueTextSecondary}"
                     FontSize="22"
                     HorizontalOptions="Start"
                     WidthRequest="44"
@@ -28,7 +28,7 @@
                 <Label Text="Who are you tracking for?"
                        FontSize="26"
                        FontAttributes="Bold"
-                       TextColor="{DynamicResource TextPrimary}"
+                       TextColor="{StaticResource VitalsBlueTextPrimary}"
                        HorizontalOptions="Center"
                        HorizontalTextAlignment="Center"
                        Margin="0,0,0,8" />
@@ -37,7 +37,7 @@
                 <Border Padding="16"
                         BackgroundColor="{Binding MyselfCardColor}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="{DynamicResource CardStroke}">
+                        Stroke="{StaticResource VitalsBlueCardStroke}">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding SelectMyselfCommand}" />
                     </Border.GestureRecognizers>
@@ -56,7 +56,7 @@
                 <Border Padding="16"
                         BackgroundColor="{Binding FamilyCardColor}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="{DynamicResource CardStroke}">
+                        Stroke="{StaticResource VitalsBlueCardStroke}">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding SelectFamilyCommand}" />
                     </Border.GestureRecognizers>
@@ -75,7 +75,7 @@
                 <Border Padding="16"
                         BackgroundColor="{Binding BothCardColor}"
                         StrokeShape="RoundRectangle 12"
-                        Stroke="{DynamicResource CardStroke}">
+                        Stroke="{StaticResource VitalsBlueCardStroke}">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Command="{Binding SelectBothCommand}" />
                     </Border.GestureRecognizers>
@@ -105,23 +105,23 @@
                                     HorizontalOptions="Center"
                                     Margin="0,20,0,0">
                 <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                         BackgroundColor="{DynamicResource DividerColor}" />
+                         BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
                 <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                         BackgroundColor="{DynamicResource DividerColor}" />
+                         BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
                 <BoxView HeightRequest="8" WidthRequest="24" CornerRadius="4"
-                         BackgroundColor="{DynamicResource PrimaryAccent}" />
+                         BackgroundColor="{StaticResource VitalsBluePrimaryAccent}" />
                 <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                         BackgroundColor="{DynamicResource DividerColor}" />
+                         BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
                 <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                         BackgroundColor="{DynamicResource DividerColor}" />
+                         BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
             </HorizontalStackLayout>
 
             <!-- Continue -->
             <Button Grid.Row="4"
                     Text="Continue"
                     Command="{Binding ContinueCommand}"
-                    BackgroundColor="{DynamicResource ButtonBackground}"
-                    TextColor="{DynamicResource TextPrimary}"
+                    BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                    TextColor="{StaticResource VitalsBlueTextPrimary}"
                     FontSize="16"
                     FontAttributes="Bold"
                     HeightRequest="56"
