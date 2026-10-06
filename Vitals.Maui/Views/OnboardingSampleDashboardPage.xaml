@@ -5,7 +5,7 @@
              x:Class="Vitals.Maui.Views.OnboardingSampleDashboardPage"
              x:DataType="vm:OnboardingSampleDashboardViewModel"
              NavigationPage.HasNavigationBar="False"
-             BackgroundColor="{DynamicResource PageBackground}">
+             BackgroundColor="{StaticResource VitalsBluePageBackground}">
 
     <ScrollView x:Name="DashboardScrollView">
         <VerticalStackLayout Padding="16" Spacing="12">
@@ -16,7 +16,7 @@
                         Text="←"
                         Command="{Binding BackCommand}"
                         BackgroundColor="Transparent"
-                        TextColor="{DynamicResource TextSecondary}"
+                        TextColor="{StaticResource VitalsBlueTextSecondary}"
                         FontSize="22"
                         WidthRequest="44"
                         HeightRequest="44"
@@ -24,7 +24,7 @@
                 <Label Grid.Column="1"
                        Text="{Binding StepIndicatorText}"
                        FontSize="13"
-                       TextColor="{DynamicResource TextMuted}"
+                       TextColor="{StaticResource VitalsBlueTextMuted}"
                        HorizontalOptions="End"
                        VerticalOptions="Center" />
             </Grid>
@@ -45,24 +45,24 @@
             <Border x:Name="HeaderCard"
                     Padding="16"
                     Opacity="{Binding HeaderOpacity}"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
                     Stroke="{Binding HeaderStroke}"
                     StrokeThickness="2">
                 <VerticalStackLayout Spacing="10">
                     <Label FontSize="18"
                            FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimary}">
+                           TextColor="{StaticResource VitalsBlueTextPrimary}">
                         <Label.FormattedText>
                             <FormattedString>
-                                <Span Text="Dashboard — " TextColor="{DynamicResource PrimaryAccent}" />
-                                <Span Text="You" TextColor="{DynamicResource TextPrimary}" FontAttributes="Bold" />
+                                <Span Text="Dashboard — " TextColor="{StaticResource VitalsBluePrimaryAccent}" />
+                                <Span Text="You" TextColor="{StaticResource VitalsBlueTextPrimary}" FontAttributes="Bold" />
                             </FormattedString>
                         </Label.FormattedText>
                     </Label>
                     <Button Text="➕  Enter Vitals"
-                            BackgroundColor="{DynamicResource ButtonBackground}"
-                            TextColor="{DynamicResource TextPrimary}"
+                            BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                            TextColor="{StaticResource VitalsBlueTextPrimary}"
                             FontSize="15"
                             FontAttributes="Bold"
                             HeightRequest="48"
@@ -98,41 +98,41 @@
             <Border x:Name="LatestReadingCard"
                     Padding="16"
                     Opacity="{Binding LatestReadingOpacity}"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
                     Stroke="{Binding LatestReadingStroke}"
                     StrokeThickness="2">
                 <VerticalStackLayout Spacing="12">
                     <Grid ColumnDefinitions="*,Auto">
-                        <Label Grid.Column="0" Text="Latest Reading" FontSize="18" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
-                        <Label Grid.Column="1" Text="Today, 8:15 AM" FontSize="11" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
+                        <Label Grid.Column="0" Text="Latest Reading" FontSize="18" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" />
+                        <Label Grid.Column="1" Text="Today, 8:15 AM" FontSize="11" TextColor="{StaticResource VitalsBlueTextSecondary}" VerticalOptions="Center" />
                     </Grid>
 
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
                         <Label Grid.Column="0" Text="🫀" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0" />
-                        <Label Grid.Column="1" Text="Blood Pressure" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
-                        <Label Grid.Column="2" Text="122/78" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Blood Pressure" FontSize="15" TextColor="{StaticResource VitalsBlueTextSecondary}" VerticalOptions="Center" />
+                        <Label Grid.Column="2" Text="122/78" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" VerticalOptions="Center" />
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
 
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
                         <Label Grid.Column="0" Text="💓" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0" />
-                        <Label Grid.Column="1" Text="Heart Rate" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
-                        <Label Grid.Column="2" Text="72 bpm" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Heart Rate" FontSize="15" TextColor="{StaticResource VitalsBlueTextSecondary}" VerticalOptions="Center" />
+                        <Label Grid.Column="2" Text="72 bpm" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" VerticalOptions="Center" />
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
 
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
                         <Label Grid.Column="0" Text="🫁" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0" />
-                        <Label Grid.Column="1" Text="SpO₂" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
-                        <Label Grid.Column="2" Text="97%" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="SpO₂" FontSize="15" TextColor="{StaticResource VitalsBlueTextSecondary}" VerticalOptions="Center" />
+                        <Label Grid.Column="2" Text="97%" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" VerticalOptions="Center" />
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
 
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
                         <Label Grid.Column="0" Text="🌡️" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0" />
-                        <Label Grid.Column="1" Text="Temperature" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
-                        <Label Grid.Column="2" Text="98.4 °F" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Temperature" FontSize="15" TextColor="{StaticResource VitalsBlueTextSecondary}" VerticalOptions="Center" />
+                        <Label Grid.Column="2" Text="98.4 °F" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" VerticalOptions="Center" />
                     </Grid>
                 </VerticalStackLayout>
             </Border>
@@ -165,45 +165,45 @@
             <Border x:Name="AveragesCard"
                     Padding="16"
                     Opacity="{Binding AveragesOpacity}"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
                     Stroke="{Binding AveragesStroke}"
                     StrokeThickness="2">
                 <VerticalStackLayout Spacing="12">
-                    <Label Text="Averages" FontSize="18" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                    <Label Text="Averages" FontSize="18" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" />
 
                     <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
-                        <Button Grid.Column="0" Text="15d" BackgroundColor="{DynamicResource ButtonBackground}" TextColor="{DynamicResource TextPrimary}" FontSize="13" HeightRequest="36" CornerRadius="6" />
-                        <Button Grid.Column="1" Text="30d" BackgroundColor="{DynamicResource ButtonSecondary}" TextColor="{DynamicResource ButtonSecondaryText}" FontSize="13" HeightRequest="36" CornerRadius="6" />
-                        <Button Grid.Column="2" Text="45d" BackgroundColor="{DynamicResource ButtonSecondary}" TextColor="{DynamicResource ButtonSecondaryText}" FontSize="13" HeightRequest="36" CornerRadius="6" />
-                        <Button Grid.Column="3" Text="60d" BackgroundColor="{DynamicResource ButtonSecondary}" TextColor="{DynamicResource ButtonSecondaryText}" FontSize="13" HeightRequest="36" CornerRadius="6" />
+                        <Button Grid.Column="0" Text="15d" BackgroundColor="{StaticResource VitalsBlueButtonBackground}" TextColor="{StaticResource VitalsBlueTextPrimary}" FontSize="13" HeightRequest="36" CornerRadius="6" />
+                        <Button Grid.Column="1" Text="30d" BackgroundColor="{StaticResource VitalsBlueButtonSecondary}" TextColor="{StaticResource VitalsBlueButtonSecondaryText}" FontSize="13" HeightRequest="36" CornerRadius="6" />
+                        <Button Grid.Column="2" Text="45d" BackgroundColor="{StaticResource VitalsBlueButtonSecondary}" TextColor="{StaticResource VitalsBlueButtonSecondaryText}" FontSize="13" HeightRequest="36" CornerRadius="6" />
+                        <Button Grid.Column="3" Text="60d" BackgroundColor="{StaticResource VitalsBlueButtonSecondary}" TextColor="{StaticResource VitalsBlueButtonSecondaryText}" FontSize="13" HeightRequest="36" CornerRadius="6" />
                     </Grid>
 
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
                         <Label Grid.Column="0" Text="🫀" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0" />
-                        <Label Grid.Column="1" Text="Blood Pressure" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
-                        <Label Grid.Column="2" Text="124/79" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Blood Pressure" FontSize="15" TextColor="{StaticResource VitalsBlueTextSecondary}" VerticalOptions="Center" />
+                        <Label Grid.Column="2" Text="124/79" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" VerticalOptions="Center" />
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
 
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
                         <Label Grid.Column="0" Text="💓" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0" />
-                        <Label Grid.Column="1" Text="Heart Rate" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
-                        <Label Grid.Column="2" Text="73 bpm" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Heart Rate" FontSize="15" TextColor="{StaticResource VitalsBlueTextSecondary}" VerticalOptions="Center" />
+                        <Label Grid.Column="2" Text="73 bpm" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" VerticalOptions="Center" />
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
 
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
                         <Label Grid.Column="0" Text="🫁" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0" />
-                        <Label Grid.Column="1" Text="SpO₂" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
-                        <Label Grid.Column="2" Text="96.8%" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="SpO₂" FontSize="15" TextColor="{StaticResource VitalsBlueTextSecondary}" VerticalOptions="Center" />
+                        <Label Grid.Column="2" Text="96.8%" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" VerticalOptions="Center" />
                     </Grid>
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
 
                     <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4">
                         <Label Grid.Column="0" Text="🌡️" FontSize="18" VerticalOptions="Center" Margin="0,0,12,0" />
-                        <Label Grid.Column="1" Text="Temperature" FontSize="15" TextColor="{DynamicResource TextSecondary}" VerticalOptions="Center" />
-                        <Label Grid.Column="2" Text="98.6 °F" FontSize="16" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" VerticalOptions="Center" />
+                        <Label Grid.Column="1" Text="Temperature" FontSize="15" TextColor="{StaticResource VitalsBlueTextSecondary}" VerticalOptions="Center" />
+                        <Label Grid.Column="2" Text="98.6 °F" FontSize="16" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" VerticalOptions="Center" />
                     </Grid>
                 </VerticalStackLayout>
             </Border>
@@ -236,30 +236,30 @@
             <Border x:Name="AnalysisCard"
                     Padding="16"
                     Opacity="{Binding AnalysisOpacity}"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
                     Stroke="{Binding AnalysisStroke}"
                     StrokeThickness="2">
                 <VerticalStackLayout Spacing="12">
-                    <Label Text="Vitals Analysis" FontSize="18" FontAttributes="Bold" TextColor="{DynamicResource TextPrimary}" />
+                    <Label Text="Vitals Analysis" FontSize="18" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" />
 
                     <Button Text="📊  Vitals Analysis"
-                            BackgroundColor="{DynamicResource ButtonBackground}"
-                            TextColor="{DynamicResource TextPrimary}"
+                            BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                            TextColor="{StaticResource VitalsBlueTextPrimary}"
                             FontSize="15" FontAttributes="Bold"
                             HeightRequest="48" CornerRadius="8" />
 
-                    <BoxView HeightRequest="1" BackgroundColor="{DynamicResource DividerColor}" />
+                    <BoxView HeightRequest="1" BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
 
                     <Button Text="📈  Expand Charts"
-                            BackgroundColor="{DynamicResource ButtonBackground}"
-                            TextColor="{DynamicResource TextPrimary}"
+                            BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                            TextColor="{StaticResource VitalsBlueTextPrimary}"
                             FontSize="14"
                             HeightRequest="44" CornerRadius="8" />
 
                     <Button Text="📋  View History"
-                            BackgroundColor="{DynamicResource ButtonBackground}"
-                            TextColor="{DynamicResource TextPrimary}"
+                            BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                            TextColor="{StaticResource VitalsBlueTextPrimary}"
                             FontSize="14"
                             HeightRequest="44" CornerRadius="8" />
                 </VerticalStackLayout>
