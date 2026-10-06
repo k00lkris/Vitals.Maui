@@ -16,7 +16,9 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
     public Action? OnJoinSelected { get; set; }               // -> enter invite code screen
 
     private static readonly Color SelectedColor = Color.FromArgb("#1976d2");
-    private static readonly Color UnselectedColor = Color.FromArgb("#2a3a5c");
+    private static readonly Color UnselectedColor = Color.FromArgb("#b2dff2");
+    private static readonly Color SelectedFillColor = Color.FromArgb("#661976D2");
+    private static readonly Color UnselectedFillColor = Color.FromArgb("#f0f9ff");
 
     // "individual" | "family" | "free" | "" (none chosen yet) — same
     // select-then-confirm pattern as OnboardingPersonalizationViewModel,
@@ -28,6 +30,10 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
     [ObservableProperty] private Color _individualCardColor = UnselectedColor;
     [ObservableProperty] private Color _familyCardColor = UnselectedColor;
     [ObservableProperty] private Color _freeCardColor = UnselectedColor;
+
+    [ObservableProperty] private Color _individualCardBackground = UnselectedFillColor;
+    [ObservableProperty] private Color _familyCardBackground = UnselectedFillColor;
+    [ObservableProperty] private Color _freeCardBackground = UnselectedFillColor;
 
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
@@ -61,6 +67,11 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
         IndividualCardColor = value == "individual" ? SelectedColor : UnselectedColor;
         FamilyCardColor = value == "family" ? SelectedColor : UnselectedColor;
         FreeCardColor = value == "free" ? SelectedColor : UnselectedColor;
+
+        IndividualCardBackground = value == "individual" ? SelectedFillColor : UnselectedFillColor;
+        FamilyCardBackground = value == "family" ? SelectedFillColor : UnselectedFillColor;
+        FreeCardBackground = value == "free" ? SelectedFillColor : UnselectedFillColor;
+
         StatusMessage = string.Empty;
     }
 
