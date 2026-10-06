@@ -11,6 +11,21 @@
             <converters:BoolToStringConverter x:Key="BoolToStringConverter" />
             <converters:StringEqualsConverter x:Key="StringEqualsConverter" />
 
+            <!-- Immutable Vitals Blue palette for pre-auth and onboarding UI.
+                 These keys are intentionally NOT mutated by ThemeService, so login,
+                 sign-up, and onboarding stay on-brand regardless of device or user theme. -->
+            <Color x:Key="VitalsBluePageBackground">#e8f4f8</Color>
+            <Color x:Key="VitalsBlueCardBackground">#f0f9ff</Color>
+            <Color x:Key="VitalsBlueCardStroke">#b2dff2</Color>
+            <Color x:Key="VitalsBluePrimaryAccent">#006e8c</Color>
+            <Color x:Key="VitalsBlueTextPrimary">#0d2137</Color>
+            <Color x:Key="VitalsBlueTextSecondary">#546e7a</Color>
+            <Color x:Key="VitalsBlueTextMuted">#78909c</Color>
+            <Color x:Key="VitalsBlueButtonBackground">#00acc1</Color>
+            <Color x:Key="VitalsBlueDividerColor">#b2dff2</Color>
+            <Color x:Key="VitalsBlueButtonSecondary">#b2dff2</Color>
+            <Color x:Key="VitalsBlueButtonSecondaryText">#0d2137</Color>
+
             <!-- Theme color keys — overridden at runtime by ThemeService -->
             <Color x:Key="PageBackground">#e8f4f8</Color>
             <Color x:Key="CardBackground">#f0f9ff</Color>
