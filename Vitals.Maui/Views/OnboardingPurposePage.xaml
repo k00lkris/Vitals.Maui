@@ -5,7 +5,7 @@
              x:Class="Vitals.Maui.Views.OnboardingPurposePage"
              x:DataType="vm:OnboardingPurposeViewModel"
              NavigationPage.HasNavigationBar="False"
-             BackgroundColor="{DynamicResource PageBackground}">
+             BackgroundColor="{StaticResource VitalsBluePageBackground}">
 
     <Grid Padding="24" RowDefinitions="Auto,*,Auto,Auto">
 
@@ -14,7 +14,7 @@
                 Text="←"
                 Command="{Binding BackCommand}"
                 BackgroundColor="Transparent"
-                TextColor="{DynamicResource TextSecondary}"
+                TextColor="{StaticResource VitalsBlueTextSecondary}"
                 FontSize="22"
                 HorizontalOptions="Start"
                 WidthRequest="44"
@@ -29,53 +29,53 @@
             <Label Text="Why Vitals exists"
                    FontSize="26"
                    FontAttributes="Bold"
-                   TextColor="{DynamicResource TextPrimary}"
+                   TextColor="{StaticResource VitalsBlueTextPrimary}"
                    HorizontalOptions="Center"
                    HorizontalTextAlignment="Center" />
 
             <!-- Purpose points, styled as cards to match the app's Border pattern -->
             <Border Padding="16"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <VerticalStackLayout Spacing="6">
                     <Label Text="See the trend, not just the number"
                            FontSize="16"
                            FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimary}" />
+                           TextColor="{StaticResource VitalsBlueTextPrimary}" />
                     <Label Text="A single reading rarely tells the whole story. Vitals tracks patterns over time, the way a physician would."
                            FontSize="14"
-                           TextColor="{DynamicResource TextSecondary}" />
+                           TextColor="{StaticResource VitalsBlueTextSecondary}" />
                 </VerticalStackLayout>
             </Border>
 
             <Border Padding="16"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <VerticalStackLayout Spacing="6">
                     <Label Text="Built for caregivers"
                            FontSize="16"
                            FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimary}" />
+                           TextColor="{StaticResource VitalsBlueTextPrimary}" />
                     <Label Text="Whether you're tracking your own health or caring for a family member, Vitals keeps everything organized in one place."
                            FontSize="14"
-                           TextColor="{DynamicResource TextSecondary}" />
+                           TextColor="{StaticResource VitalsBlueTextSecondary}" />
                 </VerticalStackLayout>
             </Border>
 
             <Border Padding="16"
-                    BackgroundColor="{DynamicResource CardBackground}"
+                    BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{DynamicResource CardStroke}">
+                    Stroke="{StaticResource VitalsBlueCardStroke}">
                 <VerticalStackLayout Spacing="6">
                     <Label Text="Ready for the doctor's office"
                            FontSize="16"
                            FontAttributes="Bold"
-                           TextColor="{DynamicResource TextPrimary}" />
+                           TextColor="{StaticResource VitalsBlueTextPrimary}" />
                     <Label Text="Export a physician-grade report in seconds, so appointments start with data instead of guesswork."
                            FontSize="14"
-                           TextColor="{DynamicResource TextSecondary}" />
+                           TextColor="{StaticResource VitalsBlueTextSecondary}" />
                 </VerticalStackLayout>
             </Border>
 
@@ -87,23 +87,23 @@
                                 HorizontalOptions="Center"
                                 Margin="0,20,0,0">
             <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                     BackgroundColor="{DynamicResource DividerColor}" />
+                     BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
             <BoxView HeightRequest="8" WidthRequest="24" CornerRadius="4"
-                     BackgroundColor="{DynamicResource PrimaryAccent}" />
+                     BackgroundColor="{StaticResource VitalsBluePrimaryAccent}" />
             <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                     BackgroundColor="{DynamicResource DividerColor}" />
+                     BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
             <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                     BackgroundColor="{DynamicResource DividerColor}" />
+                     BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
             <BoxView HeightRequest="8" WidthRequest="8" CornerRadius="4"
-                     BackgroundColor="{DynamicResource DividerColor}" />
+                     BackgroundColor="{StaticResource VitalsBlueDividerColor}" />
         </HorizontalStackLayout>
 
         <!-- Continue -->
         <Button Grid.Row="3"
                 Text="Continue"
                 Command="{Binding ContinueCommand}"
-                BackgroundColor="{DynamicResource ButtonBackground}"
-                TextColor="{DynamicResource TextPrimary}"
+                BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                TextColor="{StaticResource VitalsBlueTextPrimary}"
                 FontSize="16"
                 FontAttributes="Bold"
                 HeightRequest="56"

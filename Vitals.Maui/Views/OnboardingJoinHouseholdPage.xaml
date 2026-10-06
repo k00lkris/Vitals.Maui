@@ -5,14 +5,14 @@
              x:Class="Vitals.Maui.Views.OnboardingJoinHouseholdPage"
              x:DataType="vm:OnboardingJoinHouseholdViewModel"
              NavigationPage.HasNavigationBar="False"
-             BackgroundColor="{DynamicResource PageBackground}">
+             BackgroundColor="{StaticResource VitalsBluePageBackground}">
 
     <VerticalStackLayout Padding="24" Spacing="16" VerticalOptions="Center">
 
         <Button Text="←"
                 Command="{Binding BackCommand}"
                 BackgroundColor="Transparent"
-                TextColor="{DynamicResource TextSecondary}"
+                TextColor="{StaticResource VitalsBlueTextSecondary}"
                 FontSize="22"
                 HorizontalOptions="Start"
                 WidthRequest="44"
@@ -22,24 +22,24 @@
         <Label Text="Join a household"
                FontSize="26"
                FontAttributes="Bold"
-               TextColor="{DynamicResource TextPrimary}"
+               TextColor="{StaticResource VitalsBlueTextPrimary}"
                HorizontalOptions="Center" />
 
         <Label Text="Enter the code from the invite email you received."
                FontSize="14"
-               TextColor="{DynamicResource TextSecondary}"
+               TextColor="{StaticResource VitalsBlueTextSecondary}"
                HorizontalOptions="Center"
                HorizontalTextAlignment="Center"
                Margin="16,0,16,8" />
 
         <Border Padding="16"
-                BackgroundColor="{DynamicResource CardBackground}"
+                BackgroundColor="{StaticResource VitalsBlueCardBackground}"
                 StrokeShape="RoundRectangle 12"
-                Stroke="{DynamicResource CardStroke}">
+                Stroke="{StaticResource VitalsBlueCardStroke}">
             <Entry Placeholder="A7K9-2XPQ"
                    Text="{Binding InviteCode}"
-                   TextColor="{DynamicResource TextPrimary}"
-                   PlaceholderColor="{DynamicResource TextMuted}"
+                   TextColor="{StaticResource VitalsBlueTextPrimary}"
+                   PlaceholderColor="{StaticResource VitalsBlueTextMuted}"
                    BackgroundColor="Transparent"
                    HorizontalTextAlignment="Center"
                    FontSize="20"
@@ -56,8 +56,8 @@
         <Button Text="Join"
                 Command="{Binding JoinCommand}"
                 IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"
-                BackgroundColor="{DynamicResource ButtonBackground}"
-                TextColor="{DynamicResource TextPrimary}"
+                BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                TextColor="{StaticResource VitalsBlueTextPrimary}"
                 FontSize="16"
                 FontAttributes="Bold"
                 HeightRequest="56"
@@ -65,7 +65,7 @@
 
         <ActivityIndicator IsRunning="{Binding IsBusy}"
                            IsVisible="{Binding IsBusy}"
-                           Color="{DynamicResource PrimaryAccent}"
+                           Color="{StaticResource VitalsBluePrimaryAccent}"
                            HorizontalOptions="Center" />
 
     </VerticalStackLayout>
