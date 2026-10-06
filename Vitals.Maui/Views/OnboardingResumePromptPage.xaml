@@ -5,7 +5,7 @@
              x:Class="Vitals.Maui.Views.OnboardingResumePromptPage"
              x:DataType="vm:OnboardingResumePromptViewModel"
              NavigationPage.HasNavigationBar="False"
-             BackgroundColor="{DynamicResource PageBackground}">
+             BackgroundColor="{StaticResource VitalsBluePageBackground}">
 
     <Grid Padding="24" RowDefinitions="*,Auto,Auto,Auto,*">
 
@@ -14,11 +14,11 @@
             <Label Text="Welcome back"
                    FontSize="26"
                    FontAttributes="Bold"
-                   TextColor="{DynamicResource TextPrimary}"
+                   TextColor="{StaticResource VitalsBlueTextPrimary}"
                    HorizontalOptions="Center" />
             <Label Text="You didn't finish setting up Vitals last time. Want to pick up where you left off?"
                    FontSize="14"
-                   TextColor="{DynamicResource TextSecondary}"
+                   TextColor="{StaticResource VitalsBlueTextSecondary}"
                    HorizontalOptions="Center"
                    HorizontalTextAlignment="Center"
                    Margin="16,0,16,0" />
@@ -27,8 +27,8 @@
         <Button Grid.Row="2"
                 Text="Continue setup"
                 Command="{Binding ContinueOnboardingCommand}"
-                BackgroundColor="{DynamicResource ButtonBackground}"
-                TextColor="{DynamicResource TextPrimary}"
+                BackgroundColor="{StaticResource VitalsBlueButtonBackground}"
+                TextColor="{StaticResource VitalsBlueTextPrimary}"
                 FontSize="16"
                 FontAttributes="Bold"
                 HeightRequest="56"
@@ -39,12 +39,12 @@
             <Button Text="Skip for now"
                     Command="{Binding SkipOnboardingCommand}"
                     BackgroundColor="Transparent"
-                    TextColor="{DynamicResource TextSecondary}"
+                    TextColor="{StaticResource VitalsBlueTextSecondary}"
                     FontSize="15"
                     HeightRequest="44" />
             <Label Text="You can finish these preferences anytime from Settings."
                    FontSize="12"
-                   TextColor="{DynamicResource TextMuted}"
+                   TextColor="{StaticResource VitalsBlueTextMuted}"
                    HorizontalOptions="Center"
                    HorizontalTextAlignment="Center" />
         </VerticalStackLayout>
