@@ -8,13 +8,19 @@ namespace Vitals.Maui
     {
         private readonly PatientStateService _patientState;
         private readonly AuthService _auth;
+        private readonly EntitlementService _entitlements;
         private readonly LoginViewModel _loginVm;
 
-        public App(PatientStateService patientState, AuthService auth, LoginViewModel loginVm)
+        public App(
+            PatientStateService patientState,
+            AuthService auth,
+            EntitlementService entitlements,
+            LoginViewModel loginVm)
         {
             InitializeComponent();
             _patientState = patientState;
             _auth = auth;
+            _entitlements = entitlements;
             _loginVm = loginVm;
 
             // Load saved theme and apply before first page renders
@@ -39,6 +45,8 @@ namespace Vitals.Maui
                     var hasSession = await _auth.TryRestoreSessionAsync();
                     if (hasSession)
                     {
+                        await _entitlements.RefreshAsync();
+
                         MainThread.BeginInvokeOnMainThread(() =>
                         {
                             // Reset the patient cache before showing anything
