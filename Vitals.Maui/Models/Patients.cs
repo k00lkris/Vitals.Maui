@@ -25,6 +25,9 @@ public class Patient
     [JsonPropertyName("height_inches")]
     public int? HeightInches { get; set; }
 
+    [JsonPropertyName("is_entitlement_locked")]
+    public bool IsEntitlementLocked { get; set; }
+
     public int? HeightFeetDisplay => HeightInches is null ? null : HeightInches.Value / 12;
     public int? HeightRemainderInchesDisplay => HeightInches is null ? null : HeightInches.Value % 12;
     public string HeightDisplay =>
