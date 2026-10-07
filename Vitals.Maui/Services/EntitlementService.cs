@@ -30,6 +30,7 @@ public partial class EntitlementService : ObservableObject
 
     public bool HasPremiumAccess => Current?.HasPremiumAccess == true;
     public bool IsFounder => Current?.IsFounder == true;
+    public bool IsBeta => Current?.IsBeta == true;
     public bool IsUnlimited => Current?.IsUnlimited == true;
     public string EffectivePlan => Current?.EffectivePlan ?? string.Empty;
     public string AccessState => Current?.AccessState ?? string.Empty;
@@ -68,6 +69,7 @@ public partial class EntitlementService : ObservableObject
     {
         OnPropertyChanged(nameof(HasPremiumAccess));
         OnPropertyChanged(nameof(IsFounder));
+        OnPropertyChanged(nameof(IsBeta));
         OnPropertyChanged(nameof(IsUnlimited));
         OnPropertyChanged(nameof(EffectivePlan));
         OnPropertyChanged(nameof(AccessState));
