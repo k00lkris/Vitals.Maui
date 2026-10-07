@@ -10,8 +10,8 @@ public partial class HouseholdInviteViewModel : ObservableObject
     private readonly ApiService _api;
 
     [ObservableProperty] private string _inviteeEmail = string.Empty;
-    [ObservableProperty] private bool _canInvite = true;
-    [ObservableProperty] private bool _canManageHousehold = true;
+    [ObservableProperty] private bool _canInvite;
+    [ObservableProperty] private bool _canManageHousehold;
     [ObservableProperty] private int _availableSlots;
     [ObservableProperty] private bool _isUnlimited;
     [ObservableProperty] private string _slotSummary = string.Empty;
@@ -29,6 +29,9 @@ public partial class HouseholdInviteViewModel : ObservableObject
     public async Task LoadAsync()
     {
         IsBusy = true;
+        CanInvite = false;
+        CanManageHousehold = false;
+        InviteRestrictionMessage = string.Empty;
         try
         {
             var status = await _api.GetHouseholdStatusAsync();
@@ -56,7 +59,14 @@ public partial class HouseholdInviteViewModel : ObservableObject
                 }
             }
 
-            if (CanManageHousehold)
+            if (status is null)
+            {
+                SlotSummary = string.Empty;
+                InviteRestrictionMessage =
+                    "We couldn't verify household management access. Please try again.";
+                PendingInvites.Clear();
+            }
+            else if (CanManageHousehold)
             {
                 var invites = await _api.GetPendingInvitesAsync();
                 PendingInvites = new ObservableCollection<PendingInvite>(invites);
