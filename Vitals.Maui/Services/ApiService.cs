@@ -1175,6 +1175,9 @@ public class HouseholdEntitlement
     [JsonPropertyName("is_founder")]
     public bool IsFounder { get; set; }
 
+    [JsonPropertyName("is_beta")]
+    public bool IsBeta { get; set; }
+
     [JsonPropertyName("is_unlimited")]
     public bool IsUnlimited { get; set; }
 

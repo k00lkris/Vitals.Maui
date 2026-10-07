@@ -4770,24 +4770,40 @@ def resolve_invite_household(cur, invite_code: str):
 def mark_invite_used(cur, invite_id: str):
     cur.execute("UPDATE household_invites SET used_at = now() WHERE invite_id = %s", (invite_id,))
 
+
+PERMANENT_COMPLIMENTARY_TIERS = {"founder", "beta"}
+
+
+def is_permanent_complimentary_tier(tier: Optional[str]) -> bool:
+    return (tier or "").strip().lower() in PERMANENT_COMPLIMENTARY_TIERS
+
+
+def effective_patient_limit(tier: Optional[str], stored_patient_limit: Optional[int]) -> Optional[int]:
+    """
+    NULL patient_limit means unlimited only for a permanent complimentary
+    household (Founder or Beta). Every other tier keeps the historical safe
+    fallback of two patients if a malformed row somehow has no limit.
+    """
+    if is_permanent_complimentary_tier(tier) and stored_patient_limit is None:
+        return None
+    return stored_patient_limit if stored_patient_limit is not None else 2
+
+
 def count_reserved_slots(cur, household_id: str) -> tuple[Optional[int], int, int]:
     """
     Returns (patient_limit, actual_patient_count, active_pending_invite_count).
 
-    patient_limit=NULL means unlimited and is reserved for Founder
-    households. Every unused, unexpired invite reserves one finite slot
-    for normal households; Founder households bypass the slot check.
+    patient_limit=NULL means unlimited and is reserved for permanent
+    complimentary households (Founder or Beta). Every unused, unexpired
+    invite reserves one finite slot for normal households; complimentary
+    households bypass the slot check.
     """
     cur.execute("SELECT tier, patient_limit FROM households WHERE household_id = %s", (household_id,))
     row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Household not found")
     tier, stored_patient_limit = row
-    patient_limit = (
-        None
-        if (tier or "").lower() == "founder" and stored_patient_limit is None
-        else (stored_patient_limit if stored_patient_limit is not None else 2)
-    )
+    patient_limit = effective_patient_limit(tier, stored_patient_limit)
 
     cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
     patient_count = cur.fetchone()[0]
@@ -4810,8 +4826,9 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     trials or enforcing premium gates. Later Phase 7 components will use
     this same result to drive downgrade selection and feature gating.
 
-    Founder is permanent full access with no expiration and no patient
-    limit. Existing alpha trials that predate trial_ends_at remain active
+    Founder and Beta are permanent complimentary full-access tiers with no
+    expiration and no patient limit. Existing alpha trials that predate
+    trial_ends_at remain active
     until they are explicitly migrated; this avoids accidentally locking
     current testers during the entitlement rollout.
     """
@@ -4858,11 +4875,9 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     subscription_status = (subscription_status or "basic").lower()
 
     is_founder = tier == "founder"
-    effective_patient_limit = (
-        None
-        if is_founder
-        else (patient_limit if patient_limit is not None else 2)
-    )
+    is_beta = tier == "beta"
+    is_permanent_complimentary = is_founder or is_beta
+    resolved_patient_limit = effective_patient_limit(tier, patient_limit)
     legacy_trial = subscription_status == "trial" and trial_ends_at is None
     trial_active = (
         subscription_status == "trial"
@@ -4876,16 +4891,16 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
 
     subscription_active = (
         subscription_status == "active"
-        and tier in ("standard", "family", "founder")
+        and tier in ("standard", "family", "founder", "beta")
         and (
-            is_founder
+            is_permanent_complimentary
             or subscription_ends_at is None
             or subscription_ends_at > now
         )
     )
     subscription_expired = (
         subscription_status == "active"
-        and not is_founder
+        and not is_permanent_complimentary
         and subscription_ends_at is not None
         and subscription_ends_at <= now
     )
@@ -4901,12 +4916,15 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     )
 
     has_premium_access = bool(
-        is_founder or trial_active or subscription_active or grace_active
+        is_permanent_complimentary or trial_active or subscription_active or grace_active
     )
 
     if is_founder:
         access_state = "founder"
         effective_plan = "founder"
+    elif is_beta:
+        access_state = "beta"
+        effective_plan = "beta"
     elif trial_active:
         access_state = "trial"
         effective_plan = "trial"
@@ -4951,13 +4969,17 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     is_household_manager = household_role in ("owner", "manager")
     is_billing_owner = bool(caller_id and billing_owner_id == caller_id)
     can_manage_household = is_household_manager
-    can_start_purchase = is_household_manager and billing_owner_id is None and not is_founder
+    can_start_purchase = (
+        is_household_manager
+        and billing_owner_id is None
+        and not is_permanent_complimentary
+    )
     # Apple/Google store billing belongs to the account that made the
     # purchase. Household ownership can transfer without transferring the
     # underlying store subscription, so only the billing owner can manage
     # that store purchase.
     can_manage_billing = bool(
-        not is_founder
+        not is_permanent_complimentary
         and caller_id
         and is_billing_owner
         and billing_owner_id is not None
@@ -4970,8 +4992,9 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
         "access_state": access_state,
         "has_premium_access": has_premium_access,
         "is_founder": is_founder,
-        "is_unlimited": is_founder,
-        "patient_limit": effective_patient_limit,
+        "is_beta": is_beta,
+        "is_unlimited": is_permanent_complimentary,
+        "patient_limit": resolved_patient_limit,
         "patient_count": patient_count,
         "trial_started_at": trial_started_at,
         "trial_ends_at": trial_ends_at,
@@ -5991,12 +6014,7 @@ def create_patient(
         conn.close()
         raise HTTPException(status_code=404, detail="Household not found")
     household_tier, stored_patient_limit = row
-    patient_limit = (
-        None
-        if (household_tier or "").lower() == "founder"
-           and stored_patient_limit is None
-        else (stored_patient_limit if stored_patient_limit is not None else 2)
-    )
+    patient_limit = effective_patient_limit(household_tier, stored_patient_limit)
 
     cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
     current_count = cur.fetchone()[0]
@@ -12294,12 +12312,7 @@ def join_household(
         if not row:
             raise HTTPException(status_code=404, detail="Household not found")
         household_tier, stored_patient_limit = row
-        patient_limit = (
-            None
-            if (household_tier or "").lower() == "founder"
-               and stored_patient_limit is None
-            else (stored_patient_limit if stored_patient_limit is not None else 2)
-        )
+        patient_limit = effective_patient_limit(household_tier, stored_patient_limit)
         cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
         current_count = cur.fetchone()[0]
         can_create_new_patient = (
