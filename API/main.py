@@ -5972,14 +5972,15 @@ def create_patient(
 
     cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
     row = cur.fetchone()
-    # 2 is the safe fallback if a household somehow has no limit set at all
-    # (shouldn't happen post-migration — patient_limit is NOT NULL with a
-    # default — but better to fail safe than let an edge case go unlimited).
-    patient_limit = row[0] if row and row[0] is not None else 2
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Household not found")
+    patient_limit = row[0]  # NULL means unlimited (Founder only).
 
     cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
     current_count = cur.fetchone()[0]
-    if current_count >= patient_limit:
+    if patient_limit is not None and current_count >= patient_limit:
         cur.close()
         conn.close()
         raise HTTPException(
@@ -11955,7 +11956,10 @@ def create_household_invite(
             mark_invite_used(cur, str(existing_pending[0]))
 
         patient_limit, patient_count, pending_invite_count = count_reserved_slots(cur, household_id)
-        if patient_count + pending_invite_count >= patient_limit:
+        if (
+            patient_limit is not None
+            and patient_count + pending_invite_count >= patient_limit
+        ):
             raise HTTPException(
                 status_code=403,
                 detail="You've used all your available patient slots. Cancel a pending invite, "
@@ -12003,18 +12007,49 @@ def get_household_status(
     conn = get_conn()
     cur = conn.cursor()
     patient_limit, patient_count, pending_invite_count = count_reserved_slots(cur, household_id)
+    entitlement = get_household_entitlement(cur, household_id, auth.get("sub"))
     cur.close()
     conn.close()
 
-    available_slots = max(0, patient_limit - patient_count - pending_invite_count)
+    is_unlimited = patient_limit is None
+    available_slots = (
+        None
+        if is_unlimited
+        else max(0, patient_limit - patient_count - pending_invite_count)
+    )
 
     return {
         "patient_limit": patient_limit,
         "patient_count": patient_count,
         "pending_invite_count": pending_invite_count,
         "available_slots": available_slots,
-        "can_invite": available_slots > 0,
+        "can_invite": is_unlimited or available_slots > 0,
+        "is_unlimited": is_unlimited,
+        "plan": entitlement["plan"],
+        "access_state": entitlement["access_state"],
     }
+
+
+@app.get("/api/household/entitlement")
+def get_household_entitlement_status(
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    """
+    Returns the single household-level commercial entitlement snapshot used
+    by Phase 7 clients. This endpoint is informational in 0.7.1b; feature
+    gates and automatic downgrade transitions are added in later components.
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="This requires a signed-in account")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        return get_household_entitlement(cur, household_id, auth.get("sub"))
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.get("/api/household/invites")
@@ -12147,16 +12182,26 @@ def select_household_tier(body: HouseholdTierRequest, auth: dict = Depends(get_a
             INSERT INTO households (
                 name, tier, subscription_status,
                 trial_started_at, trial_ends_at,
-                patient_limit, created_at
+                patient_limit, owner_user_id,
+                entitlement_updated_at, created_at
             )
-            VALUES (%s, %s, 'trial', now(), now() + interval '30 days', %s, now())
+            VALUES (
+                %s, %s, 'trial',
+                now(), now() + interval '30 days',
+                %s, %s, now(), now()
+            )
             RETURNING household_id, trial_ends_at;
-        """, (household_name, normalized_tier, patient_limit))
+        """, (household_name, normalized_tier, patient_limit, user_id))
         created = cur.fetchone()
         household_id = str(created[0])
         trial_ends_at = created[1]
 
-        cur.execute("UPDATE users SET household_id = %s WHERE user_id = %s", (household_id, user_id))
+        cur.execute("""
+            UPDATE users
+            SET household_id = %s,
+                household_role = 'owner'
+            WHERE user_id = %s
+        """, (household_id, user_id))
         conn.commit()
 
         token = create_jwt(user_id, household_id, email)
@@ -12205,7 +12250,12 @@ def join_household(
     try:
         household_id, invite_id = resolve_invite_household(cur, body.invite_code)
 
-        cur.execute("UPDATE users SET household_id = %s WHERE user_id = %s", (household_id, user_id))
+        cur.execute("""
+            UPDATE users
+            SET household_id = %s,
+                household_role = 'member'
+            WHERE user_id = %s
+        """, (household_id, user_id))
         mark_invite_used(cur, invite_id)
         conn.commit()
 
@@ -12221,10 +12271,14 @@ def join_household(
         # one doesn't consume a slot.
         cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
         row = cur.fetchone()
-        patient_limit = row[0] if row and row[0] is not None else 2
+        if not row:
+            raise HTTPException(status_code=404, detail="Household not found")
+        patient_limit = row[0]
         cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
         current_count = cur.fetchone()[0]
-        can_create_new_patient = current_count < patient_limit
+        can_create_new_patient = (
+            patient_limit is None or current_count < patient_limit
+        )
 
         return {
             "status": "joined",
