@@ -622,6 +622,8 @@ CREATE TABLE IF NOT EXISTS public.patients
     show_glucose boolean NOT NULL DEFAULT false,
     created_at timestamp with time zone DEFAULT now(),
     household_id uuid NOT NULL,
+    entitlement_locked boolean NOT NULL DEFAULT false,
+    entitlement_locked_at timestamp with time zone,
     CONSTRAINT patients_height_inches_check CHECK (height_inches IS NULL OR height_inches BETWEEN 12 AND 107),
     CONSTRAINT patients_pkey PRIMARY KEY (patient_id),
     CONSTRAINT fk_patients_household FOREIGN KEY (household_id)

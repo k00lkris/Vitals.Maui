@@ -956,6 +956,42 @@ public class ApiService
     }
 
     /// <summary>
+    /// Persists which patient profiles remain active when the household is
+    /// above its effective plan capacity. Unselected profiles are preserved
+    /// server-side and returned as entitlement-locked until capacity is
+    /// restored.
+    /// </summary>
+    public async Task<HouseholdEntitlement?> SelectActivePatientsAsync(
+        IEnumerable<string> patientIds)
+    {
+        try
+        {
+            var payload = new { patient_ids = patientIds.Distinct().ToArray() };
+            var json = JsonSerializer.Serialize(payload, _jsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var response = await _http.PostAsync("/api/household/patient-access", content);
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== PATIENT ACCESS SELECTION: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode) return null;
+
+            using var document = JsonDocument.Parse(raw);
+            if (!document.RootElement.TryGetProperty("entitlement", out var entitlement))
+                return null;
+
+            return JsonSerializer.Deserialize<HouseholdEntitlement>(
+                entitlement.GetRawText(), _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== PATIENT ACCESS SELECTION ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Same "{detail: ...}" parsing AuthService uses for its own errors —
     /// duplicated here (not shared) since ApiService and AuthService use
     /// separate HttpClients and neither currently depends on the other.
@@ -1186,6 +1222,12 @@ public class HouseholdEntitlement
 
     [JsonPropertyName("patient_count")]
     public int PatientCount { get; set; }
+
+    [JsonPropertyName("active_patient_count")]
+    public int ActivePatientCount { get; set; }
+
+    [JsonPropertyName("locked_patient_count")]
+    public int LockedPatientCount { get; set; }
 
     [JsonPropertyName("trial_started_at")]
     public DateTimeOffset? TrialStartedAt { get; set; }

@@ -33,21 +33,14 @@ public static class AppNavigation
     }
 
     /// <summary>
-    /// Routes to onboarding or AppShell based on what the authentication
-    /// endpoint actually said about the account (AuthService.IsNewUser),
-    /// not which provider/button the user chose. Google, Apple, and
-    /// email/password all converge here after a successful authentication.
-    ///
-    /// Always resets PatientStateService first. It's a Singleton (lives
-    /// for the whole app process), so without this, signing in as a
-    /// different account without an app restart would keep showing
-    /// whichever household's patients were already cached from a previous
-    /// session — the auth identity would correctly switch, but the visible
-    /// data wouldn't. Resetting costs one extra API re-fetch even when it
-    /// turns out to be the same account; not resetting risks showing one
-    /// household's data under a different one's identity.
+    /// Routes after authentication using the server-authoritative entitlement
+    /// before exposing the main shell. An over-capacity downgrade must be
+    /// resolved first so the app never silently chooses which patients stay
+    /// active.
     /// </summary>
-    public static void RouteAfterAuth(bool isNewUser, PatientStateService patientState)
+    public static async Task RouteAfterAuthAsync(
+        bool isNewUser,
+        PatientStateService patientState)
     {
         patientState.Reset();
 
@@ -55,46 +48,46 @@ public static class AppNavigation
         {
             var welcomeVm = Application.Current!.Handler.MauiContext!
                 .Services.GetService<Vitals.Maui.ViewModels.OnboardingWelcomeViewModel>()!;
-            SetRootPage(new NavigationPage(new Vitals.Maui.Views.OnboardingWelcomePage(welcomeVm)));
+            SetRootPage(new NavigationPage(
+                new Vitals.Maui.Views.OnboardingWelcomePage(welcomeVm)));
+            return;
         }
-        else
+
+        // Existing accounts never went through this onboarding flow at all.
+        Preferences.Set("onboarding_complete", true);
+
+        var services = Application.Current!.Handler.MauiContext!.Services;
+        var entitlements = services.GetService<EntitlementService>()!;
+        var entitlement = await entitlements.RefreshAsync();
+
+        if (entitlement?.RequiresBasicPatientSelection == true)
         {
-            // Existing accounts never went through this onboarding flow at
-            // all — without this, they'd default to onboarding_complete =
-            // false and wrongly get the "Welcome back, finish setup?"
-            // prompt on their next launch for something they never started.
-            Preferences.Set("onboarding_complete", true);
-
-            // DashboardPage/DashboardViewModel (like every main app page)
-            // are registered as Singletons — sensible for normal tab
-            // navigation within one session, but it means the "new"
-            // AppShell being constructed here still wraps the SAME
-            // long-lived Dashboard instance that was already showing the
-            // previous account's data. patientState.Reset() above clears
-            // the shared state correctly, but nothing then asks Dashboard
-            // to re-read it — OnAppearing isn't guaranteed to refire for a
-            // Singleton page being re-parented into a brand-new Shell.
-            // Force the reload explicitly here instead of depending on
-            // that page-lifecycle timing.
-            var dashboardVm = Application.Current!.Handler.MauiContext!
-                .Services.GetService<Vitals.Maui.ViewModels.DashboardViewModel>()!;
-            _ = dashboardVm.LoadAsync();
-
-            // Same underlying issue as Dashboard — SettingsViewModel is
-            // also a Singleton, and its DisplayName/Email are computed
-            // pass-throughs to AuthService with no automatic change
-            // notification. Without this, Settings would keep showing
-            // whichever account first used this device, indefinitely,
-            // regardless of who's actually signed in now.
-            var settingsVm = Application.Current!.Handler.MauiContext!
-                .Services.GetService<Vitals.Maui.ViewModels.SettingsViewModel>()!;
-            settingsVm.RefreshAccountInfo();
-
-            var entitlements = Application.Current!.Handler.MauiContext!
-                .Services.GetService<EntitlementService>()!;
-            _ = entitlements.RefreshAsync();
-
-            SetRootPage(new Vitals.Maui.AppShell(patientState));
+            var selectionPage = services.GetService<Vitals.Maui.Views.PatientAccessSelectionPage>()!;
+            SetRootPage(new NavigationPage(selectionPage));
+            return;
         }
+
+        ShowMainShell(patientState);
     }
+
+    /// <summary>
+    /// Enters the normal authenticated shell after all required entitlement
+    /// transitions are resolved. Also refreshes long-lived singleton view
+    /// models that may still contain the previous account's state.
+    /// </summary>
+    public static void ShowMainShell(PatientStateService patientState)
+    {
+        var services = Application.Current!.Handler.MauiContext!.Services;
+
+        var dashboardVm = services
+            .GetService<Vitals.Maui.ViewModels.DashboardViewModel>()!;
+        _ = dashboardVm.LoadAsync();
+
+        var settingsVm = services
+            .GetService<Vitals.Maui.ViewModels.SettingsViewModel>()!;
+        settingsVm.RefreshAccountInfo();
+
+        SetRootPage(new Vitals.Maui.AppShell(patientState));
+    }
+
 }

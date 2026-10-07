@@ -27,14 +27,21 @@ public partial class PatientStateService : ObservableObject
             var list = await _api.GetPatientsAsync();
             if (list is null || !list.Any()) return;
 
-            Patients = list;
+            // The API still returns locked profiles so the dedicated plan
+            // selection screen can show them, but normal app navigation only
+            // exposes currently active patients. When capacity is restored,
+            // the API reports those same rows as unlocked and they naturally
+            // reappear here on the next refresh.
+            Patients = list.Where(p => !p.IsEntitlementLocked).ToList();
+            if (!Patients.Any()) return;
 
             var lastId = Preferences.Get("last_patient_id", string.Empty);
 
             if (!string.IsNullOrEmpty(lastId))
-                SelectedPatient = Patients.FirstOrDefault(p => p.PatientId == lastId);
+                SelectedPatient = Patients.FirstOrDefault(
+                    p => p.PatientId == lastId && !p.IsEntitlementLocked);
 
-            SelectedPatient ??= Patients.FirstOrDefault();
+            SelectedPatient ??= Patients.FirstOrDefault(p => !p.IsEntitlementLocked);
         }
         catch (Exception ex)
         {
@@ -63,7 +70,11 @@ public partial class PatientStateService : ObservableObject
         Patients = list;
 
         if (wasSelected)
-            SelectedPatient = updated;
+        {
+            SelectedPatient = updated.IsEntitlementLocked
+                ? list.FirstOrDefault(p => !p.IsEntitlementLocked)
+                : updated;
+        }
     }
 
     /// <summary>

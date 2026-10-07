@@ -176,38 +176,77 @@ def check_key(key):
 # --------------------
 # Household ownership check
 # --------------------
+def _raise_if_patient_entitlement_locked(
+    cur,
+    household_id: str,
+    stored_entitlement_locked: bool,
+):
+    """
+    Enforces the over-capacity transition before any patient-scoped read or
+    write. While a household still needs to choose which profiles remain
+    active, no patient is silently chosen on its behalf. After selection,
+    only the persisted locked profiles are denied.
+
+    Stored locks apply only while the household is above its CURRENT effective
+    plan capacity, so upgrading immediately restores every profile without
+    deleting or rewriting clinical data.
+    """
+    entitlement = get_household_entitlement(cur, household_id)
+
+    if entitlement["requires_basic_patient_selection"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Choose which patients to keep active before continuing."
+        )
+
+    patient_limit = entitlement["patient_limit"]
+    if (
+        stored_entitlement_locked
+        and patient_limit is not None
+        and entitlement["patient_count"] > patient_limit
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="This patient is locked by your current plan. Choose an active patient or upgrade to restore access."
+        )
+
+
 def verify_patient_household(cur, patient_id: str, household_id: str):
     """
-    Confirms patient_id actually belongs to household_id before any read or
-    write proceeds. Without this, any authenticated caller — mobile JWT or
-    the shared legacy API key both — could read or modify any OTHER
-    household's patient data just by passing a different patient_id, since
-    check_key() only validates the static API key and never checked which
-    household a patient_id actually belongs to. Call this right after
-    opening the cursor, before the endpoint's main query.
+    Confirms patient_id belongs to household_id and is available under the
+    household's current entitlement before a patient-scoped read/write.
     """
     cur.execute(
-        "SELECT 1 FROM patients WHERE patient_id = %s AND household_id = %s",
+        """
+        SELECT entitlement_locked
+        FROM patients
+        WHERE patient_id = %s AND household_id = %s
+        """,
         (patient_id, household_id)
     )
-    if cur.fetchone() is None:
+    row = cur.fetchone()
+    if row is None:
         raise HTTPException(status_code=403, detail="Patient not found in your household")
+
+    _raise_if_patient_entitlement_locked(cur, household_id, bool(row[0]))
 
 
 def verify_child_record_household(cur, table: str, id_column: str, record_id: str, household_id: str):
     """
-    Same idea as verify_patient_household, but for endpoints that take a
-    child record's own id (medication_id, allergy_id, visit_id,
-    incident_id, note_id) rather than a patient_id directly — joins through
-    to patients to find which household actually owns it.
+    Same check for endpoints addressed by a child record id rather than
+    patient_id directly.
     """
     cur.execute(f"""
-        SELECT 1 FROM {table} t
+        SELECT p.entitlement_locked
+        FROM {table} t
         JOIN patients p ON p.patient_id = t.patient_id
         WHERE t.{id_column} = %s AND p.household_id = %s
     """, (record_id, household_id))
-    if cur.fetchone() is None:
+    row = cur.fetchone()
+    if row is None:
         raise HTTPException(status_code=403, detail="Record not found in your household")
+
+    _raise_if_patient_entitlement_locked(cur, household_id, bool(row[0]))
 
 # --------------------
 # Validation
@@ -313,6 +352,9 @@ class PatientOut(BaseModel):
     dob: Optional[date]
     gender: Optional[str]
     height_inches: Optional[int]
+    # True only while this household is above its current effective patient
+    # capacity and this profile was not selected to remain active.
+    is_entitlement_locked: bool = False
 
 class PatientDemographicsUpdate(BaseModel):
     gender: Optional[str] = None
@@ -532,6 +574,11 @@ class HouseholdTierRequest(BaseModel):
     # otherwise. "individual"/"free" are accepted temporarily by the
     # endpoint for backward compatibility and normalized server-side.
     tier: str  # "standard" | "family" | "trial"
+
+class PatientAccessSelectionRequest(BaseModel):
+    # Patient profiles that should remain active while this household is
+    # above its current effective plan capacity.
+    patient_ids: list[str]
 
 # --------------------
 # Utility functions
@@ -4967,8 +5014,26 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     # limit of 5 must not survive an effective fallback to Basic.
     resolved_patient_limit = effective_patient_limit(effective_plan, patient_limit)
 
-    cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
-    patient_count = cur.fetchone()[0]
+    cur.execute("""
+        SELECT
+            COUNT(*) AS patient_count,
+            COUNT(*) FILTER (WHERE entitlement_locked = false) AS stored_unlocked_count,
+            COUNT(*) FILTER (WHERE entitlement_locked = true) AS stored_locked_count
+        FROM patients
+        WHERE household_id = %s
+    """, (household_id,))
+    patient_count, stored_unlocked_count, stored_locked_count = cur.fetchone()
+
+    lock_enforcement_required = (
+        resolved_patient_limit is not None
+        and patient_count > resolved_patient_limit
+    )
+    active_patient_count = (
+        stored_unlocked_count if lock_enforcement_required else patient_count
+    )
+    locked_patient_count = (
+        stored_locked_count if lock_enforcement_required else 0
+    )
 
     household_role = "member"
     if user_id:
@@ -5016,6 +5081,8 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
         "is_unlimited": is_permanent_complimentary,
         "patient_limit": resolved_patient_limit,
         "patient_count": patient_count,
+        "active_patient_count": active_patient_count,
+        "locked_patient_count": locked_patient_count,
         "trial_started_at": trial_started_at,
         "trial_ends_at": trial_ends_at,
         "legacy_trial": legacy_trial,
@@ -5033,8 +5100,8 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
         "can_start_purchase": can_start_purchase,
         "can_manage_billing": can_manage_billing,
         "requires_basic_patient_selection": (
-            (trial_expired or subscription_expired or grace_expired)
-            and patient_count > 2
+            lock_enforcement_required
+            and active_patient_count != resolved_patient_limit
         ),
     }
 
@@ -5688,6 +5755,9 @@ def get_vital_record(
     conn = get_conn()
     cur = conn.cursor()
     try:
+        verify_child_record_household(
+            cur, "vitals", "vital_id", vital_id, household_id
+        )
         cur.execute("""
             SELECT
                 v.vital_id, v.patient_id, v.recorded_at, v.local_offset_minutes,
@@ -5770,6 +5840,7 @@ def update_vital_record(
             raise HTTPException(status_code=404, detail="Vital record not found")
 
         old_patient_id = str(existing[0])
+        verify_patient_household(cur, old_patient_id, household_id)
         verify_patient_household(cur, vital.patient_id, household_id)
 
         # The correction endpoint accepts a complete editable representation
@@ -5923,6 +5994,7 @@ def delete_vital_record(
             raise HTTPException(status_code=404, detail="Vital record not found")
 
         patient_id = str(existing[0])
+        verify_patient_household(cur, patient_id, household_id)
 
         # Explicitly remove context first. glucose_context already cascades,
         # but heart_rate_context does not; doing both here keeps the behavior
@@ -5974,7 +6046,8 @@ def list_patients(
         # mistakenly confirm "this is me" on a patient that's already
         # someone else's own identity.
         cur.execute("""
-            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender, p.height_inches
+            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender, p.height_inches,
+                   p.entitlement_locked
             FROM patients p
             WHERE p.household_id = %s
               AND NOT EXISTS (
@@ -5993,7 +6066,8 @@ def list_patients(
         # naturally lands on the right patient for whoever's logged in,
         # without any client-side change.
         cur.execute("""
-            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender, p.height_inches
+            SELECT p.patient_id, p.first_name, p.last_name, p.dob, p.gender, p.height_inches,
+                   p.entitlement_locked
             FROM patients p
             LEFT JOIN patient_users pu
                 ON pu.patient_id = p.patient_id
@@ -6004,9 +6078,15 @@ def list_patients(
         """, (caller_user_id, household_id))
 
     rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return [
+
+    entitlement = get_household_entitlement(cur, household_id)
+    patient_limit = entitlement["patient_limit"]
+    enforce_locks = (
+        patient_limit is not None
+        and entitlement["patient_count"] > patient_limit
+    )
+
+    patients = [
         {
             "patient_id": r[0],
             "first_name": r[1],
@@ -6014,9 +6094,17 @@ def list_patients(
             "dob": r[3],
             "gender": r[4],
             "height_inches": r[5],
+            "is_entitlement_locked": bool(enforce_locks and r[6]),
         }
         for r in rows
     ]
+
+    if exclude_self_claimed:
+        patients = [p for p in patients if not p["is_entitlement_locked"]]
+
+    cur.close()
+    conn.close()
+    return patients
 
 @app.post("/api/patients", response_model=PatientOut)
 def create_patient(
@@ -6408,12 +6496,7 @@ def claim_patient(
     conn = get_conn()
     cur = conn.cursor()
     try:
-        cur.execute(
-            "SELECT 1 FROM patients WHERE patient_id = %s AND household_id = %s",
-            (patient_id, household_id)
-        )
-        if not cur.fetchone():
-            raise HTTPException(status_code=404, detail="Patient not found in your household")
+        verify_patient_household(cur, patient_id, household_id)
 
         cur.execute(
             "SELECT 1 FROM patient_users WHERE patient_id = %s AND relationship = 'self'",
@@ -12087,8 +12170,8 @@ def get_household_entitlement_status(
 ):
     """
     Returns the single household-level commercial entitlement snapshot used
-    by Phase 7 clients. This endpoint is informational in 0.7.1b; feature
-    gates and automatic downgrade transitions are added in later components.
+    by Phase 7 clients. Over-capacity downgrades now use this state to require
+    an explicit active-patient selection before patient-scoped access resumes.
     """
     if auth.get("type") == "api_key":
         raise HTTPException(status_code=401, detail="This requires a signed-in account")
@@ -12097,6 +12180,102 @@ def get_household_entitlement_status(
     cur = conn.cursor()
     try:
         return get_household_entitlement(cur, household_id, auth.get("sub"))
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.post("/api/household/patient-access")
+def select_household_patient_access(
+    body: PatientAccessSelectionRequest,
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    """
+    Chooses which patient profiles remain active when a finite plan has fewer
+    slots than the household already contains. No patient or clinical data is
+    deleted.
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="This requires a signed-in account")
+
+    user_id = auth.get("sub")
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        entitlement = get_household_entitlement(cur, household_id, user_id)
+        if not entitlement["can_manage_household"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Only a household owner or manager can choose active patients."
+            )
+
+        patient_limit = entitlement["patient_limit"]
+        patient_count = entitlement["patient_count"]
+        if patient_limit is None or patient_count <= patient_limit:
+            raise HTTPException(
+                status_code=400,
+                detail="This household does not currently require a patient selection."
+            )
+
+        selected_ids = list(dict.fromkeys(
+            (patient_id or "").strip()
+            for patient_id in body.patient_ids
+            if (patient_id or "").strip()
+        ))
+
+        if len(selected_ids) != patient_limit:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Choose exactly {patient_limit} patients to keep active."
+            )
+
+        try:
+            selected_ids = [str(UUID(patient_id)) for patient_id in selected_ids]
+        except Exception:
+            raise HTTPException(status_code=400, detail="One or more patient ids are invalid.")
+
+        cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM patients
+            WHERE household_id = %s
+              AND patient_id = ANY(%s::uuid[])
+            """,
+            (household_id, selected_ids),
+        )
+        if cur.fetchone()[0] != len(selected_ids):
+            raise HTTPException(
+                status_code=400,
+                detail="One or more selected patients do not belong to this household."
+            )
+
+        cur.execute(
+            """
+            UPDATE patients
+            SET entitlement_locked = NOT (patient_id = ANY(%s::uuid[])),
+                entitlement_locked_at = CASE
+                    WHEN patient_id = ANY(%s::uuid[]) THEN NULL
+                    ELSE COALESCE(entitlement_locked_at, now())
+                END
+            WHERE household_id = %s
+            """,
+            (selected_ids, selected_ids, household_id),
+        )
+        conn.commit()
+
+        refreshed = get_household_entitlement(cur, household_id, user_id)
+        return {
+            "status": "updated",
+            "selected_patient_ids": selected_ids,
+            "entitlement": refreshed,
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f"Patient access update failed: {e}")
     finally:
         cur.close()
         conn.close()

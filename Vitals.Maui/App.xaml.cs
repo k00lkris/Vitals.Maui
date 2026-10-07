@@ -65,6 +65,12 @@ namespace Vitals.Maui
                                     .Services.GetService<OnboardingResumePromptViewModel>()!;
                                 window.Page = new OnboardingResumePromptPage(resumeVm);
                             }
+                            else if (_entitlements.RequiresBasicPatientSelection)
+                            {
+                                var selectionPage = Application.Current!.Handler!.MauiContext!
+                                    .Services.GetService<PatientAccessSelectionPage>()!;
+                                window.Page = new NavigationPage(selectionPage);
+                            }
                             else
                             {
                                 window.Page = new AppShell(_patientState);

@@ -42,7 +42,7 @@ public partial class LoginViewModel : ObservableObject
 
             if (success)
             {
-                AppNavigation.RouteAfterAuth(_auth.IsNewUser, _patientState);
+                await AppNavigation.RouteAfterAuthAsync(_auth.IsNewUser, _patientState);
             }
             else
             {
@@ -74,7 +74,7 @@ public partial class LoginViewModel : ObservableObject
 
             if (result.Success)
             {
-                AppNavigation.RouteAfterAuth(_auth.IsNewUser, _patientState);
+                await AppNavigation.RouteAfterAuthAsync(_auth.IsNewUser, _patientState);
             }
             else if (!result.Cancelled)
             {
@@ -115,7 +115,7 @@ public partial class LoginViewModel : ObservableObject
 
             if (result.Success)
             {
-                AppNavigation.RouteAfterAuth(_auth.IsNewUser, _patientState);
+                await AppNavigation.RouteAfterAuthAsync(_auth.IsNewUser, _patientState);
             }
             else
             {
