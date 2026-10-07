@@ -4858,6 +4858,11 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     subscription_status = (subscription_status or "basic").lower()
 
     is_founder = tier == "founder"
+    effective_patient_limit = (
+        None
+        if is_founder
+        else (patient_limit if patient_limit is not None else 2)
+    )
     legacy_trial = subscription_status == "trial" and trial_ends_at is None
     trial_active = (
         subscription_status == "trial"
@@ -4947,10 +4952,14 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     is_billing_owner = bool(caller_id and billing_owner_id == caller_id)
     can_manage_household = is_household_manager
     can_start_purchase = is_household_manager and billing_owner_id is None and not is_founder
+    # Apple/Google store billing belongs to the account that made the
+    # purchase. Household ownership can transfer without transferring the
+    # underlying store subscription, so only the billing owner can manage
+    # that store purchase.
     can_manage_billing = bool(
         not is_founder
         and caller_id
-        and (is_billing_owner or is_household_owner)
+        and is_billing_owner
         and billing_owner_id is not None
     )
 
@@ -4961,8 +4970,8 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
         "access_state": access_state,
         "has_premium_access": has_premium_access,
         "is_founder": is_founder,
-        "is_unlimited": patient_limit is None,
-        "patient_limit": patient_limit,
+        "is_unlimited": is_founder,
+        "patient_limit": effective_patient_limit,
         "patient_count": patient_count,
         "trial_started_at": trial_started_at,
         "trial_ends_at": trial_ends_at,
