@@ -264,10 +264,12 @@ CREATE TABLE IF NOT EXISTS public.households
     household_id uuid NOT NULL DEFAULT gen_random_uuid(),
     name text COLLATE pg_catalog."default" NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
+    -- trial | basic | standard | family | founder | beta
     tier text COLLATE pg_catalog."default",
     subscription_status text COLLATE pg_catalog."default" NOT NULL DEFAULT 'trial'::text,
     trial_started_at timestamp with time zone,
     trial_ends_at timestamp with time zone,
+    -- NULL means unlimited only for permanent complimentary Founder/Beta households.
     patient_limit integer DEFAULT 2,
     owner_user_id uuid,
     billing_owner_user_id uuid,
