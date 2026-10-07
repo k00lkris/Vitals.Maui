@@ -267,6 +267,7 @@ CREATE TABLE IF NOT EXISTS public.households
     tier text COLLATE pg_catalog."default",
     subscription_status text COLLATE pg_catalog."default" NOT NULL DEFAULT 'trial'::text,
     trial_started_at timestamp with time zone,
+    trial_ends_at timestamp with time zone,
     patient_limit integer NOT NULL DEFAULT 2,
     CONSTRAINT households_pkey PRIMARY KEY (household_id)
 )

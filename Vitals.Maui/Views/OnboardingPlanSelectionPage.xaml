@@ -21,31 +21,31 @@
                     HeightRequest="44"
                     Padding="0" />
 
-            <Label Text="Choose your plan"
+            <Label Text="Choose a plan — or decide later"
                    FontSize="26"
                    FontAttributes="Bold"
                    TextColor="{StaticResource VitalsBlueTextPrimary}"
                    HorizontalOptions="Center" />
 
-            <Label Text="Every plan includes a free 30-day trial (up to 2 patients). No payment happens today. Tap a plan to select it, then Continue."
+            <Label Text="Every new household gets 30 days of full Vitals access for up to 5 people. No payment method is required today. Choose the plan you expect to use, or decide later."
                    FontSize="13"
                    TextColor="{StaticResource VitalsBlueTextMuted}"
                    HorizontalOptions="Center"
                    HorizontalTextAlignment="Center"
                    Margin="16,0,16,8" />
 
-            <!-- Individual -->
+            <!-- Standard -->
             <Border Padding="18"
-                    BackgroundColor="{Binding IndividualCardBackground}"
+                    BackgroundColor="{Binding StandardCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{Binding IndividualCardColor}"
+                    Stroke="{Binding StandardCardColor}"
                     StrokeThickness="2">
                 <Border.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding SelectIndividualCommand}" />
+                    <TapGestureRecognizer Command="{Binding SelectStandardCommand}" />
                 </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="4">
-                    <Label Text="Individual" FontSize="18" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" />
-                    <Label Text="$10/mo or $89/yr — track up to 2 people" FontSize="14" TextColor="{StaticResource VitalsBlueTextSecondary}" />
+                    <Label Text="Standard" FontSize="18" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" />
+                    <Label Text="$10/mo or $89/yr — full Vitals access for up to 2 people" FontSize="14" TextColor="{StaticResource VitalsBlueTextSecondary}" />
                 </VerticalStackLayout>
             </Border>
 
@@ -64,18 +64,18 @@
                 </VerticalStackLayout>
             </Border>
 
-            <!-- Free -->
+            <!-- Decide Later / Full Trial -->
             <Border Padding="18"
-                    BackgroundColor="{Binding FreeCardBackground}"
+                    BackgroundColor="{Binding TrialCardBackground}"
                     StrokeShape="RoundRectangle 12"
-                    Stroke="{Binding FreeCardColor}"
+                    Stroke="{Binding TrialCardColor}"
                     StrokeThickness="2">
                 <Border.GestureRecognizers>
-                    <TapGestureRecognizer Command="{Binding SelectFreeCommand}" />
+                    <TapGestureRecognizer Command="{Binding SelectTrialCommand}" />
                 </Border.GestureRecognizers>
                 <VerticalStackLayout Spacing="4">
-                    <Label Text="Free" FontSize="18" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" />
-                    <Label Text="No card required — 2 patients for 30 days, then a limited free version" FontSize="14" TextColor="{StaticResource VitalsBlueTextSecondary}" />
+                    <Label Text="Decide Later" FontSize="18" FontAttributes="Bold" TextColor="{StaticResource VitalsBlueTextPrimary}" />
+                    <Label Text="Start your 30-day full-access trial now. No payment method required — choose Standard or Family anytime during the trial." FontSize="14" TextColor="{StaticResource VitalsBlueTextSecondary}" />
                 </VerticalStackLayout>
             </Border>
 

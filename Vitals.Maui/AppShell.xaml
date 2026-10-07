@@ -133,7 +133,7 @@
     <!-- Flyout Footer -->
     <Shell.FlyoutFooter>
         <Grid Padding="24,16" BackgroundColor="#0f3460">
-            <Label Text="Vitals v0.69 alpha"
+            <Label Text="Vitals v0.7.1a"
                FontSize="11"
                TextColor="#666666"
                HorizontalOptions="Center" />

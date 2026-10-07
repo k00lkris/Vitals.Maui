@@ -527,7 +527,11 @@ class HouseholdJoinRequest(BaseModel):
     invite_code: str
 
 class HouseholdTierRequest(BaseModel):
-    tier: str  # "individual" | "family" | "free"
+    # Phase 7 onboarding records plan intent only. Access remains a full
+    # 30-day household trial until billing/entitlement enforcement decides
+    # otherwise. "individual"/"free" are accepted temporarily by the
+    # endpoint for backward compatibility and normalized server-side.
+    tier: str  # "standard" | "family" | "trial"
 
 # --------------------
 # Utility functions
@@ -11913,17 +11917,27 @@ def cancel_household_invite(
 @app.post("/api/household/select-tier")
 def select_household_tier(body: HouseholdTierRequest, auth: dict = Depends(get_auth)):
     """
-    Creates the household and attaches it to the caller — this is what
-    actually creates a household now, not registration. Called from the
-    plan-selection CTA (Individual / Family / Free) that runs before
-    Personalization. Tier is recorded as intent only; no billing happens
-    here (Stripe integration is Phase 7) — this just makes sure Phase 7
-    has a real tier value to work from instead of having to backfill one.
+    Creates the household and attaches it to the caller.
+
+    Phase 7 changes the commercial model: every newly-created household
+    receives one ungated 30-day full-access trial with capacity for up to
+    five patients, regardless of whether the user expresses Standard or
+    Family intent today. Choosing "trial" means "decide later" — it does
+    not create a different or reduced trial.
+
+    The tier column is plan intent during the trial. subscription_status
+    remains the access-state source of truth and is set to "trial".
     """
     if auth.get("type") == "api_key":
         raise HTTPException(status_code=401, detail="This requires a signed-in account")
 
-    if body.tier not in ("individual", "family", "free"):
+    requested_tier = (body.tier or "").strip().lower()
+    normalized_tier = {
+        "individual": "standard",  # backward compatibility with alpha 0.69
+        "free": "trial",           # backward compatibility with alpha 0.69
+    }.get(requested_tier, requested_tier)
+
+    if normalized_tier not in ("standard", "family", "trial"):
         raise HTTPException(status_code=400, detail="Invalid tier")
 
     user_id = auth.get("sub")
@@ -11939,25 +11953,38 @@ def select_household_tier(body: HouseholdTierRequest, auth: dict = Depends(get_a
             raise HTTPException(status_code=404, detail="Account not found")
         display_name, email = row
 
-        # Family gets its real capacity immediately — no billing has
-        # happened yet regardless of tier (Phase 7), so there's no reason
-        # to artificially withhold Family's 5-patient allowance just
-        # because payment collection isn't wired up yet.
-        patient_limit = 5 if body.tier == "family" else 2
+        # All Phase 7 trials expose the full product and therefore allow up
+        # to five patients. Paid/Basic limits are enforced only when the
+        # household leaves the trial state.
+        patient_limit = 5
 
         household_name = f"{display_name}'s Household" if display_name else "New Household"
         cur.execute("""
-            INSERT INTO households (name, tier, subscription_status, trial_started_at, patient_limit, created_at)
-            VALUES (%s, %s, 'trial', now(), %s, now())
-            RETURNING household_id;
-        """, (household_name, body.tier, patient_limit))
-        household_id = str(cur.fetchone()[0])
+            INSERT INTO households (
+                name, tier, subscription_status,
+                trial_started_at, trial_ends_at,
+                patient_limit, created_at
+            )
+            VALUES (%s, %s, 'trial', now(), now() + interval '30 days', %s, now())
+            RETURNING household_id, trial_ends_at;
+        """, (household_name, normalized_tier, patient_limit))
+        created = cur.fetchone()
+        household_id = str(created[0])
+        trial_ends_at = created[1]
 
         cur.execute("UPDATE users SET household_id = %s WHERE user_id = %s", (household_id, user_id))
         conn.commit()
 
         token = create_jwt(user_id, household_id, email)
-        return {"status": "created", "household_id": household_id, "tier": body.tier, "token": token}
+        return {
+            "status": "created",
+            "household_id": household_id,
+            "tier": normalized_tier,
+            "subscription_status": "trial",
+            "trial_ends_at": trial_ends_at,
+            "patient_limit": patient_limit,
+            "token": token,
+        }
     except HTTPException:
         conn.rollback()
         raise
