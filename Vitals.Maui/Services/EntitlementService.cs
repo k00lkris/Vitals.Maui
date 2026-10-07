@@ -5,10 +5,10 @@ namespace Vitals.Maui.Services;
 /// <summary>
 /// In-process cache for the server-authoritative household entitlement.
 ///
-/// 0.7.1b establishes the access-state foundation only. Pages do not gate
-/// themselves from this service yet; later Phase 7 components will consume
-/// Current/HasPremiumAccess from one place instead of duplicating plan logic
-/// across view models.
+/// Phase 7 keeps household access state centralized here. The downgrade
+/// patient-selection flow now consumes this service directly; later feature
+/// gates can continue using Current/HasPremiumAccess without duplicating
+/// commercial-plan logic across view models.
 /// </summary>
 public partial class EntitlementService : ObservableObject
 {
