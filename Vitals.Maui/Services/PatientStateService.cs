@@ -32,9 +32,10 @@ public partial class PatientStateService : ObservableObject
             var lastId = Preferences.Get("last_patient_id", string.Empty);
 
             if (!string.IsNullOrEmpty(lastId))
-                SelectedPatient = Patients.FirstOrDefault(p => p.PatientId == lastId);
+                SelectedPatient = Patients.FirstOrDefault(
+                    p => p.PatientId == lastId && !p.IsEntitlementLocked);
 
-            SelectedPatient ??= Patients.FirstOrDefault();
+            SelectedPatient ??= Patients.FirstOrDefault(p => !p.IsEntitlementLocked);
         }
         catch (Exception ex)
         {
@@ -63,7 +64,11 @@ public partial class PatientStateService : ObservableObject
         Patients = list;
 
         if (wasSelected)
-            SelectedPatient = updated;
+        {
+            SelectedPatient = updated.IsEntitlementLocked
+                ? list.FirstOrDefault(p => !p.IsEntitlementLocked)
+                : updated;
+        }
     }
 
     /// <summary>
