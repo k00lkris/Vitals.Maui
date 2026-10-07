@@ -432,6 +432,10 @@ public partial class SettingsViewModel : ObservableObject
         _auth.SignOut();
         _patientState.Reset();
 
+        var entitlements = Application.Current!.Handler.MauiContext!
+            .Services.GetService<EntitlementService>()!;
+        entitlements.Reset();
+
         var loginVm = Application.Current!.Handler.MauiContext!
             .Services.GetService<LoginViewModel>()!;
 
