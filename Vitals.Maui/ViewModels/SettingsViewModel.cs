@@ -15,6 +15,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly AuthService _auth;
     private readonly PatientStateService _patientState;
     private readonly ApiService _api;
+    private readonly EntitlementService _entitlements;
     private readonly SemaphoreSlim _preferenceSaveLock = new(1, 1);
     private bool _suppressPreferenceSave;
 
@@ -48,6 +49,7 @@ public partial class SettingsViewModel : ObservableObject
 
     public string DisplayName => _auth.DisplayName ?? "Unknown";
     public string Email => _auth.Email ?? "";
+    public bool CanManageHousehold => _entitlements.CanManageHousehold;
 
     // Maps the raw backend value ("password", "google.com", "apple.com")
     // to what's actually shown on screen — same computed pass-through
@@ -70,12 +72,23 @@ public partial class SettingsViewModel : ObservableObject
         UserPreferencesService preferences,
         AuthService auth,
         PatientStateService patientState,
-        ApiService api)
+        ApiService api,
+        EntitlementService entitlements)
     {
         _preferences = preferences;
         _auth = auth;
         _patientState = patientState;
         _api = api;
+        _entitlements = entitlements;
+
+        _entitlements.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName is nameof(EntitlementService.Current)
+                or nameof(EntitlementService.CanManageHousehold))
+            {
+                OnPropertyChanged(nameof(CanManageHousehold));
+            }
+        };
 
         _patientState.PropertyChanged += async (s, e) =>
         {
@@ -105,6 +118,7 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(DisplayName));
         OnPropertyChanged(nameof(Email));
         OnPropertyChanged(nameof(AuthProviderDisplay));
+        OnPropertyChanged(nameof(CanManageHousehold));
     }
 
     private void LoadPreferences()
@@ -115,6 +129,8 @@ public partial class SettingsViewModel : ObservableObject
 
     public async Task LoadAsync()
     {
+        await _entitlements.RefreshAsync();
+        OnPropertyChanged(nameof(CanManageHousehold));
         await _patientState.InitializeAsync();
         await LoadSelectedPatientAsync();
     }
@@ -414,6 +430,15 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     async Task OpenHouseholdInviteAsync()
     {
+        if (!CanManageHousehold)
+        {
+            await Shell.Current.DisplayAlert(
+                "Household Management",
+                "Your current household role and plan do not allow you to manage household members.",
+                "OK");
+            return;
+        }
+
         var inviteVm = Application.Current!.Handler.MauiContext!
             .Services.GetService<HouseholdInviteViewModel>()!;
         await Shell.Current.Navigation.PushAsync(new HouseholdInvitePage(inviteVm));
