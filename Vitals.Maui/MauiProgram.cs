@@ -49,6 +49,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ApiService>();
         builder.Services.AddSingleton<UserPreferencesService>();
         builder.Services.AddSingleton<PatientStateService>();
+        builder.Services.AddSingleton<EntitlementService>();
         builder.Services.AddSingleton<AppShell>();
 
 

@@ -90,6 +90,10 @@ public static class AppNavigation
                 .Services.GetService<Vitals.Maui.ViewModels.SettingsViewModel>()!;
             settingsVm.RefreshAccountInfo();
 
+            var entitlements = Application.Current!.Handler.MauiContext!
+                .Services.GetService<EntitlementService>()!;
+            _ = entitlements.RefreshAsync();
+
             SetRootPage(new Vitals.Maui.AppShell(patientState));
         }
     }

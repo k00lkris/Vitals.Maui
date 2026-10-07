@@ -21,7 +21,7 @@
                            FontSize="18" FontAttributes="Bold"
                            TextColor="{DynamicResource TextPrimary}" />
 
-                    <Label Text="{Binding AvailableSlots, StringFormat='{0} patient slot(s) available for new invites'}"
+                    <Label Text="{Binding SlotSummary}"
                            FontSize="13"
                            TextColor="{DynamicResource TextMuted}" />
 

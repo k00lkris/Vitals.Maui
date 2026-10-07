@@ -8,6 +8,7 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
 {
     private readonly ApiService _api;
     private readonly AuthService _auth;
+    private readonly EntitlementService _entitlements;
 
     // Wired by the page's code-behind.
     public Action? OnBack { get; set; }
@@ -38,10 +39,14 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
 
-    public OnboardingPlanSelectionViewModel(ApiService api, AuthService auth)
+    public OnboardingPlanSelectionViewModel(
+        ApiService api,
+        AuthService auth,
+        EntitlementService entitlements)
     {
         _api = api;
         _auth = auth;
+        _entitlements = entitlements;
     }
 
     [RelayCommand]
@@ -105,6 +110,7 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
             }
 
             await _auth.UpdateSessionAsync(result.Token, result.HouseholdId);
+            await _entitlements.RefreshAsync();
 
             if (SelectedTier == "family")
             {

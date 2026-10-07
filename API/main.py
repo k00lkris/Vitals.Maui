@@ -4770,21 +4770,24 @@ def resolve_invite_household(cur, invite_code: str):
 def mark_invite_used(cur, invite_id: str):
     cur.execute("UPDATE household_invites SET used_at = now() WHERE invite_id = %s", (invite_id,))
 
-def count_reserved_slots(cur, household_id: str) -> tuple[int, int, int]:
+def count_reserved_slots(cur, household_id: str) -> tuple[Optional[int], int, int]:
     """
     Returns (patient_limit, actual_patient_count, active_pending_invite_count).
-    Every unused, unexpired invite reserves one slot against the household's
-    patient_limit — worst case, every invitee chooses "create a new
-    patient" rather than attaching to an existing one, so the primary
-    account holder can never issue more invites than the household could
-    actually accommodate if all of them were redeemed that way. An invite
-    stops reserving a slot the moment it's used, cancelled (both set
-    used_at), or naturally expires (excluded here by the expires_at check,
-    no cleanup job needed for correctness).
+
+    patient_limit=NULL means unlimited and is reserved for Founder
+    households. Every unused, unexpired invite reserves one finite slot
+    for normal households; Founder households bypass the slot check.
     """
-    cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
+    cur.execute("SELECT tier, patient_limit FROM households WHERE household_id = %s", (household_id,))
     row = cur.fetchone()
-    patient_limit = row[0] if row and row[0] is not None else 2
+    if not row:
+        raise HTTPException(status_code=404, detail="Household not found")
+    tier, stored_patient_limit = row
+    patient_limit = (
+        None
+        if (tier or "").lower() == "founder" and stored_patient_limit is None
+        else (stored_patient_limit if stored_patient_limit is not None else 2)
+    )
 
     cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
     patient_count = cur.fetchone()[0]
@@ -4796,6 +4799,201 @@ def count_reserved_slots(cur, household_id: str) -> tuple[int, int, int]:
     pending_invite_count = cur.fetchone()[0]
 
     return patient_limit, patient_count, pending_invite_count
+
+
+def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = None) -> dict:
+    """
+    Central Phase 7 entitlement calculation.
+
+    This function is deliberately read-only. 0.7.1b establishes the
+    household access-state contract without yet auto-downgrading expired
+    trials or enforcing premium gates. Later Phase 7 components will use
+    this same result to drive downgrade selection and feature gating.
+
+    Founder is permanent full access with no expiration and no patient
+    limit. Existing alpha trials that predate trial_ends_at remain active
+    until they are explicitly migrated; this avoids accidentally locking
+    current testers during the entitlement rollout.
+    """
+    cur.execute("""
+        SELECT
+            tier,
+            subscription_status,
+            trial_started_at,
+            trial_ends_at,
+            patient_limit,
+            owner_user_id,
+            billing_owner_user_id,
+            billing_provider,
+            billing_product_id,
+            subscription_started_at,
+            subscription_ends_at,
+            grace_ends_at,
+            cancel_at_period_end
+        FROM households
+        WHERE household_id = %s
+    """, (household_id,))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Household not found")
+
+    (
+        tier,
+        subscription_status,
+        trial_started_at,
+        trial_ends_at,
+        patient_limit,
+        owner_user_id,
+        billing_owner_user_id,
+        billing_provider,
+        billing_product_id,
+        subscription_started_at,
+        subscription_ends_at,
+        grace_ends_at,
+        cancel_at_period_end,
+    ) = row
+
+    now = datetime.now(timezone.utc)
+    tier = (tier or "basic").lower()
+    subscription_status = (subscription_status or "basic").lower()
+
+    is_founder = tier == "founder"
+    effective_patient_limit = (
+        None
+        if is_founder
+        else (patient_limit if patient_limit is not None else 2)
+    )
+    legacy_trial = subscription_status == "trial" and trial_ends_at is None
+    trial_active = (
+        subscription_status == "trial"
+        and (trial_ends_at is None or trial_ends_at > now)
+    )
+    trial_expired = (
+        subscription_status == "trial"
+        and trial_ends_at is not None
+        and trial_ends_at <= now
+    )
+
+    subscription_active = (
+        subscription_status == "active"
+        and tier in ("standard", "family", "founder")
+        and (
+            is_founder
+            or subscription_ends_at is None
+            or subscription_ends_at > now
+        )
+    )
+    subscription_expired = (
+        subscription_status == "active"
+        and not is_founder
+        and subscription_ends_at is not None
+        and subscription_ends_at <= now
+    )
+
+    grace_active = (
+        subscription_status == "grace"
+        and grace_ends_at is not None
+        and grace_ends_at > now
+    )
+    grace_expired = (
+        subscription_status == "grace"
+        and (grace_ends_at is None or grace_ends_at <= now)
+    )
+
+    has_premium_access = bool(
+        is_founder or trial_active or subscription_active or grace_active
+    )
+
+    if is_founder:
+        access_state = "founder"
+        effective_plan = "founder"
+    elif trial_active:
+        access_state = "trial"
+        effective_plan = "trial"
+    elif trial_expired:
+        access_state = "trial_expired"
+        effective_plan = "basic"
+    elif subscription_active:
+        access_state = "active"
+        effective_plan = tier
+    elif subscription_expired:
+        access_state = "subscription_expired"
+        effective_plan = "basic"
+    elif grace_active:
+        access_state = "grace"
+        effective_plan = tier
+    elif grace_expired:
+        access_state = "grace_expired"
+        effective_plan = "basic"
+    else:
+        access_state = "basic"
+        effective_plan = "basic"
+
+    cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
+    patient_count = cur.fetchone()[0]
+
+    household_role = "member"
+    if user_id:
+        cur.execute("""
+            SELECT household_role
+            FROM users
+            WHERE user_id = %s AND household_id = %s
+        """, (user_id, household_id))
+        role_row = cur.fetchone()
+        if role_row and role_row[0]:
+            household_role = role_row[0]
+
+    owner_id = str(owner_user_id) if owner_user_id else None
+    billing_owner_id = str(billing_owner_user_id) if billing_owner_user_id else None
+    caller_id = str(user_id) if user_id else None
+
+    is_household_owner = bool(caller_id and owner_id == caller_id)
+    is_household_manager = household_role in ("owner", "manager")
+    is_billing_owner = bool(caller_id and billing_owner_id == caller_id)
+    can_manage_household = is_household_manager
+    can_start_purchase = is_household_manager and billing_owner_id is None and not is_founder
+    # Apple/Google store billing belongs to the account that made the
+    # purchase. Household ownership can transfer without transferring the
+    # underlying store subscription, so only the billing owner can manage
+    # that store purchase.
+    can_manage_billing = bool(
+        not is_founder
+        and caller_id
+        and is_billing_owner
+        and billing_owner_id is not None
+    )
+
+    return {
+        "plan": tier,
+        "effective_plan": effective_plan,
+        "subscription_status": subscription_status,
+        "access_state": access_state,
+        "has_premium_access": has_premium_access,
+        "is_founder": is_founder,
+        "is_unlimited": is_founder,
+        "patient_limit": effective_patient_limit,
+        "patient_count": patient_count,
+        "trial_started_at": trial_started_at,
+        "trial_ends_at": trial_ends_at,
+        "legacy_trial": legacy_trial,
+        "subscription_started_at": subscription_started_at,
+        "subscription_ends_at": subscription_ends_at,
+        "grace_ends_at": grace_ends_at,
+        "cancel_at_period_end": bool(cancel_at_period_end),
+        "billing_provider": billing_provider,
+        "billing_product_id": billing_product_id,
+        "household_role": household_role,
+        "is_household_owner": is_household_owner,
+        "is_household_manager": is_household_manager,
+        "is_billing_owner": is_billing_owner,
+        "can_manage_household": can_manage_household,
+        "can_start_purchase": can_start_purchase,
+        "can_manage_billing": can_manage_billing,
+        "requires_basic_patient_selection": (
+            (trial_expired or subscription_expired or grace_expired)
+            and patient_count > 2
+        ),
+    }
 
 # --------------------
 # Verification email (Resend)
@@ -5786,16 +5984,23 @@ def create_patient(
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
+    cur.execute("SELECT tier, patient_limit FROM households WHERE household_id = %s", (household_id,))
     row = cur.fetchone()
-    # 2 is the safe fallback if a household somehow has no limit set at all
-    # (shouldn't happen post-migration — patient_limit is NOT NULL with a
-    # default — but better to fail safe than let an edge case go unlimited).
-    patient_limit = row[0] if row and row[0] is not None else 2
+    if not row:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Household not found")
+    household_tier, stored_patient_limit = row
+    patient_limit = (
+        None
+        if (household_tier or "").lower() == "founder"
+           and stored_patient_limit is None
+        else (stored_patient_limit if stored_patient_limit is not None else 2)
+    )
 
     cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
     current_count = cur.fetchone()[0]
-    if current_count >= patient_limit:
+    if patient_limit is not None and current_count >= patient_limit:
         cur.close()
         conn.close()
         raise HTTPException(
@@ -11771,7 +11976,10 @@ def create_household_invite(
             mark_invite_used(cur, str(existing_pending[0]))
 
         patient_limit, patient_count, pending_invite_count = count_reserved_slots(cur, household_id)
-        if patient_count + pending_invite_count >= patient_limit:
+        if (
+            patient_limit is not None
+            and patient_count + pending_invite_count >= patient_limit
+        ):
             raise HTTPException(
                 status_code=403,
                 detail="You've used all your available patient slots. Cancel a pending invite, "
@@ -11819,18 +12027,49 @@ def get_household_status(
     conn = get_conn()
     cur = conn.cursor()
     patient_limit, patient_count, pending_invite_count = count_reserved_slots(cur, household_id)
+    entitlement = get_household_entitlement(cur, household_id, auth.get("sub"))
     cur.close()
     conn.close()
 
-    available_slots = max(0, patient_limit - patient_count - pending_invite_count)
+    is_unlimited = patient_limit is None
+    available_slots = (
+        None
+        if is_unlimited
+        else max(0, patient_limit - patient_count - pending_invite_count)
+    )
 
     return {
         "patient_limit": patient_limit,
         "patient_count": patient_count,
         "pending_invite_count": pending_invite_count,
         "available_slots": available_slots,
-        "can_invite": available_slots > 0,
+        "can_invite": is_unlimited or available_slots > 0,
+        "is_unlimited": is_unlimited,
+        "plan": entitlement["plan"],
+        "access_state": entitlement["access_state"],
     }
+
+
+@app.get("/api/household/entitlement")
+def get_household_entitlement_status(
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    """
+    Returns the single household-level commercial entitlement snapshot used
+    by Phase 7 clients. This endpoint is informational in 0.7.1b; feature
+    gates and automatic downgrade transitions are added in later components.
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="This requires a signed-in account")
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        return get_household_entitlement(cur, household_id, auth.get("sub"))
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.get("/api/household/invites")
@@ -11963,16 +12202,26 @@ def select_household_tier(body: HouseholdTierRequest, auth: dict = Depends(get_a
             INSERT INTO households (
                 name, tier, subscription_status,
                 trial_started_at, trial_ends_at,
-                patient_limit, created_at
+                patient_limit, owner_user_id,
+                entitlement_updated_at, created_at
             )
-            VALUES (%s, %s, 'trial', now(), now() + interval '30 days', %s, now())
+            VALUES (
+                %s, %s, 'trial',
+                now(), now() + interval '30 days',
+                %s, %s, now(), now()
+            )
             RETURNING household_id, trial_ends_at;
-        """, (household_name, normalized_tier, patient_limit))
+        """, (household_name, normalized_tier, patient_limit, user_id))
         created = cur.fetchone()
         household_id = str(created[0])
         trial_ends_at = created[1]
 
-        cur.execute("UPDATE users SET household_id = %s WHERE user_id = %s", (household_id, user_id))
+        cur.execute("""
+            UPDATE users
+            SET household_id = %s,
+                household_role = 'owner'
+            WHERE user_id = %s
+        """, (household_id, user_id))
         conn.commit()
 
         token = create_jwt(user_id, household_id, email)
@@ -12021,7 +12270,12 @@ def join_household(
     try:
         household_id, invite_id = resolve_invite_household(cur, body.invite_code)
 
-        cur.execute("UPDATE users SET household_id = %s WHERE user_id = %s", (household_id, user_id))
+        cur.execute("""
+            UPDATE users
+            SET household_id = %s,
+                household_role = 'member'
+            WHERE user_id = %s
+        """, (household_id, user_id))
         mark_invite_used(cur, invite_id)
         conn.commit()
 
@@ -12035,12 +12289,22 @@ def join_household(
         # Joining itself is never blocked by the patient limit — only
         # creating an ADDITIONAL patient is, since attaching to an existing
         # one doesn't consume a slot.
-        cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
+        cur.execute("SELECT tier, patient_limit FROM households WHERE household_id = %s", (household_id,))
         row = cur.fetchone()
-        patient_limit = row[0] if row and row[0] is not None else 2
+        if not row:
+            raise HTTPException(status_code=404, detail="Household not found")
+        household_tier, stored_patient_limit = row
+        patient_limit = (
+            None
+            if (household_tier or "").lower() == "founder"
+               and stored_patient_limit is None
+            else (stored_patient_limit if stored_patient_limit is not None else 2)
+        )
         cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
         current_count = cur.fetchone()[0]
-        can_create_new_patient = current_count < patient_limit
+        can_create_new_patient = (
+            patient_limit is None or current_count < patient_limit
+        )
 
         return {
             "status": "joined",
