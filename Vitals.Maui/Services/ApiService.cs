@@ -1185,9 +1185,17 @@ public class HouseholdStatus
     public int? AvailableSlots { get; set; }
     [JsonPropertyName("can_invite")]
     public bool CanInvite { get; set; }
+    [JsonPropertyName("can_manage_household")]
+    public bool CanManageHousehold { get; set; }
+    [JsonPropertyName("household_role")]
+    public string HouseholdRole { get; set; } = "member";
+    [JsonPropertyName("delegated_management_allowed")]
+    public bool DelegatedManagementAllowed { get; set; }
     [JsonPropertyName("is_unlimited")]
     public bool IsUnlimited { get; set; }
     public string Plan { get; set; } = string.Empty;
+    [JsonPropertyName("effective_plan")]
+    public string EffectivePlan { get; set; } = string.Empty;
     [JsonPropertyName("access_state")]
     public string AccessState { get; set; } = string.Empty;
 }
@@ -1258,6 +1266,9 @@ public class HouseholdEntitlement
 
     [JsonPropertyName("household_role")]
     public string HouseholdRole { get; set; } = "member";
+
+    [JsonPropertyName("delegated_management_allowed")]
+    public bool DelegatedManagementAllowed { get; set; }
 
     [JsonPropertyName("is_household_owner")]
     public bool IsHouseholdOwner { get; set; }
