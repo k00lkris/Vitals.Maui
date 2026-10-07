@@ -34,6 +34,10 @@ public partial class EntitlementService : ObservableObject
     public bool IsUnlimited => Current?.IsUnlimited == true;
     public string EffectivePlan => Current?.EffectivePlan ?? string.Empty;
     public string AccessState => Current?.AccessState ?? string.Empty;
+    public bool RequiresBasicPatientSelection =>
+        Current?.RequiresBasicPatientSelection == true;
+    public int ActivePatientCount => Current?.ActivePatientCount ?? 0;
+    public int LockedPatientCount => Current?.LockedPatientCount ?? 0;
 
     public async Task<HouseholdEntitlement?> RefreshAsync()
     {
@@ -73,5 +77,8 @@ public partial class EntitlementService : ObservableObject
         OnPropertyChanged(nameof(IsUnlimited));
         OnPropertyChanged(nameof(EffectivePlan));
         OnPropertyChanged(nameof(AccessState));
+        OnPropertyChanged(nameof(RequiresBasicPatientSelection));
+        OnPropertyChanged(nameof(ActivePatientCount));
+        OnPropertyChanged(nameof(LockedPatientCount));
     }
 }
