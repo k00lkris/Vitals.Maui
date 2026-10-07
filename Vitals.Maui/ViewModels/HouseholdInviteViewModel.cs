@@ -10,10 +10,12 @@ public partial class HouseholdInviteViewModel : ObservableObject
     private readonly ApiService _api;
 
     [ObservableProperty] private string _inviteeEmail = string.Empty;
-    [ObservableProperty] private bool _canInvite = true;
+    [ObservableProperty] private bool _canInvite;
+    [ObservableProperty] private bool _canManageHousehold;
     [ObservableProperty] private int _availableSlots;
     [ObservableProperty] private bool _isUnlimited;
     [ObservableProperty] private string _slotSummary = string.Empty;
+    [ObservableProperty] private string _inviteRestrictionMessage = string.Empty;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private ObservableCollection<PendingInvite> _pendingInvites = new();
@@ -27,21 +29,52 @@ public partial class HouseholdInviteViewModel : ObservableObject
     public async Task LoadAsync()
     {
         IsBusy = true;
+        CanInvite = false;
+        CanManageHousehold = false;
+        InviteRestrictionMessage = string.Empty;
         try
         {
             var status = await _api.GetHouseholdStatusAsync();
             if (status is not null)
             {
+                CanManageHousehold = status.CanManageHousehold;
                 CanInvite = status.CanInvite;
                 IsUnlimited = status.IsUnlimited;
                 AvailableSlots = status.AvailableSlots ?? 0;
-                SlotSummary = status.IsUnlimited
-                    ? "Unlimited patient slots (Founder household)"
-                    : $"{AvailableSlots} patient slot(s) available for new invites";
+
+                if (!status.CanManageHousehold)
+                {
+                    SlotSummary = "Household member management is owner/manager controlled.";
+                    InviteRestrictionMessage =
+                        "Your current household role and plan do not allow member management.";
+                }
+                else
+                {
+                    SlotSummary = status.IsUnlimited
+                        ? "Unlimited patient slots"
+                        : $"{AvailableSlots} patient slot(s) available for new invites";
+                    InviteRestrictionMessage = status.CanInvite
+                        ? string.Empty
+                        : "No patient slots available — cancel a pending invite below, or wait for one to expire, to invite someone new.";
+                }
             }
 
-            var invites = await _api.GetPendingInvitesAsync();
-            PendingInvites = new ObservableCollection<PendingInvite>(invites);
+            if (status is null)
+            {
+                SlotSummary = string.Empty;
+                InviteRestrictionMessage =
+                    "We couldn't verify household management access. Please try again.";
+                PendingInvites.Clear();
+            }
+            else if (CanManageHousehold)
+            {
+                var invites = await _api.GetPendingInvitesAsync();
+                PendingInvites = new ObservableCollection<PendingInvite>(invites);
+            }
+            else
+            {
+                PendingInvites.Clear();
+            }
         }
         finally
         {
@@ -52,6 +85,12 @@ public partial class HouseholdInviteViewModel : ObservableObject
     [RelayCommand]
     public async Task SendInviteAsync()
     {
+        if (!CanManageHousehold)
+        {
+            StatusMessage = "Your current household role and plan do not allow member management.";
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(InviteeEmail))
         {
             StatusMessage = "Enter an email address.";
@@ -84,6 +123,12 @@ public partial class HouseholdInviteViewModel : ObservableObject
     [RelayCommand]
     public async Task CancelInviteAsync(PendingInvite invite)
     {
+        if (!CanManageHousehold)
+        {
+            StatusMessage = "Your current household role and plan do not allow member management.";
+            return;
+        }
+
         IsBusy = true;
         try
         {
