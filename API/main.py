@@ -5755,6 +5755,9 @@ def get_vital_record(
     conn = get_conn()
     cur = conn.cursor()
     try:
+        verify_child_record_household(
+            cur, "vitals", "vital_id", vital_id, household_id
+        )
         cur.execute("""
             SELECT
                 v.vital_id, v.patient_id, v.recorded_at, v.local_offset_minutes,
@@ -5837,6 +5840,7 @@ def update_vital_record(
             raise HTTPException(status_code=404, detail="Vital record not found")
 
         old_patient_id = str(existing[0])
+        verify_patient_household(cur, old_patient_id, household_id)
         verify_patient_household(cur, vital.patient_id, household_id)
 
         # The correction endpoint accepts a complete editable representation
@@ -5990,6 +5994,7 @@ def delete_vital_record(
             raise HTTPException(status_code=404, detail="Vital record not found")
 
         patient_id = str(existing[0])
+        verify_patient_household(cur, patient_id, household_id)
 
         # Explicitly remove context first. glucose_context already cascades,
         # but heart_rate_context does not; doing both here keeps the behavior
