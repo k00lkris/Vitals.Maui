@@ -4770,21 +4770,19 @@ def resolve_invite_household(cur, invite_code: str):
 def mark_invite_used(cur, invite_id: str):
     cur.execute("UPDATE household_invites SET used_at = now() WHERE invite_id = %s", (invite_id,))
 
-def count_reserved_slots(cur, household_id: str) -> tuple[int, int, int]:
+def count_reserved_slots(cur, household_id: str) -> tuple[Optional[int], int, int]:
     """
     Returns (patient_limit, actual_patient_count, active_pending_invite_count).
-    Every unused, unexpired invite reserves one slot against the household's
-    patient_limit — worst case, every invitee chooses "create a new
-    patient" rather than attaching to an existing one, so the primary
-    account holder can never issue more invites than the household could
-    actually accommodate if all of them were redeemed that way. An invite
-    stops reserving a slot the moment it's used, cancelled (both set
-    used_at), or naturally expires (excluded here by the expires_at check,
-    no cleanup job needed for correctness).
+
+    patient_limit=NULL means unlimited and is reserved for Founder
+    households. Every unused, unexpired invite reserves one finite slot
+    for normal households; Founder households bypass the slot check.
     """
     cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
     row = cur.fetchone()
-    patient_limit = row[0] if row and row[0] is not None else 2
+    if not row:
+        raise HTTPException(status_code=404, detail="Household not found")
+    patient_limit = row[0]
 
     cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
     patient_count = cur.fetchone()[0]
@@ -4796,6 +4794,192 @@ def count_reserved_slots(cur, household_id: str) -> tuple[int, int, int]:
     pending_invite_count = cur.fetchone()[0]
 
     return patient_limit, patient_count, pending_invite_count
+
+
+def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = None) -> dict:
+    """
+    Central Phase 7 entitlement calculation.
+
+    This function is deliberately read-only. 0.7.1b establishes the
+    household access-state contract without yet auto-downgrading expired
+    trials or enforcing premium gates. Later Phase 7 components will use
+    this same result to drive downgrade selection and feature gating.
+
+    Founder is permanent full access with no expiration and no patient
+    limit. Existing alpha trials that predate trial_ends_at remain active
+    until they are explicitly migrated; this avoids accidentally locking
+    current testers during the entitlement rollout.
+    """
+    cur.execute("""
+        SELECT
+            tier,
+            subscription_status,
+            trial_started_at,
+            trial_ends_at,
+            patient_limit,
+            owner_user_id,
+            billing_owner_user_id,
+            billing_provider,
+            billing_product_id,
+            subscription_started_at,
+            subscription_ends_at,
+            grace_ends_at,
+            cancel_at_period_end
+        FROM households
+        WHERE household_id = %s
+    """, (household_id,))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Household not found")
+
+    (
+        tier,
+        subscription_status,
+        trial_started_at,
+        trial_ends_at,
+        patient_limit,
+        owner_user_id,
+        billing_owner_user_id,
+        billing_provider,
+        billing_product_id,
+        subscription_started_at,
+        subscription_ends_at,
+        grace_ends_at,
+        cancel_at_period_end,
+    ) = row
+
+    now = datetime.now(timezone.utc)
+    tier = (tier or "basic").lower()
+    subscription_status = (subscription_status or "basic").lower()
+
+    is_founder = tier == "founder"
+    legacy_trial = subscription_status == "trial" and trial_ends_at is None
+    trial_active = (
+        subscription_status == "trial"
+        and (trial_ends_at is None or trial_ends_at > now)
+    )
+    trial_expired = (
+        subscription_status == "trial"
+        and trial_ends_at is not None
+        and trial_ends_at <= now
+    )
+
+    subscription_active = (
+        subscription_status == "active"
+        and tier in ("standard", "family", "founder")
+        and (
+            is_founder
+            or subscription_ends_at is None
+            or subscription_ends_at > now
+        )
+    )
+    subscription_expired = (
+        subscription_status == "active"
+        and not is_founder
+        and subscription_ends_at is not None
+        and subscription_ends_at <= now
+    )
+
+    grace_active = (
+        subscription_status == "grace"
+        and grace_ends_at is not None
+        and grace_ends_at > now
+    )
+    grace_expired = (
+        subscription_status == "grace"
+        and (grace_ends_at is None or grace_ends_at <= now)
+    )
+
+    has_premium_access = bool(
+        is_founder or trial_active or subscription_active or grace_active
+    )
+
+    if is_founder:
+        access_state = "founder"
+        effective_plan = "founder"
+    elif trial_active:
+        access_state = "trial"
+        effective_plan = "trial"
+    elif trial_expired:
+        access_state = "trial_expired"
+        effective_plan = "basic"
+    elif subscription_active:
+        access_state = "active"
+        effective_plan = tier
+    elif subscription_expired:
+        access_state = "subscription_expired"
+        effective_plan = "basic"
+    elif grace_active:
+        access_state = "grace"
+        effective_plan = tier
+    elif grace_expired:
+        access_state = "grace_expired"
+        effective_plan = "basic"
+    else:
+        access_state = "basic"
+        effective_plan = "basic"
+
+    cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
+    patient_count = cur.fetchone()[0]
+
+    household_role = "member"
+    if user_id:
+        cur.execute("""
+            SELECT household_role
+            FROM users
+            WHERE user_id = %s AND household_id = %s
+        """, (user_id, household_id))
+        role_row = cur.fetchone()
+        if role_row and role_row[0]:
+            household_role = role_row[0]
+
+    owner_id = str(owner_user_id) if owner_user_id else None
+    billing_owner_id = str(billing_owner_user_id) if billing_owner_user_id else None
+    caller_id = str(user_id) if user_id else None
+
+    is_household_owner = bool(caller_id and owner_id == caller_id)
+    is_household_manager = household_role in ("owner", "manager")
+    is_billing_owner = bool(caller_id and billing_owner_id == caller_id)
+    can_manage_household = is_household_manager
+    can_start_purchase = is_household_manager and billing_owner_id is None and not is_founder
+    can_manage_billing = bool(
+        not is_founder
+        and caller_id
+        and (is_billing_owner or is_household_owner)
+        and billing_owner_id is not None
+    )
+
+    return {
+        "plan": tier,
+        "effective_plan": effective_plan,
+        "subscription_status": subscription_status,
+        "access_state": access_state,
+        "has_premium_access": has_premium_access,
+        "is_founder": is_founder,
+        "is_unlimited": patient_limit is None,
+        "patient_limit": patient_limit,
+        "patient_count": patient_count,
+        "trial_started_at": trial_started_at,
+        "trial_ends_at": trial_ends_at,
+        "legacy_trial": legacy_trial,
+        "subscription_started_at": subscription_started_at,
+        "subscription_ends_at": subscription_ends_at,
+        "grace_ends_at": grace_ends_at,
+        "cancel_at_period_end": bool(cancel_at_period_end),
+        "billing_provider": billing_provider,
+        "billing_product_id": billing_product_id,
+        "household_role": household_role,
+        "is_household_owner": is_household_owner,
+        "is_household_manager": is_household_manager,
+        "is_billing_owner": is_billing_owner,
+        "can_manage_household": can_manage_household,
+        "can_start_purchase": can_start_purchase,
+        "can_manage_billing": can_manage_billing,
+        "requires_basic_patient_selection": (
+            (trial_expired or subscription_expired or grace_expired)
+            and patient_count > 2
+        ),
+    }
 
 # --------------------
 # Verification email (Resend)
