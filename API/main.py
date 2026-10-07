@@ -182,16 +182,29 @@ def _raise_if_patient_entitlement_locked(
     stored_entitlement_locked: bool,
 ):
     """
-    Stored locks apply only while the household is above its CURRENT effective
-    plan capacity. Upgrading immediately restores access without deleting or
-    rewriting any patient/clinical data.
-    """
-    if not stored_entitlement_locked:
-        return
+    Enforces the over-capacity transition before any patient-scoped read or
+    write. While a household still needs to choose which profiles remain
+    active, no patient is silently chosen on its behalf. After selection,
+    only the persisted locked profiles are denied.
 
+    Stored locks apply only while the household is above its CURRENT effective
+    plan capacity, so upgrading immediately restores every profile without
+    deleting or rewriting clinical data.
+    """
     entitlement = get_household_entitlement(cur, household_id)
+
+    if entitlement["requires_basic_patient_selection"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Choose which patients to keep active before continuing."
+        )
+
     patient_limit = entitlement["patient_limit"]
-    if patient_limit is not None and entitlement["patient_count"] > patient_limit:
+    if (
+        stored_entitlement_locked
+        and patient_limit is not None
+        and entitlement["patient_count"] > patient_limit
+    ):
         raise HTTPException(
             status_code=403,
             detail="This patient is locked by your current plan. Choose an active patient or upgrade to restore access."
