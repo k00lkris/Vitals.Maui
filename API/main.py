@@ -4778,11 +4778,16 @@ def count_reserved_slots(cur, household_id: str) -> tuple[Optional[int], int, in
     households. Every unused, unexpired invite reserves one finite slot
     for normal households; Founder households bypass the slot check.
     """
-    cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
+    cur.execute("SELECT tier, patient_limit FROM households WHERE household_id = %s", (household_id,))
     row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Household not found")
-    patient_limit = row[0]
+    tier, stored_patient_limit = row
+    patient_limit = (
+        None
+        if (tier or "").lower() == "founder" and stored_patient_limit is None
+        else (stored_patient_limit if stored_patient_limit is not None else 2)
+    )
 
     cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
     patient_count = cur.fetchone()[0]
@@ -5970,13 +5975,19 @@ def create_patient(
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
+    cur.execute("SELECT tier, patient_limit FROM households WHERE household_id = %s", (household_id,))
     row = cur.fetchone()
     if not row:
         cur.close()
         conn.close()
         raise HTTPException(status_code=404, detail="Household not found")
-    patient_limit = row[0]  # NULL means unlimited (Founder only).
+    household_tier, stored_patient_limit = row
+    patient_limit = (
+        None
+        if (household_tier or "").lower() == "founder"
+           and stored_patient_limit is None
+        else (stored_patient_limit if stored_patient_limit is not None else 2)
+    )
 
     cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
     current_count = cur.fetchone()[0]
@@ -12269,11 +12280,17 @@ def join_household(
         # Joining itself is never blocked by the patient limit — only
         # creating an ADDITIONAL patient is, since attaching to an existing
         # one doesn't consume a slot.
-        cur.execute("SELECT patient_limit FROM households WHERE household_id = %s", (household_id,))
+        cur.execute("SELECT tier, patient_limit FROM households WHERE household_id = %s", (household_id,))
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Household not found")
-        patient_limit = row[0]
+        household_tier, stored_patient_limit = row
+        patient_limit = (
+            None
+            if (household_tier or "").lower() == "founder"
+               and stored_patient_limit is None
+            else (stored_patient_limit if stored_patient_limit is not None else 2)
+        )
         cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
         current_count = cur.fetchone()[0]
         can_create_new_patient = (
