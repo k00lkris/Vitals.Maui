@@ -4773,19 +4773,38 @@ def mark_invite_used(cur, invite_id: str):
 
 PERMANENT_COMPLIMENTARY_TIERS = {"founder", "beta"}
 
+# Patient capacity follows the EFFECTIVE entitlement, not the household's
+# stored tier/limit. This matters when a Trial, paid subscription, or grace
+# period expires: the stored commercial row may still describe the previous
+# plan while effective access has already fallen back to Basic.
+EFFECTIVE_PLAN_PATIENT_LIMITS = {
+    "basic": 2,
+    "trial": 5,
+    "standard": 2,
+    "family": 5,
+    "founder": None,
+    "beta": None,
+}
+
 
 def is_permanent_complimentary_tier(tier: Optional[str]) -> bool:
     return (tier or "").strip().lower() in PERMANENT_COMPLIMENTARY_TIERS
 
 
-def effective_patient_limit(tier: Optional[str], stored_patient_limit: Optional[int]) -> Optional[int]:
+def effective_patient_limit(
+    effective_plan: Optional[str],
+    stored_patient_limit: Optional[int],
+) -> Optional[int]:
     """
-    NULL patient_limit means unlimited only for a permanent complimentary
-    household (Founder or Beta). Every other tier keeps the historical safe
-    fallback of two patients if a malformed row somehow has no limit.
+    Resolve capacity from the effective entitlement plan.
+
+    Known Vitals plans use their product-defined limits regardless of a stale
+    stored patient_limit value. Unknown/legacy plans retain the stored limit
+    when present and otherwise fall back safely to two patients.
     """
-    if is_permanent_complimentary_tier(tier) and stored_patient_limit is None:
-        return None
+    normalized_plan = (effective_plan or "").strip().lower()
+    if normalized_plan in EFFECTIVE_PLAN_PATIENT_LIMITS:
+        return EFFECTIVE_PLAN_PATIENT_LIMITS[normalized_plan]
     return stored_patient_limit if stored_patient_limit is not None else 2
 
 
@@ -4798,15 +4817,13 @@ def count_reserved_slots(cur, household_id: str) -> tuple[Optional[int], int, in
     invite reserves one finite slot for normal households; complimentary
     households bypass the slot check.
     """
-    cur.execute("SELECT tier, patient_limit FROM households WHERE household_id = %s", (household_id,))
-    row = cur.fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="Household not found")
-    tier, stored_patient_limit = row
-    patient_limit = effective_patient_limit(tier, stored_patient_limit)
-
-    cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
-    patient_count = cur.fetchone()[0]
+    # Reuse the central entitlement resolver so slot enforcement follows the
+    # same effective plan returned by /api/household/entitlement. In
+    # particular, an expired Trial must immediately enforce Basic's 2-patient
+    # capacity even if the stored row still says tier='trial', patient_limit=5.
+    entitlement = get_household_entitlement(cur, household_id)
+    patient_limit = entitlement["patient_limit"]
+    patient_count = entitlement["patient_count"]
 
     cur.execute("""
         SELECT COUNT(*) FROM household_invites
@@ -4877,7 +4894,6 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     is_founder = tier == "founder"
     is_beta = tier == "beta"
     is_permanent_complimentary = is_founder or is_beta
-    resolved_patient_limit = effective_patient_limit(tier, patient_limit)
     legacy_trial = subscription_status == "trial" and trial_ends_at is None
     trial_active = (
         subscription_status == "trial"
@@ -4946,6 +4962,10 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     else:
         access_state = "basic"
         effective_plan = "basic"
+
+    # Capacity must follow the resolved entitlement. A stored Trial/Family
+    # limit of 5 must not survive an effective fallback to Basic.
+    resolved_patient_limit = effective_patient_limit(effective_plan, patient_limit)
 
     cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
     patient_count = cur.fetchone()[0]
@@ -6007,17 +6027,9 @@ def create_patient(
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT tier, patient_limit FROM households WHERE household_id = %s", (household_id,))
-    row = cur.fetchone()
-    if not row:
-        cur.close()
-        conn.close()
-        raise HTTPException(status_code=404, detail="Household not found")
-    household_tier, stored_patient_limit = row
-    patient_limit = effective_patient_limit(household_tier, stored_patient_limit)
-
-    cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
-    current_count = cur.fetchone()[0]
+    entitlement = get_household_entitlement(cur, household_id)
+    patient_limit = entitlement["patient_limit"]
+    current_count = entitlement["patient_count"]
     if patient_limit is not None and current_count >= patient_limit:
         cur.close()
         conn.close()
@@ -12307,14 +12319,9 @@ def join_household(
         # Joining itself is never blocked by the patient limit — only
         # creating an ADDITIONAL patient is, since attaching to an existing
         # one doesn't consume a slot.
-        cur.execute("SELECT tier, patient_limit FROM households WHERE household_id = %s", (household_id,))
-        row = cur.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Household not found")
-        household_tier, stored_patient_limit = row
-        patient_limit = effective_patient_limit(household_tier, stored_patient_limit)
-        cur.execute("SELECT COUNT(*) FROM patients WHERE household_id = %s", (household_id,))
-        current_count = cur.fetchone()[0]
+        entitlement = get_household_entitlement(cur, household_id, user_id)
+        patient_limit = entitlement["patient_limit"]
+        current_count = entitlement["patient_count"]
         can_create_new_patient = (
             patient_limit is None or current_count < patient_limit
         )
