@@ -38,6 +38,10 @@ public partial class EntitlementService : ObservableObject
         Current?.RequiresBasicPatientSelection == true;
     public int ActivePatientCount => Current?.ActivePatientCount ?? 0;
     public int LockedPatientCount => Current?.LockedPatientCount ?? 0;
+    public bool CanManageHousehold => Current?.CanManageHousehold == true;
+    public string HouseholdRole => Current?.HouseholdRole ?? "member";
+    public bool DelegatedManagementAllowed =>
+        Current?.DelegatedManagementAllowed == true;
 
     public async Task<HouseholdEntitlement?> RefreshAsync()
     {
@@ -80,5 +84,8 @@ public partial class EntitlementService : ObservableObject
         OnPropertyChanged(nameof(RequiresBasicPatientSelection));
         OnPropertyChanged(nameof(ActivePatientCount));
         OnPropertyChanged(nameof(LockedPatientCount));
+        OnPropertyChanged(nameof(CanManageHousehold));
+        OnPropertyChanged(nameof(HouseholdRole));
+        OnPropertyChanged(nameof(DelegatedManagementAllowed));
     }
 }
