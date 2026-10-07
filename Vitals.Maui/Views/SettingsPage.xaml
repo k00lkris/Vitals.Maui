@@ -552,7 +552,8 @@
                         FontAttributes="Bold"
                         HeightRequest="44"
                         HorizontalOptions="Start"
-                        Command="{Binding OpenHouseholdInviteCommand}" />
+                        IsVisible="{Binding CanManageHousehold}"
+                         Command="{Binding OpenHouseholdInviteCommand}" />
                     <BoxView HeightRequest="0.5" BackgroundColor="{DynamicResource DividerColor}" />
                     <Button Text="Sign Out"
                         BackgroundColor="Transparent"
