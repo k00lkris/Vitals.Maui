@@ -42,8 +42,8 @@
                             FontSize="15" FontAttributes="Bold"
                             HeightRequest="48" CornerRadius="10" />
 
-                    <Label Text="No patient slots available — cancel a pending invite below, or wait for one to expire, to invite someone new."
-                           IsVisible="{Binding CanInvite, Converter={StaticResource InvertedBoolConverter}}"
+                    <Label Text="{Binding InviteRestrictionMessage}"
+                           IsVisible="{Binding InviteRestrictionMessage, Converter={StaticResource StringToBoolConverter}}"
                            FontSize="12"
                            TextColor="{DynamicResource TextMuted}" />
 
