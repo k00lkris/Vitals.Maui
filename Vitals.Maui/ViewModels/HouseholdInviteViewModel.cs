@@ -15,6 +15,7 @@ public partial class HouseholdInviteViewModel : ObservableObject
     [ObservableProperty] private int _availableSlots;
     [ObservableProperty] private bool _isUnlimited;
     [ObservableProperty] private string _slotSummary = string.Empty;
+    [ObservableProperty] private string _inviteRestrictionMessage = string.Empty;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private ObservableCollection<PendingInvite> _pendingInvites = new();
@@ -40,13 +41,18 @@ public partial class HouseholdInviteViewModel : ObservableObject
 
                 if (!status.CanManageHousehold)
                 {
-                    SlotSummary = "Your current household role and plan do not allow member management.";
+                    SlotSummary = "Household member management is owner/manager controlled.";
+                    InviteRestrictionMessage =
+                        "Your current household role and plan do not allow member management.";
                 }
                 else
                 {
                     SlotSummary = status.IsUnlimited
                         ? "Unlimited patient slots"
                         : $"{AvailableSlots} patient slot(s) available for new invites";
+                    InviteRestrictionMessage = status.CanInvite
+                        ? string.Empty
+                        : "No patient slots available — cancel a pending invite below, or wait for one to expire, to invite someone new.";
                 }
             }
 
