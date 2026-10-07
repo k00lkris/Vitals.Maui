@@ -12170,8 +12170,8 @@ def get_household_entitlement_status(
 ):
     """
     Returns the single household-level commercial entitlement snapshot used
-    by Phase 7 clients. This endpoint is informational in 0.7.1b; feature
-    gates and automatic downgrade transitions are added in later components.
+    by Phase 7 clients. Over-capacity downgrades now use this state to require
+    an explicit active-patient selection before patient-scoped access resumes.
     """
     if auth.get("type") == "api_key":
         raise HTTPException(status_code=401, detail="This requires a signed-in account")
