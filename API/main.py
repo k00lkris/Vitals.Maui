@@ -4833,6 +4833,11 @@ EFFECTIVE_PLAN_PATIENT_LIMITS = {
     "beta": None,
 }
 
+# Standard and Basic are owner-managed households. Family permits a delegated
+# manager. Trial, Founder, and Beta represent full-access / Family-capacity
+# experiences, so they also honor an explicitly assigned manager role.
+DELEGATED_HOUSEHOLD_MANAGER_PLANS = {"trial", "family", "founder", "beta"}
+
 
 def is_permanent_complimentary_tier(tier: Optional[str]) -> bool:
     return (tier or "").strip().lower() in PERMANENT_COMPLIMENTARY_TIERS
@@ -4885,10 +4890,9 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     """
     Central Phase 7 entitlement calculation.
 
-    This function is deliberately read-only. 0.7.1b establishes the
-    household access-state contract without yet auto-downgrading expired
-    trials or enforcing premium gates. Later Phase 7 components will use
-    this same result to drive downgrade selection and feature gating.
+    This function is deliberately read-only. It resolves both commercial
+    access and effective household-management authorization so every endpoint
+    uses the same owner/manager rules.
 
     Founder and Beta are permanent complimentary full-access tiers with no
     expiration and no patient limit. Existing alpha trials that predate
@@ -5050,8 +5054,23 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
     billing_owner_id = str(billing_owner_user_id) if billing_owner_user_id else None
     caller_id = str(user_id) if user_id else None
 
+    # Ownership is authoritative from households.owner_user_id, not merely
+    # users.household_role='owner'. That prevents a stale/malformed role row
+    # from granting owner powers.
     is_household_owner = bool(caller_id and owner_id == caller_id)
-    is_household_manager = household_role in ("owner", "manager")
+    delegated_management_allowed = (
+        effective_plan in DELEGATED_HOUSEHOLD_MANAGER_PLANS
+    )
+    is_delegated_household_manager = bool(
+        household_role == "manager"
+        and delegated_management_allowed
+    )
+    # "is_household_manager" means effectively authorized to administer the
+    # household; owners always qualify. A stored manager on Standard/Basic
+    # remains a manager role in the database but is not authorized there.
+    is_household_manager = bool(
+        is_household_owner or is_delegated_household_manager
+    )
     is_billing_owner = bool(caller_id and billing_owner_id == caller_id)
     can_manage_household = is_household_manager
     can_start_purchase = (
@@ -5093,6 +5112,7 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
         "billing_provider": billing_provider,
         "billing_product_id": billing_product_id,
         "household_role": household_role,
+        "delegated_management_allowed": delegated_management_allowed,
         "is_household_owner": is_household_owner,
         "is_household_manager": is_household_manager,
         "is_billing_owner": is_billing_owner,
@@ -5104,6 +5124,45 @@ def get_household_entitlement(cur, household_id: str, user_id: Optional[str] = N
             and active_patient_count != resolved_patient_limit
         ),
     }
+
+def require_household_management(
+    cur,
+    household_id: str,
+    user_id: Optional[str],
+) -> dict:
+    """
+    Fail closed unless the caller is the household owner or an effectively
+    authorized delegated manager under the CURRENT entitlement.
+
+    Standard/Basic intentionally do not permit delegated managers; Family and
+    full-access equivalents do. Returning the entitlement lets callers reuse
+    the already-resolved plan/role state without duplicating policy checks.
+    """
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="This requires a signed-in account."
+        )
+
+    entitlement = get_household_entitlement(cur, household_id, user_id)
+    if entitlement["can_manage_household"]:
+        return entitlement
+
+    if (
+        entitlement["household_role"] == "manager"
+        and not entitlement["delegated_management_allowed"]
+    ):
+        plan_name = (entitlement["effective_plan"] or "current").title()
+        raise HTTPException(
+            status_code=403,
+            detail=f"Only the household owner can manage household members on the {plan_name} plan."
+        )
+
+    raise HTTPException(
+        status_code=403,
+        detail="Only the household owner or an authorized household manager can manage household members."
+    )
+
 
 # --------------------
 # Verification email (Resend)
@@ -12065,6 +12124,8 @@ def create_household_invite(
     conn = get_conn()
     cur = conn.cursor()
     try:
+        require_household_management(cur, household_id, inviter_user_id)
+
         cur.execute("SELECT email, display_name FROM users WHERE user_id = %s", (inviter_user_id,))
         row = cur.fetchone()
         inviter_email = row[0] if row else None
@@ -12151,14 +12212,20 @@ def get_household_status(
         else max(0, patient_limit - patient_count - pending_invite_count)
     )
 
+    has_capacity = is_unlimited or available_slots > 0
+
     return {
         "patient_limit": patient_limit,
         "patient_count": patient_count,
         "pending_invite_count": pending_invite_count,
         "available_slots": available_slots,
-        "can_invite": is_unlimited or available_slots > 0,
+        "can_invite": entitlement["can_manage_household"] and has_capacity,
+        "can_manage_household": entitlement["can_manage_household"],
+        "household_role": entitlement["household_role"],
+        "delegated_management_allowed": entitlement["delegated_management_allowed"],
         "is_unlimited": is_unlimited,
         "plan": entitlement["plan"],
+        "effective_plan": entitlement["effective_plan"],
         "access_state": entitlement["access_state"],
     }
 
@@ -12203,12 +12270,9 @@ def select_household_patient_access(
     conn = get_conn()
     cur = conn.cursor()
     try:
-        entitlement = get_household_entitlement(cur, household_id, user_id)
-        if not entitlement["can_manage_household"]:
-            raise HTTPException(
-                status_code=403,
-                detail="Only a household owner or manager can choose active patients."
-            )
+        entitlement = require_household_management(
+            cur, household_id, user_id
+        )
 
         patient_limit = entitlement["patient_limit"]
         patient_count = entitlement["patient_count"]
@@ -12287,35 +12351,37 @@ def list_household_invites(
     auth: dict = Depends(get_auth),
 ):
     """
-    Lists this household's pending (unused, unexpired) invites — what the
-    primary account holder sees to decide whether to cancel one and free
-    up a reserved slot, per count_reserved_slots().
+    Lists pending household invites for authorized household administrators.
     """
     if auth.get("type") == "api_key":
         raise HTTPException(status_code=401, detail="Household invites require a signed-in account")
 
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT invite_id, invited_email, created_at, expires_at
-        FROM household_invites
-        WHERE household_id = %s AND used_at IS NULL AND expires_at > now()
-        ORDER BY created_at DESC;
-    """, (household_id,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return {
-        "invites": [
-            {
-                "invite_id": str(r[0]),
-                "invited_email": r[1],
-                "created_at": r[2].isoformat(),
-                "expires_at": r[3].isoformat(),
-            }
-            for r in rows
-        ]
-    }
+    try:
+        require_household_management(cur, household_id, auth.get("sub"))
+
+        cur.execute("""
+            SELECT invite_id, invited_email, created_at, expires_at
+            FROM household_invites
+            WHERE household_id = %s AND used_at IS NULL AND expires_at > now()
+            ORDER BY created_at DESC;
+        """, (household_id,))
+        rows = cur.fetchall()
+        return {
+            "invites": [
+                {
+                    "invite_id": str(r[0]),
+                    "invited_email": r[1],
+                    "created_at": r[2].isoformat(),
+                    "expires_at": r[3].isoformat(),
+                }
+                for r in rows
+            ]
+        }
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.delete("/api/household/invite/{invite_id}")
@@ -12337,6 +12403,8 @@ def cancel_household_invite(
     conn = get_conn()
     cur = conn.cursor()
     try:
+        require_household_management(cur, household_id, auth.get("sub"))
+
         cur.execute("""
             SELECT used_at FROM household_invites
             WHERE invite_id = %s AND household_id = %s
