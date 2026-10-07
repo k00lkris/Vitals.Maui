@@ -11,6 +11,7 @@ public partial class HouseholdInviteViewModel : ObservableObject
 
     [ObservableProperty] private string _inviteeEmail = string.Empty;
     [ObservableProperty] private bool _canInvite = true;
+    [ObservableProperty] private bool _canManageHousehold = true;
     [ObservableProperty] private int _availableSlots;
     [ObservableProperty] private bool _isUnlimited;
     [ObservableProperty] private string _slotSummary = string.Empty;
@@ -32,16 +33,32 @@ public partial class HouseholdInviteViewModel : ObservableObject
             var status = await _api.GetHouseholdStatusAsync();
             if (status is not null)
             {
+                CanManageHousehold = status.CanManageHousehold;
                 CanInvite = status.CanInvite;
                 IsUnlimited = status.IsUnlimited;
                 AvailableSlots = status.AvailableSlots ?? 0;
-                SlotSummary = status.IsUnlimited
-                    ? "Unlimited patient slots (Founder household)"
-                    : $"{AvailableSlots} patient slot(s) available for new invites";
+
+                if (!status.CanManageHousehold)
+                {
+                    SlotSummary = "Your current household role and plan do not allow member management.";
+                }
+                else
+                {
+                    SlotSummary = status.IsUnlimited
+                        ? "Unlimited patient slots"
+                        : $"{AvailableSlots} patient slot(s) available for new invites";
+                }
             }
 
-            var invites = await _api.GetPendingInvitesAsync();
-            PendingInvites = new ObservableCollection<PendingInvite>(invites);
+            if (CanManageHousehold)
+            {
+                var invites = await _api.GetPendingInvitesAsync();
+                PendingInvites = new ObservableCollection<PendingInvite>(invites);
+            }
+            else
+            {
+                PendingInvites.Clear();
+            }
         }
         finally
         {
@@ -52,6 +69,12 @@ public partial class HouseholdInviteViewModel : ObservableObject
     [RelayCommand]
     public async Task SendInviteAsync()
     {
+        if (!CanManageHousehold)
+        {
+            StatusMessage = "Your current household role and plan do not allow member management.";
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(InviteeEmail))
         {
             StatusMessage = "Enter an email address.";
@@ -84,6 +107,12 @@ public partial class HouseholdInviteViewModel : ObservableObject
     [RelayCommand]
     public async Task CancelInviteAsync(PendingInvite invite)
     {
+        if (!CanManageHousehold)
+        {
+            StatusMessage = "Your current household role and plan do not allow member management.";
+            return;
+        }
+
         IsBusy = true;
         try
         {
