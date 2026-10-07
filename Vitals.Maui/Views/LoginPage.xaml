@@ -124,7 +124,7 @@
                            HorizontalOptions="Center" />
 
         <!-- Version -->
-        <Label Text="Vitals v0.69 alpha"
+        <Label Text="Vitals v0.7.1a"
                FontSize="11"
                TextColor="{StaticResource VitalsBlueTextMuted}"
                HorizontalOptions="Center"
