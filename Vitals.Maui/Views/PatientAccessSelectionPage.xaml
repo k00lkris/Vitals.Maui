@@ -76,7 +76,7 @@
                FontSize="13"
                TextColor="#d32f2f"
                HorizontalTextAlignment="Center"
-               MinHeightRequest="20" />
+               MinimumHeightRequest="20" />
 
         <Button Grid.Row="5"
                 Text="Keep selected patients active"
