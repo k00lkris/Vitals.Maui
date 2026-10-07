@@ -929,6 +929,32 @@ public class ApiService
         }
     }
 
+
+    /// <summary>
+    /// Returns the server-authoritative household commercial entitlement.
+    /// 0.7.1b only exposes/caches this state; later Phase 7 components use
+    /// it for feature gates and downgrade workflows.
+    /// </summary>
+    public async Task<HouseholdEntitlement?> GetHouseholdEntitlementAsync()
+    {
+        try
+        {
+            var response = await _http.GetAsync("/api/household/entitlement");
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== HOUSEHOLD ENTITLEMENT: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode) return null;
+            return JsonSerializer.Deserialize<HouseholdEntitlement>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== HOUSEHOLD ENTITLEMENT ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
     /// <summary>
     /// Same "{detail: ...}" parsing AuthService uses for its own errors —
     /// duplicated here (not shared) since ApiService and AuthService use
@@ -1114,13 +1140,98 @@ public class PendingInvitesResponse
 public class HouseholdStatus
 {
     [JsonPropertyName("patient_limit")]
-    public int PatientLimit { get; set; }
+    public int? PatientLimit { get; set; }
     [JsonPropertyName("patient_count")]
     public int PatientCount { get; set; }
     [JsonPropertyName("pending_invite_count")]
     public int PendingInviteCount { get; set; }
     [JsonPropertyName("available_slots")]
-    public int AvailableSlots { get; set; }
+    public int? AvailableSlots { get; set; }
     [JsonPropertyName("can_invite")]
     public bool CanInvite { get; set; }
+    [JsonPropertyName("is_unlimited")]
+    public bool IsUnlimited { get; set; }
+    public string Plan { get; set; } = string.Empty;
+    [JsonPropertyName("access_state")]
+    public string AccessState { get; set; } = string.Empty;
+}
+
+public class HouseholdEntitlement
+{
+    public string Plan { get; set; } = string.Empty;
+
+    [JsonPropertyName("effective_plan")]
+    public string EffectivePlan { get; set; } = string.Empty;
+
+    [JsonPropertyName("subscription_status")]
+    public string SubscriptionStatus { get; set; } = string.Empty;
+
+    [JsonPropertyName("access_state")]
+    public string AccessState { get; set; } = string.Empty;
+
+    [JsonPropertyName("has_premium_access")]
+    public bool HasPremiumAccess { get; set; }
+
+    [JsonPropertyName("is_founder")]
+    public bool IsFounder { get; set; }
+
+    [JsonPropertyName("is_unlimited")]
+    public bool IsUnlimited { get; set; }
+
+    [JsonPropertyName("patient_limit")]
+    public int? PatientLimit { get; set; }
+
+    [JsonPropertyName("patient_count")]
+    public int PatientCount { get; set; }
+
+    [JsonPropertyName("trial_started_at")]
+    public DateTimeOffset? TrialStartedAt { get; set; }
+
+    [JsonPropertyName("trial_ends_at")]
+    public DateTimeOffset? TrialEndsAt { get; set; }
+
+    [JsonPropertyName("legacy_trial")]
+    public bool LegacyTrial { get; set; }
+
+    [JsonPropertyName("subscription_started_at")]
+    public DateTimeOffset? SubscriptionStartedAt { get; set; }
+
+    [JsonPropertyName("subscription_ends_at")]
+    public DateTimeOffset? SubscriptionEndsAt { get; set; }
+
+    [JsonPropertyName("grace_ends_at")]
+    public DateTimeOffset? GraceEndsAt { get; set; }
+
+    [JsonPropertyName("cancel_at_period_end")]
+    public bool CancelAtPeriodEnd { get; set; }
+
+    [JsonPropertyName("billing_provider")]
+    public string? BillingProvider { get; set; }
+
+    [JsonPropertyName("billing_product_id")]
+    public string? BillingProductId { get; set; }
+
+    [JsonPropertyName("household_role")]
+    public string HouseholdRole { get; set; } = "member";
+
+    [JsonPropertyName("is_household_owner")]
+    public bool IsHouseholdOwner { get; set; }
+
+    [JsonPropertyName("is_household_manager")]
+    public bool IsHouseholdManager { get; set; }
+
+    [JsonPropertyName("is_billing_owner")]
+    public bool IsBillingOwner { get; set; }
+
+    [JsonPropertyName("can_manage_household")]
+    public bool CanManageHousehold { get; set; }
+
+    [JsonPropertyName("can_start_purchase")]
+    public bool CanStartPurchase { get; set; }
+
+    [JsonPropertyName("can_manage_billing")]
+    public bool CanManageBilling { get; set; }
+
+    [JsonPropertyName("requires_basic_patient_selection")]
+    public bool RequiresBasicPatientSelection { get; set; }
 }
