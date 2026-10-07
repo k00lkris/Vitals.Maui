@@ -12,6 +12,8 @@ public partial class HouseholdInviteViewModel : ObservableObject
     [ObservableProperty] private string _inviteeEmail = string.Empty;
     [ObservableProperty] private bool _canInvite = true;
     [ObservableProperty] private int _availableSlots;
+    [ObservableProperty] private bool _isUnlimited;
+    [ObservableProperty] private string _slotSummary = string.Empty;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private ObservableCollection<PendingInvite> _pendingInvites = new();
@@ -31,7 +33,11 @@ public partial class HouseholdInviteViewModel : ObservableObject
             if (status is not null)
             {
                 CanInvite = status.CanInvite;
-                AvailableSlots = status.AvailableSlots;
+                IsUnlimited = status.IsUnlimited;
+                AvailableSlots = status.AvailableSlots ?? 0;
+                SlotSummary = status.IsUnlimited
+                    ? "Unlimited patient slots (Founder household)"
+                    : $"{AvailableSlots} patient slot(s) available for new invites";
             }
 
             var invites = await _api.GetPendingInvitesAsync();
