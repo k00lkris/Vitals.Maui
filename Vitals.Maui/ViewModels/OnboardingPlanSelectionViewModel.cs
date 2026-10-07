@@ -11,7 +11,7 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
 
     // Wired by the page's code-behind.
     public Action? OnBack { get; set; }
-    public Action? OnIndividualOrFreeSelected { get; set; }  // -> Personalization
+    public Action? OnStandardOrTrialSelected { get; set; }   // -> Personalization
     public Action? OnFamilySelected { get; set; }            // -> Patient Setup (skip Personalization)
     public Action? OnJoinSelected { get; set; }               // -> enter invite code screen
 
@@ -20,20 +20,20 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
     private static readonly Color SelectedFillColor = Color.FromArgb("#661976D2");
     private static readonly Color UnselectedFillColor = Color.FromArgb("#f0f9ff");
 
-    // "individual" | "family" | "free" | "" (none chosen yet) — same
+    // "standard" | "family" | "trial" | "" (none chosen yet) — same
     // select-then-confirm pattern as OnboardingPersonalizationViewModel,
     // rather than navigating away the instant a card is tapped. Tapping
     // between options to compare before deciding shouldn't accidentally
     // create a household.
     [ObservableProperty] private string _selectedTier = string.Empty;
 
-    [ObservableProperty] private Color _individualCardColor = UnselectedColor;
+    [ObservableProperty] private Color _standardCardColor = UnselectedColor;
     [ObservableProperty] private Color _familyCardColor = UnselectedColor;
-    [ObservableProperty] private Color _freeCardColor = UnselectedColor;
+    [ObservableProperty] private Color _trialCardColor = UnselectedColor;
 
-    [ObservableProperty] private Color _individualCardBackground = UnselectedFillColor;
+    [ObservableProperty] private Color _standardCardBackground = UnselectedFillColor;
     [ObservableProperty] private Color _familyCardBackground = UnselectedFillColor;
-    [ObservableProperty] private Color _freeCardBackground = UnselectedFillColor;
+    [ObservableProperty] private Color _trialCardBackground = UnselectedFillColor;
 
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusMessage = string.Empty;
@@ -45,9 +45,9 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void SelectIndividual()
+    public void SelectStandard()
     {
-        SelectedTier = "individual";
+        SelectedTier = "standard";
     }
 
     [RelayCommand]
@@ -57,20 +57,20 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void SelectFree()
+    public void SelectTrial()
     {
-        SelectedTier = "free";
+        SelectedTier = "trial";
     }
 
     partial void OnSelectedTierChanged(string value)
     {
-        IndividualCardColor = value == "individual" ? SelectedColor : UnselectedColor;
+        StandardCardColor = value == "standard" ? SelectedColor : UnselectedColor;
         FamilyCardColor = value == "family" ? SelectedColor : UnselectedColor;
-        FreeCardColor = value == "free" ? SelectedColor : UnselectedColor;
+        TrialCardColor = value == "trial" ? SelectedColor : UnselectedColor;
 
-        IndividualCardBackground = value == "individual" ? SelectedFillColor : UnselectedFillColor;
+        StandardCardBackground = value == "standard" ? SelectedFillColor : UnselectedFillColor;
         FamilyCardBackground = value == "family" ? SelectedFillColor : UnselectedFillColor;
-        FreeCardBackground = value == "free" ? SelectedFillColor : UnselectedFillColor;
+        TrialCardBackground = value == "trial" ? SelectedFillColor : UnselectedFillColor;
 
         StatusMessage = string.Empty;
     }
@@ -80,14 +80,14 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
     /// household (intent only, no billing yet, that's Phase 7) and routes
     /// accordingly. Family skips Personalization entirely, since choosing
     /// it already answers "who are you tracking for" (more than one
-    /// person) — Individual and Free still need that question asked.
+    /// person) — Standard and Decide Later still need that question asked.
     /// </summary>
     [RelayCommand]
     public async Task ContinueAsync()
     {
         if (string.IsNullOrEmpty(SelectedTier))
         {
-            StatusMessage = "Choose a plan to continue.";
+            StatusMessage = "Choose a plan or select Decide Later to continue.";
             return;
         }
 
@@ -112,7 +112,7 @@ public partial class OnboardingPlanSelectionViewModel : ObservableObject
             }
             else
             {
-                OnIndividualOrFreeSelected?.Invoke();
+                OnStandardOrTrialSelected?.Invoke();
             }
         }
         finally
