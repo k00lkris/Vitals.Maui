@@ -783,8 +783,10 @@ public class ApiService
     // =====================================================
 
     /// <summary>
-    /// Creates a household with the selected tier (individual/family/free)
-    /// and attaches the caller to it. Returns the new token + household_id
+    /// Creates a household with Standard/Family plan intent, or "trial" when
+    /// the user chooses to decide later. Every new household receives the
+    /// same 30-day full-access trial with capacity for five patients.
+    /// Returns the new token + household_id
     /// on success — caller is responsible for handing that to
     /// AuthService.UpdateSessionAsync(). Returns null on failure.
     /// </summary>
@@ -1062,6 +1064,12 @@ public class HouseholdSessionResult
     [JsonPropertyName("household_id")]
     public string HouseholdId { get; set; } = string.Empty;
     public string Tier { get; set; } = string.Empty;
+    [JsonPropertyName("subscription_status")]
+    public string SubscriptionStatus { get; set; } = string.Empty;
+    [JsonPropertyName("trial_ends_at")]
+    public DateTimeOffset? TrialEndsAt { get; set; }
+    [JsonPropertyName("patient_limit")]
+    public int PatientLimit { get; set; }
 }
 
 public class JoinHouseholdResult
