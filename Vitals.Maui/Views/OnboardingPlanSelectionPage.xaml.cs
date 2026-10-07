@@ -13,7 +13,7 @@ public partial class OnboardingPlanSelectionPage : ContentPage
 
         vm.OnBack = async () => await Navigation.PopAsync();
 
-        vm.OnIndividualOrFreeSelected = async () =>
+        vm.OnStandardOrTrialSelected = async () =>
         {
             var services = Application.Current!.Handler.MauiContext!.Services;
             var personalizationVm = services.GetService<OnboardingPersonalizationViewModel>()!;
