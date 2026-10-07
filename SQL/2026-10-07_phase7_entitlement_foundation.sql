@@ -114,6 +114,17 @@ BEGIN
 
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
+        WHERE conname = 'households_founder_unlimited_check'
+    ) THEN
+        ALTER TABLE public.households
+            ADD CONSTRAINT households_founder_unlimited_check
+            CHECK (
+                patient_limit IS NOT NULL OR tier = 'founder'
+            ) NOT VALID;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
         WHERE conname = 'households_billing_provider_check'
     ) THEN
         ALTER TABLE public.households
