@@ -6205,6 +6205,7 @@ def update_patient_demographics(
     conn = get_conn()
     cur = conn.cursor()
     try:
+        verify_patient_household(cur, str(patient_id), household_id)
         cur.execute("""
             SELECT gender, height_inches
             FROM patients
