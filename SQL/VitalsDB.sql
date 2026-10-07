@@ -268,7 +268,16 @@ CREATE TABLE IF NOT EXISTS public.households
     subscription_status text COLLATE pg_catalog."default" NOT NULL DEFAULT 'trial'::text,
     trial_started_at timestamp with time zone,
     trial_ends_at timestamp with time zone,
-    patient_limit integer NOT NULL DEFAULT 2,
+    patient_limit integer DEFAULT 2,
+    owner_user_id uuid,
+    billing_owner_user_id uuid,
+    billing_provider text COLLATE pg_catalog."default",
+    billing_product_id text COLLATE pg_catalog."default",
+    subscription_started_at timestamp with time zone,
+    subscription_ends_at timestamp with time zone,
+    grace_ends_at timestamp with time zone,
+    cancel_at_period_end boolean NOT NULL DEFAULT false,
+    entitlement_updated_at timestamp with time zone NOT NULL DEFAULT now(),
     CONSTRAINT households_pkey PRIMARY KEY (household_id)
 )
 
@@ -658,6 +667,7 @@ CREATE TABLE IF NOT EXISTS public.users
     verification_token text COLLATE pg_catalog."default",
     verification_token_expires_at timestamp with time zone,
     has_logged_in boolean NOT NULL DEFAULT false,
+    household_role text COLLATE pg_catalog."default" NOT NULL DEFAULT 'member'::text,
     CONSTRAINT users_pkey PRIMARY KEY (user_id),
     CONSTRAINT users_email_key UNIQUE (email),
     CONSTRAINT users_firebase_uid_key UNIQUE (firebase_uid),
