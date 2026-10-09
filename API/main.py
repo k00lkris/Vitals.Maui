@@ -1071,9 +1071,15 @@ def _verify_apple_purchase(transaction_id: Optional[str], user_id: str) -> dict:
         raise HTTPException(status_code=502, detail="Apple returned an unknown subscription state")
 
     auto_renew_raw = renewal.get("autoRenewStatus")
-    auto_renew_enabled = (
-        None if auto_renew_raw is None else int(auto_renew_raw) == 1
-    )
+    try:
+        auto_renew_enabled = (
+            None if auto_renew_raw is None else int(auto_renew_raw) == 1
+        )
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=502,
+            detail="Apple returned an invalid auto-renew status."
+        )
 
     expires_at = _apple_datetime_from_millis(latest_transaction.get("expiresDate"))
     if expires_at is None:
@@ -1404,6 +1410,7 @@ def _upsert_billing_subscription(
             expires_at = EXCLUDED.expires_at,
             last_verified_at = now(),
             updated_at = now()
+        WHERE billing_subscriptions.household_id = EXCLUDED.household_id
         RETURNING billing_subscription_id
     """, (
         household_id,
@@ -1422,7 +1429,13 @@ def _upsert_billing_subscription(
         verified.get("purchased_at"),
         verified.get("expires_at"),
     ))
-    return str(cur.fetchone()[0])
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(
+            status_code=409,
+            detail="This store subscription is already linked to another Vitals household."
+        )
+    return str(row[0])
 
 
 def _apply_verified_billing_entitlement(
