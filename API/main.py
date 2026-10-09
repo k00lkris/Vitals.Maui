@@ -642,7 +642,30 @@ class BillingCatalogProduct(BaseModel):
 class BillingCatalogResponse(BaseModel):
     provider: Literal["apple", "google"]
     configured: bool
+    account_binding_token: str
     products: List[BillingCatalogProduct]
+
+class BillingVerifyRequest(BaseModel):
+    provider: Literal["apple", "google"]
+    # Apple: StoreKit transactionId. The server resolves current subscription
+    # status from the App Store Server API; client-supplied JWS is never trusted.
+    transaction_id: Optional[str] = None
+    # Google: purchaseToken returned by Google Play Billing.
+    purchase_token: Optional[str] = None
+
+class BillingVerifyResponse(BaseModel):
+    verified: bool
+    entitlement_changed: bool
+    provider: Literal["apple", "google"]
+    plan: Literal["standard", "family"]
+    billing_period: Literal["monthly", "annual"]
+    product_id: str
+    base_plan_id: Optional[str] = None
+    store_status: str
+    auto_renew_enabled: Optional[bool] = None
+    expires_at: Optional[datetime] = None
+    billing_subscription_id: str
+    entitlement: dict
 
 # --------------------
 # Utility functions
