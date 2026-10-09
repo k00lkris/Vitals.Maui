@@ -13276,7 +13276,132 @@ def get_billing_catalog(
     # Keep the dependency here even though the catalog itself is global so
     # unaffiliated/legacy callers cannot use a mobile billing endpoint.
     _ = household_id
-    return get_billing_product_catalog(provider)
+    user_id = auth.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Token missing user id")
+
+    catalog = get_billing_product_catalog(provider)
+    catalog["account_binding_token"] = _billing_account_binding_token(
+        provider,
+        user_id,
+    )
+    return catalog
+
+
+@app.post("/api/billing/verify", response_model=BillingVerifyResponse)
+def verify_billing_purchase(
+    body: BillingVerifyRequest,
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    """
+    Server-authoritative purchase verification.
+
+    The client supplies only the provider's opaque purchase reference:
+      Apple  -> StoreKit transactionId
+      Google -> Play Billing purchaseToken
+
+    Vitals never trusts a client-supplied plan, price, expiration, household
+    id, or entitlement. The server resolves the purchase directly with Apple
+    or Google, validates its Vitals account binding, maps the verified product
+    through the configured catalog, persists the store subscription, and only
+    then mutates household entitlement.
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="This requires a signed-in account")
+
+    user_id = auth.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Token missing user id")
+
+    # Permission is checked before the external store call so unauthorized
+    # members cannot use Vitals as an arbitrary store-verification proxy.
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        _require_billing_claim_permission(
+            cur,
+            household_id,
+            user_id,
+            body.provider,
+        )
+    finally:
+        cur.close()
+        conn.close()
+
+    verified = _verify_store_purchase(body, user_id)
+
+    # Re-check permission inside the write transaction because household role,
+    # billing ownership, or provider state may have changed during the network
+    # round trip to Apple/Google.
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        _require_billing_claim_permission(
+            cur,
+            household_id,
+            user_id,
+            body.provider,
+        )
+
+        prior_paid, prior_expires_at = _prepare_billing_subscription_upsert(
+            cur,
+            household_id,
+            verified,
+        )
+
+        billing_subscription_id = _upsert_billing_subscription(
+            cur,
+            household_id,
+            user_id,
+            verified,
+        )
+
+        entitlement_changed = _apply_verified_billing_entitlement(
+            cur,
+            household_id,
+            user_id,
+            verified,
+            prior_paid,
+            prior_expires_at,
+        )
+
+        entitlement = get_household_entitlement(
+            cur,
+            household_id,
+            user_id,
+        )
+        conn.commit()
+
+        return {
+            "verified": True,
+            "entitlement_changed": entitlement_changed,
+            "provider": verified["provider"],
+            "plan": verified["plan"],
+            "billing_period": verified["billing_period"],
+            "product_id": verified["product_id"],
+            "base_plan_id": verified.get("base_plan_id"),
+            "store_status": verified["store_status"],
+            "auto_renew_enabled": verified.get("auto_renew_enabled"),
+            "expires_at": verified.get("expires_at"),
+            "billing_subscription_id": billing_subscription_id,
+            "entitlement": entitlement,
+        }
+    except HTTPException:
+        conn.rollback()
+        raise
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="This store subscription is already linked to another Vitals household."
+        )
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.post("/api/household/patient-access")
