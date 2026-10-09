@@ -69,6 +69,41 @@ APPLE_ISSUER = "https://appleid.apple.com"
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 EMAIL_FROM = "Vitals <noreply@vitals-wellness.com>"
 
+# Phase 7 / 0.7.2 native-store product catalog.
+#
+# Product identifiers are configuration, not entitlement logic. Keeping them
+# in environment variables lets App Store Connect / Play Console identifiers
+# be finalized without another mobile build or backend code change.
+#
+# Google Play subscriptions use a subscription product plus a base plan;
+# Apple auto-renewable subscription durations use separate product IDs.
+BILLING_PRODUCT_ENV = {
+    "apple": {
+        ("standard", "monthly"): ("APPLE_STANDARD_MONTHLY_PRODUCT_ID", None),
+        ("standard", "annual"): ("APPLE_STANDARD_ANNUAL_PRODUCT_ID", None),
+        ("family", "monthly"): ("APPLE_FAMILY_MONTHLY_PRODUCT_ID", None),
+        ("family", "annual"): ("APPLE_FAMILY_ANNUAL_PRODUCT_ID", None),
+    },
+    "google": {
+        ("standard", "monthly"): (
+            "GOOGLE_STANDARD_PRODUCT_ID",
+            "GOOGLE_STANDARD_MONTHLY_BASE_PLAN_ID",
+        ),
+        ("standard", "annual"): (
+            "GOOGLE_STANDARD_PRODUCT_ID",
+            "GOOGLE_STANDARD_ANNUAL_BASE_PLAN_ID",
+        ),
+        ("family", "monthly"): (
+            "GOOGLE_FAMILY_PRODUCT_ID",
+            "GOOGLE_FAMILY_MONTHLY_BASE_PLAN_ID",
+        ),
+        ("family", "annual"): (
+            "GOOGLE_FAMILY_PRODUCT_ID",
+            "GOOGLE_FAMILY_ANNUAL_BASE_PLAN_ID",
+        ),
+    },
+}
+
 # --------------------
 # Auth dependency
 # Must be defined BEFORE app = FastAPI()
@@ -580,9 +615,67 @@ class PatientAccessSelectionRequest(BaseModel):
     # above its current effective plan capacity.
     patient_ids: list[str]
 
+class BillingCatalogProduct(BaseModel):
+    plan: Literal["standard", "family"]
+    billing_period: Literal["monthly", "annual"]
+    product_id: Optional[str] = None
+    base_plan_id: Optional[str] = None
+    configured: bool
+
+class BillingCatalogResponse(BaseModel):
+    provider: Literal["apple", "google"]
+    configured: bool
+    products: List[BillingCatalogProduct]
+
 # --------------------
 # Utility functions
 # --------------------
+def _billing_env_value(name: Optional[str]) -> Optional[str]:
+    if not name:
+        return None
+    value = os.getenv(name)
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def get_billing_product_catalog(provider: str) -> dict:
+    """
+    Returns the provider-specific Standard/Family monthly/annual product map.
+
+    Prices are intentionally NOT stored here. Apple and Google remain the
+    authority for localized price/currency presentation; the mobile client
+    fetches those details from the store using these configured identifiers.
+    """
+    specs = BILLING_PRODUCT_ENV.get(provider)
+    if specs is None:
+        raise HTTPException(status_code=400, detail="Unsupported billing provider")
+
+    products = []
+    for (plan, billing_period), (product_env, base_plan_env) in specs.items():
+        product_id = _billing_env_value(product_env)
+        base_plan_id = _billing_env_value(base_plan_env)
+
+        configured = bool(
+            product_id
+            and (provider != "google" or base_plan_id)
+        )
+        products.append({
+            "plan": plan,
+            "billing_period": billing_period,
+            "product_id": product_id,
+            "base_plan_id": base_plan_id,
+            "configured": configured,
+        })
+
+    return {
+        "provider": provider,
+        "configured": all(product["configured"] for product in products),
+        "products": products,
+    }
+
+
 def parse_daily_frequency(schedule: str):
     if not schedule:
         return None
@@ -12252,6 +12345,30 @@ def get_household_entitlement_status(
     finally:
         cur.close()
         conn.close()
+
+
+@app.get("/api/billing/catalog", response_model=BillingCatalogResponse)
+def get_billing_catalog(
+    provider: Literal["apple", "google"] = Query(...),
+    household_id: str = Depends(get_household_id),
+    auth: dict = Depends(get_auth),
+):
+    """
+    Returns the store identifiers the signed-in mobile client should use when
+    requesting localized subscription products from StoreKit / Google Play.
+
+    This endpoint deliberately exposes no price values and performs no
+    purchase mutation. Store verification and entitlement mutation are added
+    in the next 0.7.2 slice.
+    """
+    if auth.get("type") == "api_key":
+        raise HTTPException(status_code=401, detail="This requires a signed-in account")
+
+    # get_household_id already validates that the JWT belongs to a household.
+    # Keep the dependency here even though the catalog itself is global so
+    # unaffiliated/legacy callers cannot use a mobile billing endpoint.
+    _ = household_id
+    return get_billing_product_catalog(provider)
 
 
 @app.post("/api/household/patient-access")
