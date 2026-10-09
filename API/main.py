@@ -15,6 +15,7 @@ from reportlab.lib import colors
 from io import BytesIO
 import google.auth.transport.requests
 from google.oauth2 import id_token as google_id_token
+from google.oauth2 import service_account
 from jose import jwt as jose_jwt, JWTError
 from datetime import timezone
 import matplotlib
@@ -23,6 +24,7 @@ from scipy import stats
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import base64
 import json
 import os
 import psycopg2
@@ -65,6 +67,21 @@ PUBLIC_PATHS = {
 APPLE_CLIENT_ID = os.getenv("APPLE_CLIENT_ID", "com.vitalswellness.vitals")
 APPLE_KEYS_URL = "https://appleid.apple.com/auth/keys"
 APPLE_ISSUER = "https://appleid.apple.com"
+
+# Native subscription verification configuration. Secrets stay server-side.
+APPLE_BUNDLE_ID = os.getenv("APPLE_BUNDLE_ID", APPLE_CLIENT_ID)
+APPLE_IAP_KEY_ID = os.getenv("APPLE_IAP_KEY_ID")
+APPLE_IAP_ISSUER_ID = os.getenv("APPLE_IAP_ISSUER_ID")
+APPLE_IAP_PRIVATE_KEY = os.getenv("APPLE_IAP_PRIVATE_KEY")
+APPLE_IAP_PRIVATE_KEY_PATH = os.getenv("APPLE_IAP_PRIVATE_KEY_PATH")
+GOOGLE_PLAY_PACKAGE_NAME = os.getenv(
+    "GOOGLE_PLAY_PACKAGE_NAME",
+    "com.vitalswellness.vitals",
+)
+GOOGLE_PLAY_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON")
+GOOGLE_PLAY_SERVICE_ACCOUNT_PATH = os.getenv("GOOGLE_PLAY_SERVICE_ACCOUNT_PATH")
+GOOGLE_PLAY_SCOPE = "https://www.googleapis.com/auth/androidpublisher"
+VITALS_BILLING_GRACE_DAYS = 5
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 EMAIL_FROM = "Vitals <noreply@vitals-wellness.com>"
