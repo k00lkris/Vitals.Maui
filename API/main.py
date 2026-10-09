@@ -1579,6 +1579,7 @@ def _apply_verified_billing_entitlement(
                 billing_owner_user_id = NULL,
                 billing_provider = NULL,
                 billing_product_id = NULL,
+                subscription_started_at = NULL,
                 subscription_ends_at = %s,
                 grace_ends_at = NULL,
                 cancel_at_period_end = false,
