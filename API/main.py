@@ -716,6 +716,874 @@ def get_billing_product_catalog(provider: str) -> dict:
     }
 
 
+def _billing_account_binding_token(provider: str, user_id: str) -> str:
+    """
+    Returns the account identifier the native purchase client must attach to
+    the store transaction.
+
+    Apple requires appAccountToken to be a UUID, so the Vitals user UUID is
+    used directly. Google expects an obfuscated external account identifier;
+    a one-way SHA-256 value keeps the raw Vitals user id out of Play billing.
+    """
+    if provider == "apple":
+        try:
+            return str(UUID(str(user_id)))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Invalid Vitals user id")
+
+    if provider == "google":
+        return hashlib.sha256(
+            f"vitals:{user_id}".encode("utf-8")
+        ).hexdigest()
+
+    raise HTTPException(status_code=400, detail="Unsupported billing provider")
+
+
+def _catalog_product_for_verified_purchase(
+    provider: str,
+    product_id: Optional[str],
+    base_plan_id: Optional[str] = None,
+) -> dict:
+    """
+    Maps a STORE-VERIFIED product back to the Vitals commercial plan.
+
+    Client-supplied plan/period values are intentionally absent from the
+    verification request; a verified store product is the only source of truth.
+    """
+    if not product_id:
+        raise HTTPException(status_code=409, detail="Store purchase has no product id")
+
+    catalog = get_billing_product_catalog(provider)
+    for product in catalog["products"]:
+        if not product["configured"]:
+            continue
+        if product["product_id"] != product_id:
+            continue
+        if provider == "google" and product["base_plan_id"] != base_plan_id:
+            continue
+        return product
+
+    raise HTTPException(
+        status_code=409,
+        detail="The verified store product is not configured for Vitals."
+    )
+
+
+def _require_any_configured_store_product(provider: str):
+    catalog = get_billing_product_catalog(provider)
+    if not any(product["configured"] for product in catalog["products"]):
+        raise HTTPException(
+            status_code=503,
+            detail=f"{provider.title()} billing products are not configured yet."
+        )
+
+
+def _parse_store_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        normalized = value.strip()
+        if normalized.endswith("Z"):
+            normalized = normalized[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=502,
+            detail="Store returned an invalid subscription timestamp."
+        )
+
+
+def _apple_datetime_from_millis(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    try:
+        return datetime.fromtimestamp(float(value) / 1000.0, tz=timezone.utc)
+    except (TypeError, ValueError, OSError):
+        raise HTTPException(
+            status_code=502,
+            detail="Apple returned an invalid subscription timestamp."
+        )
+
+
+def _decode_apple_server_jws_payload(signed_value: Optional[str]) -> dict:
+    """
+    Decode a JWS returned directly by Apple's authenticated Server API.
+
+    Vitals never accepts this signed payload from the mobile client. The JWS is
+    obtained only through a server-to-server HTTPS request authenticated with
+    our App Store Connect in-app-purchase key; the transport/API response is
+    therefore the trust boundary for this slice. App Store Server
+    Notifications will use full JWS signature validation in the notification
+    slice.
+    """
+    if not signed_value:
+        raise HTTPException(status_code=502, detail="Apple response is missing signed data")
+
+    parts = signed_value.split(".")
+    if len(parts) != 3:
+        raise HTTPException(status_code=502, detail="Apple returned malformed signed data")
+
+    try:
+        payload = parts[1] + ("=" * (-len(parts[1]) % 4))
+        decoded = base64.urlsafe_b64decode(payload.encode("ascii"))
+        result = json.loads(decoded.decode("utf-8"))
+        if not isinstance(result, dict):
+            raise ValueError("JWS payload is not an object")
+        return result
+    except Exception:
+        raise HTTPException(status_code=502, detail="Apple returned unreadable signed data")
+
+
+def _apple_private_key_text() -> str:
+    if APPLE_IAP_PRIVATE_KEY:
+        return APPLE_IAP_PRIVATE_KEY.replace("\\n", "\n")
+
+    if APPLE_IAP_PRIVATE_KEY_PATH:
+        try:
+            with open(APPLE_IAP_PRIVATE_KEY_PATH, "r", encoding="utf-8") as handle:
+                value = handle.read().strip()
+            if value:
+                return value
+        except OSError:
+            pass
+
+    raise HTTPException(
+        status_code=503,
+        detail="Apple billing verification credentials are not configured."
+    )
+
+
+def _apple_server_authorization_token() -> str:
+    if not APPLE_IAP_KEY_ID or not APPLE_IAP_ISSUER_ID or not APPLE_BUNDLE_ID:
+        raise HTTPException(
+            status_code=503,
+            detail="Apple billing verification credentials are not configured."
+        )
+
+    now_seconds = int(datetime.now(timezone.utc).timestamp())
+    payload = {
+        "iss": APPLE_IAP_ISSUER_ID,
+        "iat": now_seconds,
+        "exp": now_seconds + (15 * 60),
+        "aud": "appstoreconnect-v1",
+        "bid": APPLE_BUNDLE_ID,
+    }
+    headers = {
+        "alg": "ES256",
+        "kid": APPLE_IAP_KEY_ID,
+        "typ": "JWT",
+    }
+
+    try:
+        return jose_jwt.encode(
+            payload,
+            _apple_private_key_text(),
+            algorithm="ES256",
+            headers=headers,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Apple billing verification credentials are not usable."
+        )
+
+
+def _apple_server_get(path: str, environment: str):
+    base_url = (
+        "https://api.storekit-sandbox.apple.com"
+        if environment == "sandbox"
+        else "https://api.storekit.apple.com"
+    )
+    try:
+        return requests.get(
+            f"{base_url}{path}",
+            headers={
+                "Authorization": f"Bearer {_apple_server_authorization_token()}",
+                "Accept": "application/json",
+            },
+            timeout=15,
+        )
+    except requests.RequestException:
+        raise HTTPException(
+            status_code=503,
+            detail="Apple billing verification is temporarily unavailable."
+        )
+
+
+def _apple_response_or_error(response, not_found_detail: str) -> dict:
+    if response.status_code == 200:
+        try:
+            payload = response.json()
+        except ValueError:
+            raise HTTPException(status_code=502, detail="Apple returned invalid JSON")
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=502, detail="Apple returned an invalid response")
+        return payload
+
+    if response.status_code == 404:
+        raise HTTPException(status_code=404, detail=not_found_detail)
+    if response.status_code in (401, 403):
+        raise HTTPException(
+            status_code=503,
+            detail="Apple billing verification credentials were rejected."
+        )
+    if response.status_code == 429 or response.status_code >= 500:
+        raise HTTPException(
+            status_code=503,
+            detail="Apple billing verification is temporarily unavailable."
+        )
+
+    raise HTTPException(status_code=400, detail="Apple rejected the transaction identifier.")
+
+
+def _fetch_apple_transaction(transaction_id: str) -> tuple[str, dict]:
+    safe_id = requests.utils.quote(transaction_id, safe="")
+    path = f"/inApps/v1/transactions/{safe_id}"
+
+    # StoreKit sandbox purchases can reach the production Vitals API. Resolve
+    # production first and then sandbox rather than trusting an environment
+    # value supplied by the phone.
+    for environment in ("production", "sandbox"):
+        response = _apple_server_get(path, environment)
+        if response.status_code == 404:
+            continue
+
+        body = _apple_response_or_error(response, "Apple transaction was not found.")
+        transaction = _decode_apple_server_jws_payload(
+            body.get("signedTransactionInfo")
+        )
+        if transaction.get("bundleId") != APPLE_BUNDLE_ID:
+            raise HTTPException(status_code=403, detail="Apple transaction belongs to another app")
+        return environment, transaction
+
+    raise HTTPException(status_code=400, detail="Apple transaction was not found.")
+
+
+def _fetch_apple_subscription_status(
+    original_transaction_id: str,
+    environment: str,
+) -> tuple[int, dict, dict]:
+    safe_id = requests.utils.quote(original_transaction_id, safe="")
+    response = _apple_server_get(
+        f"/inApps/v1/subscriptions/{safe_id}",
+        environment,
+    )
+    body = _apple_response_or_error(
+        response,
+        "Apple subscription was not found."
+    )
+
+    if body.get("bundleId") != APPLE_BUNDLE_ID:
+        raise HTTPException(status_code=403, detail="Apple subscription belongs to another app")
+
+    for group in body.get("data") or []:
+        for item in group.get("lastTransactions") or []:
+            if str(item.get("originalTransactionId") or "") != original_transaction_id:
+                continue
+
+            transaction = _decode_apple_server_jws_payload(
+                item.get("signedTransactionInfo")
+            )
+            renewal = (
+                _decode_apple_server_jws_payload(item.get("signedRenewalInfo"))
+                if item.get("signedRenewalInfo")
+                else {}
+            )
+            try:
+                status = int(item.get("status"))
+            except (TypeError, ValueError):
+                raise HTTPException(
+                    status_code=502,
+                    detail="Apple returned an invalid subscription status."
+                )
+            return status, transaction, renewal
+
+    raise HTTPException(
+        status_code=502,
+        detail="Apple did not return current status for the subscription."
+    )
+
+
+def _verify_apple_purchase(transaction_id: Optional[str], user_id: str) -> dict:
+    _require_any_configured_store_product("apple")
+    transaction_id = (transaction_id or "").strip()
+    if not transaction_id:
+        raise HTTPException(status_code=400, detail="transaction_id is required for Apple")
+
+    environment, submitted_transaction = _fetch_apple_transaction(transaction_id)
+    expected_binding = _billing_account_binding_token("apple", user_id)
+
+    submitted_binding = str(submitted_transaction.get("appAccountToken") or "").lower()
+    if submitted_binding != expected_binding.lower():
+        raise HTTPException(
+            status_code=403,
+            detail="Apple purchase is not bound to this Vitals account."
+        )
+
+    original_transaction_id = str(
+        submitted_transaction.get("originalTransactionId") or ""
+    ).strip()
+    if not original_transaction_id:
+        raise HTTPException(
+            status_code=502,
+            detail="Apple transaction is missing its original transaction id."
+        )
+
+    status_code, latest_transaction, renewal = _fetch_apple_subscription_status(
+        original_transaction_id,
+        environment,
+    )
+
+    if latest_transaction.get("bundleId") != APPLE_BUNDLE_ID:
+        raise HTTPException(status_code=403, detail="Apple subscription belongs to another app")
+
+    latest_binding = str(latest_transaction.get("appAccountToken") or "").lower()
+    if latest_binding != expected_binding.lower():
+        raise HTTPException(
+            status_code=403,
+            detail="Apple subscription is not bound to this Vitals account."
+        )
+
+    if str(latest_transaction.get("originalTransactionId") or "") != original_transaction_id:
+        raise HTTPException(
+            status_code=502,
+            detail="Apple returned a mismatched subscription."
+        )
+
+    product = _catalog_product_for_verified_purchase(
+        "apple",
+        latest_transaction.get("productId"),
+    )
+
+    store_status = {
+        1: "active",
+        2: "expired",
+        3: "billing_retry",
+        4: "grace",
+        5: "revoked",
+    }.get(status_code)
+    if not store_status:
+        raise HTTPException(status_code=502, detail="Apple returned an unknown subscription state")
+
+    auto_renew_raw = renewal.get("autoRenewStatus")
+    auto_renew_enabled = (
+        None if auto_renew_raw is None else int(auto_renew_raw) == 1
+    )
+
+    expires_at = _apple_datetime_from_millis(latest_transaction.get("expiresDate"))
+    if expires_at is None:
+        raise HTTPException(status_code=502, detail="Apple subscription has no expiration date")
+
+    return {
+        "provider": "apple",
+        "plan": product["plan"],
+        "billing_period": product["billing_period"],
+        "product_id": product["product_id"],
+        "base_plan_id": None,
+        "external_subscription_ref": original_transaction_id,
+        "linked_external_subscription_ref": None,
+        "latest_transaction_id": str(latest_transaction.get("transactionId") or "") or None,
+        "store_environment": environment,
+        "store_status": store_status,
+        "auto_renew_enabled": auto_renew_enabled,
+        "purchased_at": _apple_datetime_from_millis(
+            latest_transaction.get("originalPurchaseDate")
+            or latest_transaction.get("purchaseDate")
+        ),
+        "expires_at": expires_at,
+    }
+
+
+def _google_play_credentials():
+    try:
+        if GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:
+            info = json.loads(GOOGLE_PLAY_SERVICE_ACCOUNT_JSON)
+            return service_account.Credentials.from_service_account_info(
+                info,
+                scopes=[GOOGLE_PLAY_SCOPE],
+            )
+
+        if GOOGLE_PLAY_SERVICE_ACCOUNT_PATH:
+            return service_account.Credentials.from_service_account_file(
+                GOOGLE_PLAY_SERVICE_ACCOUNT_PATH,
+                scopes=[GOOGLE_PLAY_SCOPE],
+            )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Google Play billing verification credentials are not usable."
+        )
+
+    raise HTTPException(
+        status_code=503,
+        detail="Google Play billing verification credentials are not configured."
+    )
+
+
+def _verify_google_purchase(purchase_token: Optional[str], user_id: str) -> dict:
+    _require_any_configured_store_product("google")
+    purchase_token = (purchase_token or "").strip()
+    if not purchase_token:
+        raise HTTPException(status_code=400, detail="purchase_token is required for Google")
+
+    credentials = _google_play_credentials()
+    session = google.auth.transport.requests.AuthorizedSession(credentials)
+    safe_package = requests.utils.quote(GOOGLE_PLAY_PACKAGE_NAME, safe="")
+    safe_token = requests.utils.quote(purchase_token, safe="")
+    url = (
+        "https://androidpublisher.googleapis.com/androidpublisher/v3/"
+        f"applications/{safe_package}/purchases/subscriptionsv2/tokens/{safe_token}"
+    )
+
+    try:
+        response = session.get(url, timeout=15)
+    except requests.RequestException:
+        raise HTTPException(
+            status_code=503,
+            detail="Google Play billing verification is temporarily unavailable."
+        )
+    finally:
+        try:
+            session.close()
+        except Exception:
+            pass
+
+    if response.status_code == 404:
+        raise HTTPException(status_code=400, detail="Google Play purchase token was not found.")
+    if response.status_code in (401, 403):
+        raise HTTPException(
+            status_code=503,
+            detail="Google Play billing verification credentials were rejected."
+        )
+    if response.status_code == 429 or response.status_code >= 500:
+        raise HTTPException(
+            status_code=503,
+            detail="Google Play billing verification is temporarily unavailable."
+        )
+    if response.status_code != 200:
+        raise HTTPException(status_code=400, detail="Google Play rejected the purchase token.")
+
+    try:
+        body = response.json()
+    except ValueError:
+        raise HTTPException(status_code=502, detail="Google Play returned invalid JSON")
+
+    expected_binding = _billing_account_binding_token("google", user_id)
+    identifiers = body.get("externalAccountIdentifiers") or {}
+    actual_binding = str(identifiers.get("obfuscatedExternalAccountId") or "")
+    if actual_binding != expected_binding:
+        raise HTTPException(
+            status_code=403,
+            detail="Google Play purchase is not bound to this Vitals account."
+        )
+
+    candidates = []
+    for item in body.get("lineItems") or []:
+        product_id = item.get("productId")
+        offer_details = item.get("offerDetails") or {}
+        base_plan_id = offer_details.get("basePlanId")
+        try:
+            product = _catalog_product_for_verified_purchase(
+                "google",
+                product_id,
+                base_plan_id,
+            )
+        except HTTPException as exc:
+            if exc.status_code == 409:
+                continue
+            raise
+
+        expires_at = _parse_store_datetime(item.get("expiryTime"))
+        if expires_at is None:
+            continue
+        candidates.append((expires_at, item, product))
+
+    if not candidates:
+        raise HTTPException(
+            status_code=409,
+            detail="Google Play purchase does not contain a configured Vitals subscription."
+        )
+
+    expires_at, item, product = max(candidates, key=lambda candidate: candidate[0])
+    state = str(body.get("subscriptionState") or "")
+    store_status = {
+        "SUBSCRIPTION_STATE_ACTIVE": "active",
+        "SUBSCRIPTION_STATE_CANCELED": "canceled",
+        "SUBSCRIPTION_STATE_IN_GRACE_PERIOD": "grace",
+        "SUBSCRIPTION_STATE_ON_HOLD": "on_hold",
+        "SUBSCRIPTION_STATE_PAUSED": "paused",
+        "SUBSCRIPTION_STATE_EXPIRED": "expired",
+        "SUBSCRIPTION_STATE_PENDING": "pending",
+        "SUBSCRIPTION_STATE_PENDING_PURCHASE_CANCELED": "expired",
+    }.get(state)
+    if not store_status:
+        raise HTTPException(
+            status_code=502,
+            detail="Google Play returned an unknown subscription state."
+        )
+
+    auto_renewing = item.get("autoRenewingPlan") or {}
+    auto_renew_enabled = auto_renewing.get("autoRenewEnabled")
+    if auto_renew_enabled is not None:
+        auto_renew_enabled = bool(auto_renew_enabled)
+
+    return {
+        "provider": "google",
+        "plan": product["plan"],
+        "billing_period": product["billing_period"],
+        "product_id": product["product_id"],
+        "base_plan_id": product["base_plan_id"],
+        "external_subscription_ref": purchase_token,
+        "linked_external_subscription_ref": body.get("linkedPurchaseToken"),
+        "latest_transaction_id": item.get("latestSuccessfulOrderId"),
+        "store_environment": "test" if body.get("testPurchase") is not None else "production",
+        "store_status": store_status,
+        "auto_renew_enabled": auto_renew_enabled,
+        "purchased_at": _parse_store_datetime(body.get("startTime")),
+        "expires_at": expires_at,
+    }
+
+
+def _verify_store_purchase(body: BillingVerifyRequest, user_id: str) -> dict:
+    if body.provider == "apple":
+        return _verify_apple_purchase(body.transaction_id, user_id)
+    if body.provider == "google":
+        return _verify_google_purchase(body.purchase_token, user_id)
+    raise HTTPException(status_code=400, detail="Unsupported billing provider")
+
+
+def _require_billing_claim_permission(
+    cur,
+    household_id: str,
+    user_id: str,
+    provider: str,
+) -> dict:
+    entitlement = get_household_entitlement(cur, household_id, user_id)
+
+    if entitlement["is_founder"] or entitlement["is_beta"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Complimentary Founder/Beta households do not use store billing."
+        )
+
+    cur.execute("""
+        SELECT billing_owner_user_id, billing_provider, subscription_status
+        FROM households
+        WHERE household_id = %s
+    """, (household_id,))
+    row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Household not found")
+
+    billing_owner_user_id, current_provider, subscription_status = row
+    if billing_owner_user_id and str(billing_owner_user_id) != str(user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="This household's store subscription belongs to a different billing owner."
+        )
+
+    if not (
+        entitlement["can_start_purchase"]
+        or entitlement["can_manage_billing"]
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to verify purchases for this household."
+        )
+
+    if (
+        current_provider
+        and current_provider != provider
+        and subscription_status in ("active", "grace")
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="This household already has an active subscription from another store."
+        )
+
+    return entitlement
+
+
+def _prepare_billing_subscription_upsert(
+    cur,
+    household_id: str,
+    verified: dict,
+) -> tuple[bool, Optional[datetime]]:
+    references = [
+        ref for ref in (
+            verified["external_subscription_ref"],
+            verified.get("linked_external_subscription_ref"),
+        )
+        if ref
+    ]
+
+    cur.execute("""
+        SELECT DISTINCT household_id
+        FROM billing_subscriptions
+        WHERE provider = %s
+          AND (
+              external_subscription_ref = ANY(%s)
+              OR linked_external_subscription_ref = ANY(%s)
+          )
+    """, (verified["provider"], references, references))
+    for row in cur.fetchall():
+        if str(row[0]) != str(household_id):
+            raise HTTPException(
+                status_code=409,
+                detail="This store subscription is already linked to another Vitals household."
+            )
+
+    cur.execute("""
+        SELECT store_status, expires_at
+        FROM billing_subscriptions
+        WHERE provider = %s
+          AND household_id = %s
+          AND external_subscription_ref = ANY(%s)
+        ORDER BY last_verified_at DESC NULLS LAST, updated_at DESC
+        LIMIT 1
+    """, (verified["provider"], household_id, references))
+    prior = cur.fetchone()
+
+    prior_paid = bool(
+        prior
+        and prior[0] in ("active", "canceled", "grace", "billing_retry")
+    )
+    prior_expires_at = prior[1] if prior else None
+    return prior_paid, prior_expires_at
+
+
+def _upsert_billing_subscription(
+    cur,
+    household_id: str,
+    user_id: str,
+    verified: dict,
+) -> str:
+    cur.execute("""
+        INSERT INTO billing_subscriptions (
+            household_id,
+            billing_owner_user_id,
+            provider,
+            plan,
+            billing_period,
+            product_id,
+            base_plan_id,
+            external_subscription_ref,
+            linked_external_subscription_ref,
+            latest_transaction_id,
+            store_environment,
+            store_status,
+            auto_renew_enabled,
+            purchased_at,
+            expires_at,
+            last_verified_at,
+            updated_at
+        )
+        VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, now(), now()
+        )
+        ON CONFLICT (provider, external_subscription_ref)
+        DO UPDATE SET
+            household_id = EXCLUDED.household_id,
+            billing_owner_user_id = EXCLUDED.billing_owner_user_id,
+            plan = EXCLUDED.plan,
+            billing_period = EXCLUDED.billing_period,
+            product_id = EXCLUDED.product_id,
+            base_plan_id = EXCLUDED.base_plan_id,
+            linked_external_subscription_ref = EXCLUDED.linked_external_subscription_ref,
+            latest_transaction_id = EXCLUDED.latest_transaction_id,
+            store_environment = EXCLUDED.store_environment,
+            store_status = EXCLUDED.store_status,
+            auto_renew_enabled = EXCLUDED.auto_renew_enabled,
+            purchased_at = EXCLUDED.purchased_at,
+            expires_at = EXCLUDED.expires_at,
+            last_verified_at = now(),
+            updated_at = now()
+        RETURNING billing_subscription_id
+    """, (
+        household_id,
+        user_id,
+        verified["provider"],
+        verified["plan"],
+        verified["billing_period"],
+        verified["product_id"],
+        verified.get("base_plan_id"),
+        verified["external_subscription_ref"],
+        verified.get("linked_external_subscription_ref"),
+        verified.get("latest_transaction_id"),
+        verified["store_environment"],
+        verified["store_status"],
+        verified.get("auto_renew_enabled"),
+        verified.get("purchased_at"),
+        verified.get("expires_at"),
+    ))
+    return str(cur.fetchone()[0])
+
+
+def _apply_verified_billing_entitlement(
+    cur,
+    household_id: str,
+    user_id: str,
+    verified: dict,
+    prior_paid: bool,
+    prior_expires_at: Optional[datetime],
+) -> bool:
+    """
+    Apply only STORE-VERIFIED access states.
+
+    A failed initial purchase never receives Vitals grace. Grace is available
+    only when this household already had a paid verification for the same
+    subscription lineage. Re-verifying cannot keep extending the five-day
+    courtesy window.
+    """
+    now = datetime.now(timezone.utc)
+    store_status = verified["store_status"]
+    expires_at = verified.get("expires_at")
+    plan = verified["plan"]
+    plan_limit = EFFECTIVE_PLAN_PATIENT_LIMITS[plan]
+
+    paid_through_active = bool(
+        expires_at
+        and expires_at > now
+        and store_status in ("active", "canceled")
+    )
+
+    if paid_through_active:
+        cancel_at_period_end = bool(
+            store_status == "canceled"
+            or verified.get("auto_renew_enabled") is False
+        )
+        cur.execute("""
+            UPDATE households
+            SET tier = %s,
+                subscription_status = 'active',
+                patient_limit = %s,
+                billing_owner_user_id = %s,
+                billing_provider = %s,
+                billing_product_id = %s,
+                subscription_started_at = COALESCE(
+                    subscription_started_at,
+                    %s,
+                    now()
+                ),
+                subscription_ends_at = %s,
+                grace_ends_at = NULL,
+                cancel_at_period_end = %s,
+                entitlement_updated_at = now()
+            WHERE household_id = %s
+        """, (
+            plan,
+            plan_limit,
+            user_id,
+            verified["provider"],
+            verified["product_id"],
+            verified.get("purchased_at"),
+            expires_at,
+            cancel_at_period_end,
+            household_id,
+        ))
+        return cur.rowcount == 1
+
+    if store_status in ("grace", "billing_retry") and prior_paid:
+        cur.execute("""
+            SELECT subscription_status, grace_ends_at,
+                   billing_owner_user_id, billing_provider
+            FROM households
+            WHERE household_id = %s
+        """, (household_id,))
+        current = cur.fetchone()
+        if not current:
+            raise HTTPException(status_code=404, detail="Household not found")
+
+        current_status, existing_grace_end, billing_owner_id, current_provider = current
+        same_existing_grace = bool(
+            current_status == "grace"
+            and existing_grace_end is not None
+            and billing_owner_id is not None
+            and str(billing_owner_id) == str(user_id)
+            and current_provider == verified["provider"]
+        )
+
+        if same_existing_grace:
+            grace_end = existing_grace_end
+        else:
+            grace_anchor = prior_expires_at or expires_at or now
+            grace_end = grace_anchor + timedelta(days=VITALS_BILLING_GRACE_DAYS)
+
+        if grace_end > now:
+            cur.execute("""
+                UPDATE households
+                SET tier = %s,
+                    subscription_status = 'grace',
+                    patient_limit = %s,
+                    billing_owner_user_id = %s,
+                    billing_provider = %s,
+                    billing_product_id = %s,
+                    subscription_started_at = COALESCE(
+                        subscription_started_at,
+                        %s,
+                        now()
+                    ),
+                    subscription_ends_at = %s,
+                    grace_ends_at = %s,
+                    cancel_at_period_end = false,
+                    entitlement_updated_at = now()
+                WHERE household_id = %s
+            """, (
+                plan,
+                plan_limit,
+                user_id,
+                verified["provider"],
+                verified["product_id"],
+                verified.get("purchased_at"),
+                prior_expires_at or expires_at,
+                grace_end,
+                household_id,
+            ))
+            return cur.rowcount == 1
+
+    # Pending/failed INITIAL purchases do not mutate entitlement. For a
+    # previously paid subscription, terminal or inaccessible store states end
+    # paid access and release billing ownership so a new purchase can begin.
+    terminal_state = (
+        store_status in ("expired", "revoked", "on_hold", "paused")
+        or (store_status in ("active", "canceled") and not paid_through_active)
+        or (
+            store_status in ("grace", "billing_retry")
+            and prior_paid
+        )
+    )
+
+    if terminal_state and prior_paid:
+        cur.execute("""
+            UPDATE households
+            SET subscription_status = 'basic',
+                billing_owner_user_id = NULL,
+                billing_provider = NULL,
+                billing_product_id = NULL,
+                subscription_ends_at = %s,
+                grace_ends_at = NULL,
+                cancel_at_period_end = false,
+                entitlement_updated_at = now()
+            WHERE household_id = %s
+              AND billing_owner_user_id = %s
+              AND billing_provider = %s
+        """, (
+            expires_at or prior_expires_at,
+            household_id,
+            user_id,
+            verified["provider"],
+        ))
+        return cur.rowcount == 1
+
+    return False
+
+
 def parse_daily_frequency(schedule: str):
     if not schedule:
         return None
