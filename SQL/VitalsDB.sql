@@ -690,6 +690,69 @@ GRANT ALL ON TABLE public.users TO bcbauser;
 
 GRANT ALL ON TABLE public.users TO vitals_user;
 
+-- Table: public.billing_subscriptions
+
+-- DROP TABLE IF EXISTS public.billing_subscriptions;
+
+CREATE TABLE IF NOT EXISTS public.billing_subscriptions
+(
+    billing_subscription_id uuid NOT NULL DEFAULT gen_random_uuid(),
+    household_id uuid NOT NULL,
+    billing_owner_user_id uuid,
+    provider text COLLATE pg_catalog."default" NOT NULL,
+    plan text COLLATE pg_catalog."default" NOT NULL,
+    billing_period text COLLATE pg_catalog."default" NOT NULL,
+    product_id text COLLATE pg_catalog."default" NOT NULL,
+    base_plan_id text COLLATE pg_catalog."default",
+    external_subscription_ref text COLLATE pg_catalog."default" NOT NULL,
+    linked_external_subscription_ref text COLLATE pg_catalog."default",
+    latest_transaction_id text COLLATE pg_catalog."default",
+    store_environment text COLLATE pg_catalog."default" NOT NULL DEFAULT 'production'::text,
+    store_status text COLLATE pg_catalog."default" NOT NULL DEFAULT 'unknown'::text,
+    auto_renew_enabled boolean,
+    purchased_at timestamp with time zone,
+    expires_at timestamp with time zone,
+    last_verified_at timestamp with time zone,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT billing_subscriptions_pkey PRIMARY KEY (billing_subscription_id),
+    CONSTRAINT billing_subscriptions_provider_ref_key UNIQUE (provider, external_subscription_ref),
+    CONSTRAINT billing_subscriptions_household_fkey FOREIGN KEY (household_id)
+        REFERENCES public.households (household_id)
+        ON DELETE CASCADE,
+    CONSTRAINT billing_subscriptions_billing_owner_fkey FOREIGN KEY (billing_owner_user_id)
+        REFERENCES public.users (user_id)
+        ON DELETE SET NULL,
+    CONSTRAINT billing_subscriptions_provider_check CHECK (provider = ANY (ARRAY['apple'::text, 'google'::text])),
+    CONSTRAINT billing_subscriptions_plan_check CHECK (plan = ANY (ARRAY['standard'::text, 'family'::text])),
+    CONSTRAINT billing_subscriptions_period_check CHECK (billing_period = ANY (ARRAY['monthly'::text, 'annual'::text])),
+    CONSTRAINT billing_subscriptions_environment_check CHECK (store_environment = ANY (ARRAY['production'::text, 'sandbox'::text, 'test'::text]))
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.billing_subscriptions
+    OWNER to postgres;
+
+GRANT ALL ON TABLE public.billing_subscriptions TO postgres;
+
+GRANT INSERT, DELETE, SELECT, UPDATE ON TABLE public.billing_subscriptions TO vitals_user;
+
+CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_household
+    ON public.billing_subscriptions USING btree
+    (household_id ASC NULLS LAST, updated_at DESC NULLS FIRST)
+    TABLESPACE pg_default;
+
+CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_billing_owner
+    ON public.billing_subscriptions USING btree
+    (billing_owner_user_id ASC NULLS LAST)
+    TABLESPACE pg_default;
+
+CREATE INDEX IF NOT EXISTS idx_billing_subscriptions_product
+    ON public.billing_subscriptions USING btree
+    (provider ASC NULLS LAST, product_id ASC NULLS LAST, base_plan_id ASC NULLS LAST)
+    TABLESPACE pg_default;
+
 -- Table: public.patient_height_history
 
 -- DROP TABLE IF EXISTS public.patient_height_history;
