@@ -1278,7 +1278,7 @@ def _require_billing_claim_permission(
         )
 
     cur.execute("""
-        SELECT billing_owner_user_id, billing_provider, subscription_status
+        SELECT billing_owner_user_id, billing_provider
         FROM households
         WHERE household_id = %s
     """, (household_id,))
@@ -1286,7 +1286,7 @@ def _require_billing_claim_permission(
     if not row:
         raise HTTPException(status_code=404, detail="Household not found")
 
-    billing_owner_user_id, current_provider, subscription_status = row
+    billing_owner_user_id, current_provider = row
     if billing_owner_user_id and str(billing_owner_user_id) != str(user_id):
         raise HTTPException(
             status_code=403,
@@ -1305,7 +1305,7 @@ def _require_billing_claim_permission(
     if (
         current_provider
         and current_provider != provider
-        and subscription_status in ("active", "grace")
+        and entitlement["access_state"] in ("active", "grace")
     ):
         raise HTTPException(
             status_code=409,
@@ -13278,9 +13278,10 @@ def get_billing_catalog(
     Returns the store identifiers the signed-in mobile client should use when
     requesting localized subscription products from StoreKit / Google Play.
 
-    This endpoint deliberately exposes no price values and performs no
-    purchase mutation. Store verification and entitlement mutation are added
-    in the next 0.7.2 slice.
+    This endpoint deliberately exposes no price values. It also returns the
+    signed-in user's provider-specific account-binding token; the native
+    purchase client must attach that token so server verification can reject
+    a valid purchase that belongs to a different Vitals account.
     """
     if auth.get("type") == "api_key":
         raise HTTPException(status_code=401, detail="This requires a signed-in account")
