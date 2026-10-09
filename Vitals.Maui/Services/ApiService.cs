@@ -983,6 +983,39 @@ public class ApiService
 
 
     /// <summary>
+    /// Sends an opaque native-store purchase reference to the Vitals API.
+    /// The server, not the phone, resolves the product and entitlement.
+    /// Apple uses transactionId; Google uses purchaseToken.
+    /// </summary>
+    public async Task<BillingVerificationResult?> VerifyBillingPurchaseAsync(
+        string provider,
+        string? transactionId = null,
+        string? purchaseToken = null)
+    {
+        var payload = new
+        {
+            provider,
+            transaction_id = transactionId,
+            purchase_token = purchaseToken
+        };
+
+        var json = JsonSerializer.Serialize(payload, _jsonOptions);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var response = await _http.PostAsync("/api/billing/verify", content);
+        var raw = await response.Content.ReadAsStringAsync();
+        System.Diagnostics.Debug.WriteLine(
+            $"=== BILLING VERIFY: {response.StatusCode} {raw}");
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException(ExtractErrorDetail(raw));
+
+        return JsonSerializer.Deserialize<BillingVerificationResult>(
+            raw,
+            _jsonOptions);
+    }
+
+
+    /// <summary>
     /// Persists which patient profiles remain active when the household is
     /// above its effective plan capacity. Unselected profiles are preserved
     /// server-side and returned as entitlement-locked until capacity is
@@ -1231,6 +1264,10 @@ public class BillingCatalog
 {
     public string Provider { get; set; } = string.Empty;
     public bool Configured { get; set; }
+
+    [JsonPropertyName("account_binding_token")]
+    public string AccountBindingToken { get; set; } = string.Empty;
+
     public List<BillingCatalogProduct> Products { get; set; } = new();
 }
 
@@ -1248,6 +1285,40 @@ public class BillingCatalogProduct
     public string? BasePlanId { get; set; }
 
     public bool Configured { get; set; }
+}
+
+public class BillingVerificationResult
+{
+    public bool Verified { get; set; }
+
+    [JsonPropertyName("entitlement_changed")]
+    public bool EntitlementChanged { get; set; }
+
+    public string Provider { get; set; } = string.Empty;
+    public string Plan { get; set; } = string.Empty;
+
+    [JsonPropertyName("billing_period")]
+    public string BillingPeriod { get; set; } = string.Empty;
+
+    [JsonPropertyName("product_id")]
+    public string ProductId { get; set; } = string.Empty;
+
+    [JsonPropertyName("base_plan_id")]
+    public string? BasePlanId { get; set; }
+
+    [JsonPropertyName("store_status")]
+    public string StoreStatus { get; set; } = string.Empty;
+
+    [JsonPropertyName("auto_renew_enabled")]
+    public bool? AutoRenewEnabled { get; set; }
+
+    [JsonPropertyName("expires_at")]
+    public DateTimeOffset? ExpiresAt { get; set; }
+
+    [JsonPropertyName("billing_subscription_id")]
+    public string BillingSubscriptionId { get; set; } = string.Empty;
+
+    public HouseholdEntitlement Entitlement { get; set; } = new();
 }
 
 public class HouseholdEntitlement
