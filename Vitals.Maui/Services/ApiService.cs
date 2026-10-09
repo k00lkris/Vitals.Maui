@@ -956,6 +956,33 @@ public class ApiService
     }
 
     /// <summary>
+    /// Returns the provider-specific product identifiers configured by the
+    /// backend for StoreKit / Google Play. Localized price and currency remain
+    /// store-authoritative and are fetched by the platform billing client.
+    /// </summary>
+    public async Task<BillingCatalog?> GetBillingCatalogAsync(string provider)
+    {
+        try
+        {
+            var safeProvider = Uri.EscapeDataString(provider);
+            var response = await _http.GetAsync($"/api/billing/catalog?provider={safeProvider}");
+            var raw = await response.Content.ReadAsStringAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"=== BILLING CATALOG: {response.StatusCode} {raw}");
+
+            if (!response.IsSuccessStatusCode) return null;
+            return JsonSerializer.Deserialize<BillingCatalog>(raw, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"=== BILLING CATALOG ERROR: {ex.Message}");
+            return null;
+        }
+    }
+
+
+    /// <summary>
     /// Persists which patient profiles remain active when the household is
     /// above its effective plan capacity. Unselected profiles are preserved
     /// server-side and returned as entitlement-locked until capacity is
@@ -1198,6 +1225,29 @@ public class HouseholdStatus
     public string EffectivePlan { get; set; } = string.Empty;
     [JsonPropertyName("access_state")]
     public string AccessState { get; set; } = string.Empty;
+}
+
+public class BillingCatalog
+{
+    public string Provider { get; set; } = string.Empty;
+    public bool Configured { get; set; }
+    public List<BillingCatalogProduct> Products { get; set; } = new();
+}
+
+public class BillingCatalogProduct
+{
+    public string Plan { get; set; } = string.Empty;
+
+    [JsonPropertyName("billing_period")]
+    public string BillingPeriod { get; set; } = string.Empty;
+
+    [JsonPropertyName("product_id")]
+    public string? ProductId { get; set; }
+
+    [JsonPropertyName("base_plan_id")]
+    public string? BasePlanId { get; set; }
+
+    public bool Configured { get; set; }
 }
 
 public class HouseholdEntitlement
