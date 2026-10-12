@@ -229,6 +229,32 @@ API_KEY=your_api_key
 HOUSEHOLD_ID=your_household_uuid
 JWT_SECRET=your_jwt_secret
 RESEND_API_KEY=your_resend_api_key
+
+# Phase 7 native billing catalog
+APPLE_STANDARD_MONTHLY_PRODUCT_ID=
+APPLE_STANDARD_ANNUAL_PRODUCT_ID=
+APPLE_FAMILY_MONTHLY_PRODUCT_ID=
+APPLE_FAMILY_ANNUAL_PRODUCT_ID=
+GOOGLE_STANDARD_PRODUCT_ID=
+GOOGLE_STANDARD_MONTHLY_BASE_PLAN_ID=
+GOOGLE_STANDARD_ANNUAL_BASE_PLAN_ID=
+GOOGLE_FAMILY_PRODUCT_ID=
+GOOGLE_FAMILY_MONTHLY_BASE_PLAN_ID=
+GOOGLE_FAMILY_ANNUAL_BASE_PLAN_ID=
+
+# App Store Server API verification
+APPLE_BUNDLE_ID=com.vitalswellness.vitals
+APPLE_IAP_KEY_ID=
+APPLE_IAP_ISSUER_ID=
+# Supply either the private key value (escaped newlines supported) or a server path.
+APPLE_IAP_PRIVATE_KEY=
+APPLE_IAP_PRIVATE_KEY_PATH=
+
+# Google Play Developer API verification
+GOOGLE_PLAY_PACKAGE_NAME=com.vitalswellness.vitals
+# Supply either the service-account JSON value or a server path.
+GOOGLE_PLAY_SERVICE_ACCOUNT_JSON=
+GOOGLE_PLAY_SERVICE_ACCOUNT_PATH=
 ```
 
 ---
