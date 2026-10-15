@@ -3,6 +3,7 @@ using LiveChartsCore.SkiaSharpView.Maui;
 using Microsoft.Extensions.Logging;
 using SkiaSharp.Views.Maui.Controls.Hosting;
 using Vitals.Maui.Services;
+using Vitals.Maui.Services.Billing;
 using Vitals.Maui.ViewModels;
 using Vitals.Maui.Views;
 
@@ -50,6 +51,10 @@ public static class MauiProgram
         builder.Services.AddSingleton<UserPreferencesService>();
         builder.Services.AddSingleton<PatientStateService>();
         builder.Services.AddSingleton<EntitlementService>();
+#if ANDROID
+        builder.Services.AddSingleton<IStoreBillingService, GooglePlayBillingService>();
+        builder.Services.AddSingleton<BillingCoordinator>();
+#endif
         builder.Services.AddSingleton<AppShell>();
 
 
