@@ -1,3 +1,4 @@
+using Vitals.Maui.Services;
 using System.Diagnostics;
 
 namespace Vitals.Maui.Services.Billing;
