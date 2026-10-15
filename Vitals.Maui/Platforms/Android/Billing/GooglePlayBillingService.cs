@@ -184,6 +184,40 @@ public sealed class GooglePlayBillingService : IStoreBillingService, IDisposable
         {
             await EnsureConnectedAsync(cancellationToken);
 
+            // Google subscription replacement requires an explicit old purchase
+            // token + replacement mode. Until that plan-change slice is wired,
+            // never launch a second subscription on top of an owned/pending one.
+            // This prevents accidental double billing while new purchase,
+            // restore, and acknowledgement are being completed first.
+            var existingNativePurchases = await QueryOwnedPurchasesCoreAsync(
+                cancellationToken);
+
+            var pendingExisting = existingNativePurchases.FirstOrDefault(
+                purchase => purchase.PurchaseState == PurchaseState.Pending);
+
+            if (pendingExisting is not null)
+            {
+                return ToStorePurchaseResult(
+                    pendingExisting,
+                    pendingExisting.Products.FirstOrDefault()
+                        ?? product.ProductId,
+                    basePlanId: null);
+            }
+
+            if (existingNativePurchases.Any(
+                    purchase => purchase.PurchaseState == PurchaseState.Purchased))
+            {
+                return new StorePurchaseResult
+                {
+                    Status = StorePurchaseStatus.Failed,
+                    Provider = Provider,
+                    ProductId = product.ProductId,
+                    BasePlanId = product.BasePlanId,
+                    ErrorMessage =
+                        "An active Google Play Vitals subscription already exists. Use Restore Purchases for now; plan changes will use Google's subscription replacement flow."
+                };
+            }
+
             var key = (product.ProductId, product.BasePlanId);
             if (!_nativeProducts.TryGetValue(key, out var nativeProduct))
                 throw new InvalidOperationException(
@@ -283,19 +317,12 @@ public sealed class GooglePlayBillingService : IStoreBillingService, IDisposable
         ThrowIfDisposed();
         await EnsureConnectedAsync(cancellationToken);
 
-        var queryParams = QueryPurchasesParams.NewBuilder()
-            .SetProductType(BillingClient.ProductType.Subs)
-            .Build();
-
-        var queryResult = await _billingClient
-            .QueryPurchasesAsync(queryParams)
-            .WaitAsync(cancellationToken);
-
-        EnsureOk(queryResult.Result, "Google Play couldn't restore subscriptions");
+        var nativePurchases = await QueryOwnedPurchasesCoreAsync(
+            cancellationToken);
 
         var results = new List<StorePurchaseResult>();
 
-        foreach (var purchase in queryResult.Purchases)
+        foreach (var purchase in nativePurchases)
         {
             if (string.IsNullOrWhiteSpace(purchase.PurchaseToken))
                 continue;
@@ -453,17 +480,10 @@ public sealed class GooglePlayBillingService : IStoreBillingService, IDisposable
         if (_knownPurchases.TryGetValue(purchaseToken, out var known))
             return known;
 
-        var queryParams = QueryPurchasesParams.NewBuilder()
-            .SetProductType(BillingClient.ProductType.Subs)
-            .Build();
+        var nativePurchases = await QueryOwnedPurchasesCoreAsync(
+            cancellationToken);
 
-        var queryResult = await _billingClient
-            .QueryPurchasesAsync(queryParams)
-            .WaitAsync(cancellationToken);
-
-        EnsureOk(queryResult.Result, "Google Play couldn't reload the subscription");
-
-        foreach (var purchase in queryResult.Purchases)
+        foreach (var purchase in nativePurchases)
         {
             if (string.IsNullOrWhiteSpace(purchase.PurchaseToken))
                 continue;
@@ -474,6 +494,22 @@ public sealed class GooglePlayBillingService : IStoreBillingService, IDisposable
         return _knownPurchases.TryGetValue(purchaseToken, out var found)
             ? found
             : null;
+    }
+
+    private async Task<IReadOnlyList<Purchase>> QueryOwnedPurchasesCoreAsync(
+        CancellationToken cancellationToken)
+    {
+        var queryParams = QueryPurchasesParams.NewBuilder()
+            .SetProductType(BillingClient.ProductType.Subs)
+            .Build();
+
+        var queryResult = await _billingClient
+            .QueryPurchasesAsync(queryParams)
+            .WaitAsync(cancellationToken);
+
+        EnsureOk(queryResult.Result, "Google Play couldn't load owned subscriptions");
+
+        return queryResult.Purchases.ToList();
     }
 
     private static StorePurchaseResult ToStorePurchaseResult(
